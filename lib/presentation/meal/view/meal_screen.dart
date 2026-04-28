@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:table_calendar/table_calendar.dart';
+import '../../../common/widgets/custom_app_bar.dart';
 import '../controller/meal_controller.dart';
 
 class MealScreen extends GetView<MealController> {
@@ -11,11 +12,8 @@ class MealScreen extends GetView<MealController> {
     Get.put(MealController());
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Meal Calendar'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0,
+      appBar: const CustomAppBar(
+        title: 'Meal Calendar',
       ),
       backgroundColor: Colors.grey[50],
       body: Column(

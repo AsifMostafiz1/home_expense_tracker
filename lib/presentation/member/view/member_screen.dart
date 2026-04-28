@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../common/widgets/custom_app_bar.dart';
 import '../controller/member_controller.dart';
 
 class MemberScreen extends StatelessWidget {
@@ -11,8 +12,8 @@ class MemberScreen extends StatelessWidget {
     final controller = Get.put(MemberController());
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Registered Members'),
+      appBar: const CustomAppBar(
+        title: 'Registered Members',
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
