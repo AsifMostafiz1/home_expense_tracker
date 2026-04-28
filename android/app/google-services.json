@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "266523005752",
+    "project_id": "home-expense-tracker-54c89",
+    "storage_bucket": "home-expense-tracker-54c89.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:266523005752:android:bd6f639a7fafe29e4ba7cd",
+        "android_client_info": {
+          "package_name": "com.mostafizur.expense.tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvl33PZVTjgdgwomRs8ORP4qFXPDCrktA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
