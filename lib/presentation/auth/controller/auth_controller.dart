@@ -130,9 +130,8 @@ class AuthController extends GetxController {
 
   Future<void> signOut() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove(AppConstant.keyIsLoggedIn);
-    await prefs.remove(AppConstant.keyUserPhone);
-    await prefs.remove(AppConstant.keyUserName);
+    await prefs.clear();
+    Get.deleteAll(force: true);
     
     Get.offAll(() => const SignInScreen());
   }
