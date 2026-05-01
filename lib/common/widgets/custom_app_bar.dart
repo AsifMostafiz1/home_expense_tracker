@@ -14,6 +14,7 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final double? elevation;
   final bool? centerTitle;
   final bool showBackButton;
+  final PreferredSizeWidget? bottom;
 
   const CustomAppBar({
     super.key,
@@ -26,13 +27,14 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.elevation = 0,
     this.centerTitle,
     this.showBackButton = true,
+    this.bottom,
   });
 
   @override
   State<CustomAppBar> createState() => _CustomAppBarState();
 
   @override
-  Size get preferredSize => const Size.fromHeight(70);
+  Size get preferredSize => Size.fromHeight(70 + (bottom?.preferredSize.height ?? 0));
 }
 
 class _CustomAppBarState extends State<CustomAppBar> {
@@ -181,6 +183,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
               ),
             ),
           ],
+      bottom: widget.bottom,
     );
   }
 }

@@ -17,9 +17,29 @@ class ExpenseController extends GetxController implements GetxService {
   bool isLoading = false;
   List<ExpenseModel> expenses = [];
   Map<String, List<ExpenseModel>> groupedExpenses = {};
+  int selectedMonthIndex = 0; // 0 for current, 1 for next
 
-  double get currentMonthTotal =>
-      expenses.fold(0.0, (sum, item) => sum + item.amount);
+  DateTime get targetMonth {
+    DateTime now = DateTime.now();
+    if (selectedMonthIndex == 0) return now;
+    return DateTime(now.year, now.month + 1, 1);
+  }
+
+  String get selectedMonthName => DateFormat('MMMM, yyyy').format(targetMonth);
+
+  double get displayTotal =>
+      filteredExpenses.fold(0.0, (sum, item) => sum + item.amount);
+
+  List<ExpenseModel> get filteredExpenses {
+    DateTime target = targetMonth;
+    return expenses.where((exp) => exp.date.year == target.year && exp.date.month == target.month).toList();
+  }
+
+  void setMonthIndex(int index) {
+    selectedMonthIndex = index;
+    groupExpenses();
+    update();
+  }
 
   final amountController = TextEditingController();
   final descriptionController = TextEditingController();
@@ -68,11 +88,14 @@ class ExpenseController extends GetxController implements GetxService {
 
       List<ExpenseModel> fetchedList = await repository.fetchExpenses(userPhone);
 
-      // Filter for current month only
+      // Filter for current and next month
       DateTime now = DateTime.now();
-      fetchedList = fetchedList
-          .where((exp) => exp.date.year == now.year && exp.date.month == now.month)
-          .toList();
+      DateTime nextMonth = DateTime(now.year, now.month + 1, 1);
+      fetchedList = fetchedList.where((exp) {
+        bool isCurrent = exp.date.year == now.year && exp.date.month == now.month;
+        bool isNext = exp.date.year == nextMonth.year && exp.date.month == nextMonth.month;
+        return isCurrent || isNext;
+      }).toList();
 
       // Sort by date then time descending locally
       fetchedList.sort((a, b) {
@@ -99,7 +122,7 @@ class ExpenseController extends GetxController implements GetxService {
 
   void groupExpenses() {
     Map<String, List<ExpenseModel>> map = {};
-    for (var exp in expenses) {
+    for (var exp in filteredExpenses) {
       DateTime cleanDate = DateTime(exp.date.year, exp.date.month, exp.date.day);
       String dateStr = DateFormat('dd MMMM, yyyy').format(cleanDate);
 

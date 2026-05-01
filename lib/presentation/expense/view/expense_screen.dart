@@ -12,8 +12,23 @@ class ExpenseScreen extends GetView<ExpenseController> {
   Widget build(BuildContext context) {
     // Controller is provided via ExpenseBinding
 
-    return Scaffold(
-      appBar: const CustomAppBar(title: 'Expense'),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: CustomAppBar(
+          title: 'Expense',
+          bottom: TabBar(
+            onTap: (index) => controller.setMonthIndex(index),
+            tabs: const [
+              Tab(text: 'Current Month'),
+              Tab(text: 'Next Month'),
+            ],
+            indicatorColor: Theme.of(context).colorScheme.primary,
+            labelColor: Theme.of(context).colorScheme.primary,
+            unselectedLabelColor: Colors.grey,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -64,7 +79,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Current Month Expense',
+                        '${controller.selectedMonthName} Expense',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                               color: Colors.white70,
                               fontWeight: FontWeight.w500,
@@ -73,7 +88,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '\$${controller.currentMonthTotal.toStringAsFixed(2)}',
+                        '\$${controller.displayTotal.toStringAsFixed(2)}',
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -89,7 +104,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                         height: 200,
                         child: Center(
                           child: Text(
-                            'No expenses found for this month',
+                            'No expenses found for ${controller.selectedMonthName}',
                             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                   color: Theme.of(context).hintColor,
                                 ),
@@ -264,8 +279,9 @@ class ExpenseScreen extends GetView<ExpenseController> {
           );
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showDeleteConfirmation(BuildContext context, ExpenseModel item) {
     showDialog(
