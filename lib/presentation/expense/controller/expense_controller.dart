@@ -18,12 +18,8 @@ class ExpenseController extends GetxController implements GetxService {
   List<ExpenseModel> expenses = [];
   Map<String, List<ExpenseModel>> groupedExpenses = {};
 
-  double get currentMonthTotal {
-    DateTime now = DateTime.now();
-    return expenses
-        .where((exp) => exp.date.year == now.year && exp.date.month == now.month)
-        .fold(0.0, (sum, item) => sum + item.amount);
-  }
+  double get currentMonthTotal =>
+      expenses.fold(0.0, (sum, item) => sum + item.amount);
 
   final amountController = TextEditingController();
   final descriptionController = TextEditingController();
@@ -72,14 +68,11 @@ class ExpenseController extends GetxController implements GetxService {
 
       List<ExpenseModel> fetchedList = await repository.fetchExpenses(userPhone);
 
-      // Filter for current and next month
+      // Filter for current month only
       DateTime now = DateTime.now();
-      DateTime nextMonth = DateTime(now.year, now.month + 1, 1);
-      fetchedList = fetchedList.where((exp) {
-        bool isCurrent = exp.date.year == now.year && exp.date.month == now.month;
-        bool isNext = exp.date.year == nextMonth.year && exp.date.month == nextMonth.month;
-        return isCurrent || isNext;
-      }).toList();
+      fetchedList = fetchedList
+          .where((exp) => exp.date.year == now.year && exp.date.month == now.month)
+          .toList();
 
       // Sort by date then time descending locally
       fetchedList.sort((a, b) {
