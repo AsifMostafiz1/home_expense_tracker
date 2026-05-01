@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/auth_controller.dart';
+import '../../../common/widgets/custom_text_field.dart';
 import 'sign_up_screen.dart';
 import '../binding/auth_binding.dart';
 
@@ -28,33 +29,25 @@ class SignInScreen extends GetView<AuthController> {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 60),
-              TextFormField(
+              CustomTextField(
                 controller: controller.phoneController,
+                hintText: 'Phone Number',
+                prefixIcon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
-                style: const TextStyle(fontSize: 14),
-                decoration: const InputDecoration(
-                  hintText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone_outlined, size: 20),
-                ),
               ),
               const SizedBox(height: 20),
               GetBuilder<AuthController>(
-                builder: (controller) => TextFormField(
+                builder: (controller) => CustomTextField(
                   controller: controller.passwordController,
+                  hintText: 'Password',
+                  prefixIcon: Icons.lock_outline,
                   obscureText: !controller.isPasswordVisible,
-                  style: const TextStyle(fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        controller.isPasswordVisible
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                        size: 20,
-                      ),
-                      onPressed: controller.togglePasswordVisibility,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      controller.isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                      size: 20,
                     ),
+                    onPressed: controller.togglePasswordVisibility,
                   ),
                 ),
               ),

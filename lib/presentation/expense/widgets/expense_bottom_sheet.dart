@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../../../common/widgets/custom_text_field.dart';
 import '../controller/expense_controller.dart';
 import '../model/expense_model.dart';
 
@@ -127,46 +128,21 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                 ),
 
                 const SizedBox(height: 24),
-                TextField(
+                CustomTextField(
                   controller: controller.amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  hintText: 'Amount',
+                  errorText: controller.amountError,
+                  prefixIcon: Icons.attach_money,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                   ],
-                  decoration: InputDecoration(
-                    hintText: 'Amount',
-                    errorText: controller.amountError,
-                    prefixIcon: const Icon(Icons.attach_money),
-                    filled: true,
-                    fillColor: Theme.of(context).scaffoldBackgroundColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Theme.of(context).dividerColor),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Theme.of(context).dividerColor),
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 16),
-                TextField(
+                CustomTextField(
                   controller: controller.descriptionController,
-                  decoration: InputDecoration(
-                    hintText: 'Description (Optional)',
-                    prefixIcon: const Icon(Icons.receipt_long),
-                    filled: true,
-                    fillColor: Theme.of(context).scaffoldBackgroundColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Theme.of(context).dividerColor),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Theme.of(context).dividerColor),
-                    ),
-                  ),
+                  hintText: 'Description (Optional)',
+                  prefixIcon: Icons.receipt_long,
                 ),
                 const SizedBox(height: 32),
                 SizedBox(

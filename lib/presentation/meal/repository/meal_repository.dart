@@ -6,5 +6,5 @@ abstract class MealRepository {
   Future<void> addBulkMeal(String userName, String userPhone, DateTime date);
   Future<void> updateMeal(String userName, String userPhone, DateTime date, int count);
   Future<void> updateShoppingList(String text);
-  Future<String?> fetchShoppingList();
+  Future<Map<String, dynamic>?> fetchShoppingList();
 }

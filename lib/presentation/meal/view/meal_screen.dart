@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../../common/widgets/custom_app_bar.dart';
+import '../../../common/widgets/custom_text_field.dart';
 import '../controller/meal_controller.dart';
 
 class MealScreen extends GetView<MealController> {
@@ -98,7 +100,8 @@ class MealScreen extends GetView<MealController> {
                           color: Theme.of(context).colorScheme.primary,
                           shape: BoxShape.circle,
                         ),
-                        defaultTextStyle: Theme.of(context).textTheme.bodyMedium!,
+                        defaultTextStyle:
+                            Theme.of(context).textTheme.bodyMedium!,
                         weekendTextStyle: Theme.of(context)
                             .textTheme
                             .bodyMedium!
@@ -121,12 +124,16 @@ class MealScreen extends GetView<MealController> {
                           if (count == 0) {
                             bgColor = Colors.red.shade100;
                             textColor = Colors.red.shade800;
-                          } else if (count >= 2) {
-                            bgColor = Colors.orange.shade100;
-                            textColor = Colors.orange.shade800;
+                          } else if (count == 1) {
+                            bgColor = Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withOpacity(0.1);
+                            textColor = Theme.of(context).colorScheme.primary;
                           } else {
-                            bgColor = Colors.teal.shade100;
-                            textColor = Colors.teal.shade800;
+                            bgColor = Colors.amber.shade100;
+                            textColor =
+                                Colors.amber.shade900; // Yellowish color
                           }
 
                           return Positioned(
@@ -191,9 +198,10 @@ class MealScreen extends GetView<MealController> {
                         ],
                         Text(
                           'Monthly Summary',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                         ),
                         const SizedBox(height: 16),
                         _buildSummaryCard(
@@ -235,8 +243,7 @@ class MealScreen extends GetView<MealController> {
                               context,
                               title: entry.value['name'] ?? 'Unknown',
                               count: entry.value['count'] as int,
-                              expense:
-                                  entry.value['expense'] as double? ?? 0.0,
+                              expense: entry.value['expense'] as double? ?? 0.0,
                               rate: controller.avgMealRate,
                               color: color,
                               icon: Icons.person_outline,
@@ -356,21 +363,25 @@ class MealScreen extends GetView<MealController> {
           Text(
             '$count',
             style: TextStyle(
-                fontSize: 24, color: color.shade800, fontWeight: FontWeight.bold),
+                fontSize: 24,
+                color: color.shade800,
+                fontWeight: FontWeight.bold),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoColumn(BuildContext context, String label, String value,
-      Color color, {bool isBalance = false}) {
+  Widget _buildInfoColumn(
+      BuildContext context, String label, String value, Color color,
+      {bool isBalance = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Colors.grey.shade600,
                 fontWeight: FontWeight.w500,
               ),
         ),
@@ -378,7 +389,7 @@ class MealScreen extends GetView<MealController> {
         Text(
           value,
           style: TextStyle(
-              fontSize: isBalance ? 13 : 14,
+              fontSize: isBalance ? 15 : 16,
               color: color,
               fontWeight: FontWeight.bold),
         ),
@@ -398,81 +409,134 @@ class MealScreen extends GetView<MealController> {
   }) {
     double cost = count * rate;
     double balance = expense - cost;
-    String balanceLabel = balance >= 0 ? 'Will Get' : 'To Give';
+    String balanceLabel = balance >= 0 ? 'WILL GET' : 'TO GIVE';
     String balanceValue = '৳${balance.abs().toStringAsFixed(2)}';
-    Color balanceColor =
-        balance >= 0 ? Colors.teal.shade700 : Colors.red.shade700;
+    Color balanceColor = balance >= 0 ? Colors.teal : Colors.red;
 
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.shade100),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           )
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color.shade600, size: 28),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Subtle side accent
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(width: 6, color: color.shade400),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: color.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: color.shade600, size: 24),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Meals: $count',
-                      style: TextStyle(
-                          fontSize: 18,
-                          color: color.shade800,
-                          fontWeight: FontWeight.w600),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: -0.2,
+                                ),
+                          ),
+                          if (!isTotal)
+                            Text(
+                              'Member Stats',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Colors.grey.shade500,
+                                  ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: color.shade600,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        '$count Meals',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(height: 1),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildInfoColumn(context, 'Expense',
-                  '৳${expense.toStringAsFixed(2)}', color.shade800),
-              if (isTotal)
-                _buildInfoColumn(context, 'Avg Rate',
-                    '৳${rate.toStringAsFixed(2)}', color.shade800)
-              else ...[
-                _buildInfoColumn(context, 'Cost', '৳${cost.toStringAsFixed(2)}',
-                    color.shade800),
-                _buildInfoColumn(context, balanceLabel, balanceValue,
-                    balanceColor, isBalance: true),
-              ]
-            ],
+                const SizedBox(height: 20),
+                const Divider(height: 1),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildInfoColumn(context, 'EXPENSE',
+                        '৳${expense.toStringAsFixed(1)}', Colors.black87),
+                    if (isTotal)
+                      _buildInfoColumn(context, 'AVG RATE',
+                          '৳${rate.toStringAsFixed(2)}', color.shade700)
+                    else ...[
+                      _buildInfoColumn(context, 'COST',
+                          '৳${cost.toStringAsFixed(1)}', Colors.black87),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            balanceLabel,
+                            style: TextStyle(
+                              color: balanceColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            balanceValue,
+                            style: TextStyle(
+                              color: balanceColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -480,7 +544,8 @@ class MealScreen extends GetView<MealController> {
   }
 
   Widget _buildAnnouncement(BuildContext context) {
-    if (controller.isShoppingListDismissed || controller.shoppingListText == null) {
+    if (controller.isShoppingListDismissed ||
+        controller.shoppingListText == null) {
       return const SizedBox.shrink();
     }
 
@@ -514,13 +579,18 @@ class MealScreen extends GetView<MealController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'List of item to Buy',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                if (controller.shoppingListUpdatedAt != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      'Updated: ${DateFormat('dd MMM, hh:mm a').format(controller.shoppingListUpdatedAt!)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.amber.shade900,
                         fontWeight: FontWeight.bold,
-                        color: Colors.amber.shade800,
                       ),
-                ),
+                    ),
+                  ),
                 Text(
                   controller.shoppingListText!,
                   style: const TextStyle(
@@ -565,19 +635,10 @@ class MealScreen extends GetView<MealController> {
                   ),
             ),
             const SizedBox(height: 24),
-            TextField(
+            CustomTextField(
               controller: controller.shoppingListController,
+              hintText: 'Enter items to buy...',
               maxLines: 3,
-              decoration: InputDecoration(
-                hintText: 'Enter items to buy...',
-                filled: true,
-                fillColor: Theme.of(context).scaffoldBackgroundColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(16),
-              ),
             ),
             const SizedBox(height: 24),
             SizedBox(

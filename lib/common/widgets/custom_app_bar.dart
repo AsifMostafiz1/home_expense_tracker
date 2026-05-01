@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:demo_project/utils/app_constant.dart';
 import 'package:demo_project/presentation/auth/view/sign_in_screen.dart';
+import 'package:demo_project/presentation/auth/binding/auth_binding.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String? title;
@@ -34,7 +35,8 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   State<CustomAppBar> createState() => _CustomAppBarState();
 
   @override
-  Size get preferredSize => Size.fromHeight(70 + (bottom?.preferredSize.height ?? 0));
+  Size get preferredSize =>
+      Size.fromHeight(70 + (bottom?.preferredSize.height ?? 0));
 }
 
 class _CustomAppBarState extends State<CustomAppBar> {
@@ -71,8 +73,9 @@ class _CustomAppBarState extends State<CustomAppBar> {
   Future<void> _logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.clear(); // Clear all user data
-    Get.deleteAll(force: true); // Remove all active controllers (Meal, Dashboard, etc.)
-    Get.offAll(() => const SignInScreen());
+    Get.deleteAll(
+        force: true); // Remove all active controllers (Meal, Dashboard, etc.)
+    Get.offAll(() => const SignInScreen(), binding: AuthBinding());
   }
 
   @override
@@ -87,7 +90,8 @@ class _CustomAppBarState extends State<CustomAppBar> {
       toolbarHeight: 70,
       titleSpacing: canPop ? 0 : 16,
       leadingWidth: canPop ? 56 : 70,
-      leading: widget.leading ?? (canPop
+      leading: widget.leading ??
+          (canPop
               ? IconButton(
                   icon: const Icon(Icons.arrow_back_ios, size: 20),
                   onPressed: () => Get.back(),
@@ -97,11 +101,14 @@ class _CustomAppBarState extends State<CustomAppBar> {
                     margin: const EdgeInsets.only(left: 16),
                     child: CircleAvatar(
                       radius: 22,
-                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
                       child: Text(
-                        getAvatarText(userName.isNotEmpty ? userName : (widget.title ?? 'User')),
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
+                        getAvatarText(userName.isNotEmpty
+                            ? userName
+                            : (widget.title ?? 'User')),
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
@@ -109,7 +116,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
                     ),
                   ),
                 )),
-      title: widget.titleWidget ?? 
+      title: widget.titleWidget ??
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -127,7 +134,8 @@ class _CustomAppBarState extends State<CustomAppBar> {
                   userPhone,
                   style: TextStyle(
                     fontSize: 13,
-                    color: widget.foregroundColor?.withOpacity(0.6) ?? Colors.black54,
+                    color: widget.foregroundColor?.withOpacity(0.6) ??
+                        Colors.black54,
                     fontWeight: FontWeight.normal,
                   ),
                 ),
@@ -145,14 +153,16 @@ class _CustomAppBarState extends State<CustomAppBar> {
                     color: Colors.red.shade50,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.logout, color: Colors.red.shade400, size: 20),
+                  child:
+                      Icon(Icons.logout, color: Colors.red.shade400, size: 20),
                 ),
                 onPressed: () {
                   Get.dialog(
                     AlertDialog(
                       title: const Text('Logout'),
                       content: const Text('Are you sure you want to logout?'),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                       actions: [
                         TextButton(
                           onPressed: () => Get.back(),

@@ -154,13 +154,13 @@ class MealRepositoryImpl implements MealRepository {
   }
 
   @override
-  Future<String?> fetchShoppingList() async {
+  Future<Map<String, dynamic>?> fetchShoppingList() async {
     DocumentSnapshot doc = await FirebaseFirestore.instance
         .collection(AppConstant.collectionConfig)
         .doc('shopping_list')
         .get();
     if (doc.exists) {
-      return (doc.data() as Map<String, dynamic>)['text'] as String?;
+      return doc.data() as Map<String, dynamic>?;
     }
     return null;
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/app_constant.dart';
 import '../../../common/widgets/custom_snackbar.dart';
@@ -28,6 +30,7 @@ class MealController extends GetxController implements GetxService {
   double totalMonthlyExpense = 0.0;
   double myMonthlyExpense = 0.0;
   String? shoppingListText;
+  DateTime? shoppingListUpdatedAt;
   bool isShoppingListDismissed = false;
   final shoppingListController = TextEditingController();
 
@@ -263,7 +266,17 @@ class MealController extends GetxController implements GetxService {
     );
   }
   Future<void> fetchShoppingList() async {
-    shoppingListText = await repository.fetchShoppingList();
+    Map<String, dynamic>? data = await repository.fetchShoppingList();
+    if (data != null) {
+      shoppingListText = data['text'];
+      if (data['updatedAt'] != null) {
+        if (data['updatedAt'] is Timestamp) {
+          shoppingListUpdatedAt = (data['updatedAt'] as Timestamp).toDate();
+        } else if (data['updatedAt'] is String) {
+          shoppingListUpdatedAt = DateTime.parse(data['updatedAt']);
+        }
+      }
+    }
     update();
   }
 
@@ -286,6 +299,7 @@ class MealController extends GetxController implements GetxService {
     try {
       await repository.updateShoppingList(text);
       shoppingListText = text;
+      shoppingListUpdatedAt = DateTime.now();
       
       // Reset dismissal when new list is added
       isShoppingListDismissed = false;
