@@ -64,6 +64,13 @@ class MemberScreen extends GetView<MemberController> {
                     member.phone,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
+                  trailing: IconButton(
+                    icon: Icon(
+                      Icons.call,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    onPressed: () => controller.makeCall(member.phone),
+                  ),
                 ),
               );
             },

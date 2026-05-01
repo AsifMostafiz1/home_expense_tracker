@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter/services.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../controller/auth_controller.dart';
 
@@ -39,9 +40,14 @@ class SignUpScreen extends GetView<AuthController> {
               TextFormField(
                 controller: controller.phoneController,
                 keyboardType: TextInputType.phone,
+                maxLength: 11,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
                 style: const TextStyle(fontSize: 14),
                 decoration: const InputDecoration(
                   hintText: 'Phone Number',
+                  counterText: "",
                   prefixIcon: Icon(Icons.phone_outlined, size: 20),
                 ),
               ),

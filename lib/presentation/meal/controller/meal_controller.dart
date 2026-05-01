@@ -21,11 +21,15 @@ class MealController extends GetxController implements GetxService {
   bool isFetchingMeals = true;
   bool isFetchingStats = true;
   Map<String, int> dailyMeals = {};
+  Map<String, int> totalDailyMeals = {};
   int myMealCount = 0;
   List<Map<String, dynamic>> otherUsersMeals = [];
   int totalMealCount = 0;
   double totalMonthlyExpense = 0.0;
   double myMonthlyExpense = 0.0;
+  String? shoppingListText;
+  bool isShoppingListDismissed = false;
+  final shoppingListController = TextEditingController();
 
   double get avgMealRate {
     if (totalMealCount == 0) return 0.0;
@@ -39,13 +43,23 @@ class MealController extends GetxController implements GetxService {
   void onInit() {
     super.onInit();
     final DateTime today = DateTime.now();
-    firstDay = DateTime(today.year, today.month - 3, 1);
-    lastDay = DateTime(today.year, today.month + 1, 0);
+    firstDay = DateTime(today.year, today.month - 2, 1);
+    lastDay = DateTime(today.year, today.month + 2, 0);
     fetchMeals();
     fetchMonthlyStats();
+    fetchShoppingList();
+    _checkShoppingListStatus();
   }
 
   void onDaySelected(DateTime selected, DateTime focused) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    // Block previous days
+    if (selected.isBefore(today)) {
+      return;
+    }
+
     selectedDay = selected;
     focusedDay = focused;
     showUpdateMealBottomSheet(selected);
@@ -87,7 +101,8 @@ class MealController extends GetxController implements GetxService {
       totalMonthlyExpense = stats.totalExpense;
       myMonthlyExpense = stats.myExpense;
       otherUsersMeals = stats.otherUsersMeals;
-      dailyMeals = stats.dailyMeals;
+      dailyMeals.addAll(stats.dailyMeals);
+      totalDailyMeals.addAll(stats.totalDailyMeals);
     } catch (e) {
       print('Error fetching monthly stats: $e');
     } finally {
@@ -99,14 +114,33 @@ class MealController extends GetxController implements GetxService {
   bool get canAddBulkMeal {
     if (isFetchingMeals) return false;
     final now = DateTime.now();
-    if (focusedDay.year != now.year || focusedDay.month != now.month) return false;
-    String currentMonthPrefix = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-    return !dailyMeals.keys.any((key) => key.startsWith(currentMonthPrefix));
+    final nextMonth = DateTime(now.year, now.month + 1, 1);
+    
+    // Only allow for current and next month
+    bool isCurrentMonth = focusedDay.year == now.year && focusedDay.month == now.month;
+    bool isNextMonth = focusedDay.year == nextMonth.year && focusedDay.month == nextMonth.month;
+    
+    if (!isCurrentMonth && !isNextMonth) return false;
+
+    String monthPrefix = '${focusedDay.year}-${focusedDay.month.toString().padLeft(2, '0')}';
+    return !dailyMeals.keys.any((key) => key.startsWith(monthPrefix));
   }
 
   int getMealCount(DateTime date) {
     String dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     return dailyMeals[dateKey] ?? 0;
+  }
+
+  int getTodayTotal() {
+    final now = DateTime.now();
+    String dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return totalDailyMeals[dateKey] ?? 0;
+  }
+
+  int getTomorrowTotal() {
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    String dateKey = '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
+    return totalDailyMeals[dateKey] ?? 0;
   }
 
   int _defaultMealCountForDay(DateTime date) => date.weekday == DateTime.friday ? 2 : 1;
@@ -122,7 +156,7 @@ class MealController extends GetxController implements GetxService {
         CustomSnackbar.show(type: SnackbarType.error, message: 'User info not found.');
         return;
       }
-      await repository.addBulkMeal(userName, userPhone);
+      await repository.addBulkMeal(userName, userPhone, focusedDay);
       await fetchMeals();
       await fetchMonthlyStats();
       CustomSnackbar.show(type: SnackbarType.success, message: 'Bulk meals added!');
@@ -227,5 +261,52 @@ class MealController extends GetxController implements GetxService {
       ),
       isScrollControlled: true,
     );
+  }
+  Future<void> fetchShoppingList() async {
+    shoppingListText = await repository.fetchShoppingList();
+    update();
+  }
+
+  Future<void> _checkShoppingListStatus() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    isShoppingListDismissed = prefs.getBool(AppConstant.keyHideShoppingList) ?? false;
+    update();
+  }
+
+  Future<void> submitShoppingList() async {
+    String text = shoppingListController.text.trim();
+    if (text.isEmpty) {
+      CustomSnackbar.show(type: SnackbarType.error, message: 'Please enter items');
+      return;
+    }
+    
+    isLoading = true;
+    update();
+    
+    try {
+      await repository.updateShoppingList(text);
+      shoppingListText = text;
+      
+      // Reset dismissal when new list is added
+      isShoppingListDismissed = false;
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(AppConstant.keyHideShoppingList, false);
+      
+      shoppingListController.clear();
+      Get.back();
+      CustomSnackbar.show(type: SnackbarType.success, message: 'List updated!');
+    } catch (e) {
+      CustomSnackbar.show(type: SnackbarType.error, message: 'Failed to update list');
+    } finally {
+      isLoading = false;
+      update();
+    }
+  }
+
+  Future<void> dismissShoppingList() async {
+    isShoppingListDismissed = true;
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(AppConstant.keyHideShoppingList, true);
+    update();
   }
 }

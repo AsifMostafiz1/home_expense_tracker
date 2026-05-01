@@ -85,8 +85,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
       toolbarHeight: 70,
       titleSpacing: canPop ? 0 : 16,
       leadingWidth: canPop ? 56 : 70,
-      leading: widget.leading ??
-          (canPop
+      leading: widget.leading ?? (canPop
               ? IconButton(
                   icon: const Icon(Icons.arrow_back_ios, size: 20),
                   onPressed: () => Get.back(),

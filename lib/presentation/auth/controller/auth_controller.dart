@@ -46,6 +46,14 @@ class AuthController extends GetxController implements GetxService {
       return;
     }
 
+    final bangladeshiPhoneRegex = RegExp(r'^01[346789]\d{8}$');
+    if (!bangladeshiPhoneRegex.hasMatch(phone)) {
+      CustomSnackbar.show(
+          type: SnackbarType.error,
+          message: 'Please enter a valid 11-digit Bangladeshi phone number (e.g., 01700112233)');
+      return;
+    }
+
     try {
       isLoading = true;
       update();

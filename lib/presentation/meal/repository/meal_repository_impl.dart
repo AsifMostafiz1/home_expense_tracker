@@ -39,6 +39,7 @@ class MealRepositoryImpl implements MealRepository {
     int totalCount = 0;
     final Map<String, Map<String, dynamic>> othersMap = {};
     final Map<String, int> dailyMeals = {};
+    final Map<String, int> totalDailyMeals = {};
 
     for (var doc in mealSnap.docs) {
       var data = doc.data() as Map<String, dynamic>;
@@ -48,10 +49,15 @@ class MealRepositoryImpl implements MealRepository {
       String dateStr = data['date_time'];
       DateTime date = DateTime.parse(dateStr);
       String dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-      dailyMeals[dateKey] = count;
+      
+      // Calculate total for all users per day
+      totalDailyMeals[dateKey] = (totalDailyMeals[dateKey] ?? 0) + count;
+      
       totalCount += count;
       if (phone == userPhone) {
         myCount += count;
+        // Only current user's meals for dailyMeals (markers)
+        dailyMeals[dateKey] = count;
       } else {
         if (othersMap.containsKey(phone)) {
           othersMap[phone]!['count'] = (othersMap[phone]!['count'] as int) + count;
@@ -100,16 +106,16 @@ class MealRepositoryImpl implements MealRepository {
       myExpense: myExpense,
       otherUsersMeals: othersMap.values.toList(),
       dailyMeals: dailyMeals,
+      totalDailyMeals: totalDailyMeals,
     );
   }
 
   @override
-  Future<void> addBulkMeal(String userName, String userPhone) async {
-    DateTime now = DateTime.now();
-    int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+  Future<void> addBulkMeal(String userName, String userPhone, DateTime date) async {
+    int daysInMonth = DateTime(date.year, date.month + 1, 0).day;
     WriteBatch batch = FirebaseFirestore.instance.batch();
     for (int i = 1; i <= daysInMonth; i++) {
-      DateTime currentDate = DateTime(now.year, now.month, i);
+      DateTime currentDate = DateTime(date.year, date.month, i);
       int count = currentDate.weekday == DateTime.friday ? 2 : 1;
       String docId = '${userPhone}_${currentDate.year}-${currentDate.month.toString().padLeft(2, '0')}-${currentDate.day.toString().padLeft(2, '0')}';
       DocumentReference docRef = FirebaseFirestore.instance.collection(AppConstant.collectionMeals).doc(docId);
@@ -135,5 +141,27 @@ class MealRepositoryImpl implements MealRepository {
       'user_phone': userPhone,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+  @override
+  Future<void> updateShoppingList(String text) async {
+    await FirebaseFirestore.instance
+        .collection(AppConstant.collectionConfig)
+        .doc('shopping_list')
+        .set({
+      'text': text,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<String?> fetchShoppingList() async {
+    DocumentSnapshot doc = await FirebaseFirestore.instance
+        .collection(AppConstant.collectionConfig)
+        .doc('shopping_list')
+        .get();
+    if (doc.exists) {
+      return (doc.data() as Map<String, dynamic>)['text'] as String?;
+    }
+    return null;
   }
 }

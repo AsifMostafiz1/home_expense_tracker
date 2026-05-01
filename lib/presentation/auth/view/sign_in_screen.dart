@@ -48,7 +48,9 @@ class SignInScreen extends GetView<AuthController> {
                     prefixIcon: const Icon(Icons.lock_outline, size: 20),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        controller.isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                        controller.isPasswordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
                         size: 20,
                       ),
                       onPressed: controller.togglePasswordVisibility,
@@ -62,14 +64,14 @@ class SignInScreen extends GetView<AuthController> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: controller.isLoading
-                        ? null
-                        : () => controller.signIn(),
+                    onPressed:
+                        controller.isLoading ? null : () => controller.signIn(),
                     child: controller.isLoading
                         ? const SizedBox(
                             height: 20,
                             width: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2),
                           )
                         : const Text(
                             'Sign In',
@@ -85,7 +87,9 @@ class SignInScreen extends GetView<AuthController> {
               Center(
                 child: TextButton(
                   onPressed: () {
-                    Get.to(() => const SignUpScreen(), transition: Transition.rightToLeft, binding: AuthBinding());
+                    Get.to(() => const SignUpScreen(),
+                        transition: Transition.rightToLeft,
+                        binding: AuthBinding());
                   },
                   child: RichText(
                     text: TextSpan(

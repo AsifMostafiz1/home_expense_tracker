@@ -44,7 +44,7 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                         onTap: () async {
                           DateTime now = DateTime.now();
                           DateTime firstDate = DateTime(now.year, now.month, 1);
-                          DateTime lastDate = DateTime(now.year, now.month + 1, 0);
+                          DateTime lastDate = DateTime(now.year, now.month + 2, 0); // End of next month
 
                           DateTime initialDate = controller.selectedDate;
                           if (initialDate.isBefore(firstDate)) initialDate = firstDate;
