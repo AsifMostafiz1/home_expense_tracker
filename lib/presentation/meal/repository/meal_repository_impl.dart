@@ -170,12 +170,13 @@ class MealRepositoryImpl implements MealRepository {
     }, SetOptions(merge: true));
   }
   @override
-  Future<void> updateShoppingList(String text) async {
+  Future<void> updateShoppingList(String text, String userName) async {
     await FirebaseFirestore.instance
         .collection(AppConstant.collectionConfig)
         .doc('shopping_list')
         .set({
       'text': text,
+      'user_name': userName,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

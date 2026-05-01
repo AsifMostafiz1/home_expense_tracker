@@ -79,6 +79,7 @@ class MealScreen extends GetView<MealController> {
                       firstDay: controller.firstDay,
                       lastDay: controller.lastDay,
                       focusedDay: controller.focusedDay,
+                      availableGestures: AvailableGestures.none,
                       selectedDayPredicate: (day) =>
                           isSameDay(controller.selectedDay, day),
                       onDaySelected: controller.onDaySelected,
@@ -613,13 +614,26 @@ class MealScreen extends GetView<MealController> {
                 if (controller.shoppingListUpdatedAt != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      'Updated: ${DateFormat('dd MMM, hh:mm a').format(controller.shoppingListUpdatedAt!)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.amber.shade900,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    child: Row(
+                      children: [
+                        Text(
+                          '${controller.shoppingListUserName ?? 'Unknown'}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.amber.shade900,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          DateFormat('dd MMM, hh:mm a').format(controller.shoppingListUpdatedAt!),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.amber.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 Text(

@@ -9,7 +9,6 @@ import '../../../utils/app_enums.dart';
 import '../repository/meal_repository.dart';
 import '../model/meal_stats.dart';
 
-
 class MealController extends GetxController implements GetxService {
   // Dependencies
   final MealRepository repository;
@@ -33,6 +32,7 @@ class MealController extends GetxController implements GetxService {
   double myOtherExpense = 0.0;
   int userCount = 1;
   String? shoppingListText;
+  String? shoppingListUserName;
   DateTime? shoppingListUpdatedAt;
   bool isShoppingListDismissed = false;
   final shoppingListController = TextEditingController();
@@ -65,7 +65,7 @@ class MealController extends GetxController implements GetxService {
   void onDaySelected(DateTime selected, DateTime focused) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    
+
     // Block previous days
     if (selected.isBefore(today)) {
       return;
@@ -106,7 +106,8 @@ class MealController extends GetxController implements GetxService {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);
       if (userPhone == null) return;
-      MealStats stats = await repository.fetchMonthlyStats(userPhone, focusedDay);
+      MealStats stats =
+          await repository.fetchMonthlyStats(userPhone, focusedDay);
       myMealCount = stats.myCount;
       totalMealCount = stats.totalCount;
       totalMonthlyExpense = stats.totalExpense;
@@ -129,35 +130,42 @@ class MealController extends GetxController implements GetxService {
     if (isFetchingMeals) return false;
     final now = DateTime.now();
     final nextMonth = DateTime(now.year, now.month + 1, 1);
-    
+
     // Only allow for current and next month
-    bool isCurrentMonth = focusedDay.year == now.year && focusedDay.month == now.month;
-    bool isNextMonth = focusedDay.year == nextMonth.year && focusedDay.month == nextMonth.month;
-    
+    bool isCurrentMonth =
+        focusedDay.year == now.year && focusedDay.month == now.month;
+    bool isNextMonth = focusedDay.year == nextMonth.year &&
+        focusedDay.month == nextMonth.month;
+
     if (!isCurrentMonth && !isNextMonth) return false;
 
-    String monthPrefix = '${focusedDay.year}-${focusedDay.month.toString().padLeft(2, '0')}';
+    String monthPrefix =
+        '${focusedDay.year}-${focusedDay.month.toString().padLeft(2, '0')}';
     return !dailyMeals.keys.any((key) => key.startsWith(monthPrefix));
   }
 
   int getMealCount(DateTime date) {
-    String dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    String dateKey =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     return dailyMeals[dateKey] ?? 0;
   }
 
   int getTodayTotal() {
     final now = DateTime.now();
-    String dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    String dateKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     return totalDailyMeals[dateKey] ?? 0;
   }
 
   int getTomorrowTotal() {
     final tomorrow = DateTime.now().add(const Duration(days: 1));
-    String dateKey = '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
+    String dateKey =
+        '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
     return totalDailyMeals[dateKey] ?? 0;
   }
 
-  int _defaultMealCountForDay(DateTime date) => date.weekday == DateTime.friday ? 2 : 1;
+  int _defaultMealCountForDay(DateTime date) =>
+      date.weekday == DateTime.friday ? 2 : 1;
 
   Future<void> addBulkMeal() async {
     try {
@@ -167,15 +175,18 @@ class MealController extends GetxController implements GetxService {
       String? userName = prefs.getString(AppConstant.keyUserName);
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);
       if (userName == null || userPhone == null) {
-        CustomSnackbar.show(type: SnackbarType.error, message: 'User info not found.');
+        CustomSnackbar.show(
+            type: SnackbarType.error, message: 'User info not found.');
         return;
       }
       await repository.addBulkMeal(userName, userPhone, focusedDay);
       await fetchMeals();
       await fetchMonthlyStats();
-      CustomSnackbar.show(type: SnackbarType.success, message: 'Bulk meals added!');
+      CustomSnackbar.show(
+          type: SnackbarType.success, message: 'Bulk meals added!');
     } catch (e) {
-      CustomSnackbar.show(type: SnackbarType.error, message: 'Failed to add bulk meals.');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'Failed to add bulk meals.');
     } finally {
       isLoading = false;
       update();
@@ -191,7 +202,8 @@ class MealController extends GetxController implements GetxService {
       String? userName = prefs.getString(AppConstant.keyUserName);
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);
       if (userName == null || userPhone == null) {
-        CustomSnackbar.show(type: SnackbarType.error, message: 'User info not found.');
+        CustomSnackbar.show(
+            type: SnackbarType.error, message: 'User info not found.');
         return;
       }
       await repository.updateMeal(userName, userPhone, date, count);
@@ -199,7 +211,8 @@ class MealController extends GetxController implements GetxService {
       await fetchMonthlyStats();
       CustomSnackbar.show(type: SnackbarType.success, message: 'Meal updated!');
     } catch (e) {
-      CustomSnackbar.show(type: SnackbarType.error, message: 'Failed to update meal.');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'Failed to update meal.');
     } finally {
       isLoading = false;
       update();
@@ -207,12 +220,27 @@ class MealController extends GetxController implements GetxService {
   }
 
   void showUpdateMealBottomSheet(DateTime date) {
-    String dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    String dateKey =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     int currentCount = dailyMeals[dateKey] ?? 0;
     RxInt selectedCount = currentCount.obs;
 
-    List<String> months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    String formattedDate = '${date.day} ${months[date.month - 1]}, ${date.year}';
+    List<String> months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    String formattedDate =
+        '${date.day} ${months[date.month - 1]}, ${date.year}';
 
     Get.bottomSheet(
       Container(
@@ -224,9 +252,11 @@ class MealController extends GetxController implements GetxService {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Update Meal Count', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('Update Meal Count',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text(formattedDate, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+            Text(formattedDate,
+                style: const TextStyle(fontSize: 14, color: Colors.grey)),
             const SizedBox(height: 24),
             GridView.builder(
               shrinkWrap: true,
@@ -245,12 +275,22 @@ class MealController extends GetxController implements GetxService {
                     onTap: () => selectedCount.value = index,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey[100],
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey[100],
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.shade300),
+                        border: Border.all(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.grey.shade300),
                       ),
                       alignment: Alignment.center,
-                      child: Text('$index', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87)),
+                      child: Text('$index',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  isSelected ? Colors.white : Colors.black87)),
                     ),
                   );
                 });
@@ -265,9 +305,12 @@ class MealController extends GetxController implements GetxService {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(Get.context!).colorScheme.primary,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Submit', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text('Submit',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -276,10 +319,12 @@ class MealController extends GetxController implements GetxService {
       isScrollControlled: true,
     );
   }
+
   Future<void> fetchShoppingList() async {
     Map<String, dynamic>? data = await repository.fetchShoppingList();
     if (data != null) {
       shoppingListText = data['text'];
+      shoppingListUserName = data['user_name'];
       if (data['updatedAt'] != null) {
         if (data['updatedAt'] is Timestamp) {
           shoppingListUpdatedAt = (data['updatedAt'] as Timestamp).toDate();
@@ -293,35 +338,41 @@ class MealController extends GetxController implements GetxService {
 
   Future<void> _checkShoppingListStatus() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    isShoppingListDismissed = prefs.getBool(AppConstant.keyHideShoppingList) ?? false;
+    isShoppingListDismissed =
+        prefs.getBool(AppConstant.keyHideShoppingList) ?? false;
     update();
   }
 
   Future<void> submitShoppingList() async {
     String text = shoppingListController.text.trim();
     if (text.isEmpty) {
-      CustomSnackbar.show(type: SnackbarType.error, message: 'Please enter items');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'Please enter items');
       return;
     }
-    
+
     isLoading = true;
     update();
-    
+
     try {
-      await repository.updateShoppingList(text);
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userName = prefs.getString(AppConstant.keyUserName);
+
+      await repository.updateShoppingList(text, userName ?? 'Unknown');
       shoppingListText = text;
+      shoppingListUserName = userName;
       shoppingListUpdatedAt = DateTime.now();
-      
+
       // Reset dismissal when new list is added
       isShoppingListDismissed = false;
-      SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setBool(AppConstant.keyHideShoppingList, false);
-      
+
       shoppingListController.clear();
       Get.back();
       CustomSnackbar.show(type: SnackbarType.success, message: 'List updated!');
     } catch (e) {
-      CustomSnackbar.show(type: SnackbarType.error, message: 'Failed to update list');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'Failed to update list');
     } finally {
       isLoading = false;
       update();
