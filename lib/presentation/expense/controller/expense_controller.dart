@@ -1,69 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/app_constant.dart';
 import 'package:intl/intl.dart';
+import '../../meal/controller/meal_controller.dart';
+import '../../../common/widgets/custom_snackbar.dart';
+import '../../../utils/app_enums.dart';
+import '../model/expense_model.dart';
+import '../repository/expense_repository.dart';
 
-class ExpenseModel {
-  String id;
-  String description;
-  double amount;
-  DateTime date;
-  TimeOfDay time;
-  String userName;
-  String userPhone;
+class ExpenseController extends GetxController implements GetxService {
+  final ExpenseRepository repository;
 
-  ExpenseModel({
-    required this.id,
-    required this.description,
-    required this.amount,
-    required this.date,
-    required this.time,
-    required this.userName,
-    required this.userPhone,
-  });
+  ExpenseController({required this.repository});
 
-  factory ExpenseModel.fromMap(String id, Map<String, dynamic> map) {
-    return ExpenseModel(
-      id: id,
-      description: map['description'] ?? '',
-      amount: (map['amount'] ?? 0).toDouble(),
-      date: DateTime.parse(map['date']),
-      time: TimeOfDay(
-        hour: map['time_hour'] ?? 0, 
-        minute: map['time_minute'] ?? 0
-      ),
-      userName: map['user_name'] ?? '',
-      userPhone: map['user_phone'] ?? '',
-    );
-  }
+  bool isLoading = false;
+  List<ExpenseModel> expenses = [];
+  Map<String, List<ExpenseModel>> groupedExpenses = {};
 
-  Map<String, dynamic> toMap() {
-    return {
-      'description': description,
-      'amount': amount,
-      'date': date.toIso8601String(),
-      'time_hour': time.hour,
-      'time_minute': time.minute,
-      'user_name': userName,
-      'user_phone': userPhone,
-    };
-  }
-}
-
-class ExpenseController extends GetxController {
-  var isLoading = false.obs;
-  var expenses = <ExpenseModel>[].obs;
-  var groupedExpenses = <String, List<ExpenseModel>>{}.obs;
-
-  double get currentMonthTotal => expenses.fold(0.0, (sum, item) => sum + item.amount);
+  double get currentMonthTotal =>
+      expenses.fold(0.0, (sum, item) => sum + item.amount);
 
   final amountController = TextEditingController();
   final descriptionController = TextEditingController();
-  
-  var selectedDate = DateTime.now().obs;
-  var selectedTime = TimeOfDay.now().obs;
+  String? amountError;
+
+  DateTime selectedDate = DateTime.now();
+  TimeOfDay selectedTime = TimeOfDay.now();
 
   @override
   void onInit() {
@@ -74,88 +37,107 @@ class ExpenseController extends GetxController {
   void clearForm() {
     amountController.clear();
     descriptionController.clear();
-    selectedDate.value = DateTime.now();
-    selectedTime.value = TimeOfDay.now();
+    amountError = null;
+    selectedDate = DateTime.now();
+    selectedTime = TimeOfDay.now();
+    update();
+  }
+
+  void updateSelectedDate(DateTime date) {
+    selectedDate = date;
+    update();
+  }
+
+  void updateSelectedTime(TimeOfDay time) {
+    selectedTime = time;
+    update();
   }
 
   Future<void> fetchExpenses() async {
     try {
-      isLoading.value = true;
+      isLoading = true;
+      update();
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);
 
       if (userPhone == null) {
-        isLoading.value = false;
+        isLoading = false;
+        update();
         return;
       }
 
-      QuerySnapshot snapshot = await FirebaseFirestore.instance
-          .collection(AppConstant.collectionExpenses)
-          .where('user_phone', isEqualTo: userPhone)
-          .get();
-
-      List<ExpenseModel> fetchedList = snapshot.docs.map((doc) {
-        return ExpenseModel.fromMap(doc.id, doc.data() as Map<String, dynamic>);
-      }).toList();
+      List<ExpenseModel> fetchedList = await repository.fetchExpenses(userPhone);
 
       // Filter for current month only
       DateTime now = DateTime.now();
-      fetchedList = fetchedList.where((exp) => exp.date.year == now.year && exp.date.month == now.month).toList();
+      fetchedList = fetchedList
+          .where((exp) => exp.date.year == now.year && exp.date.month == now.month)
+          .toList();
 
       // Sort by date then time descending locally
       fetchedList.sort((a, b) {
-        // Truncate time from date for accurate comparison
         DateTime dateA = DateTime(a.date.year, a.date.month, a.date.day);
         DateTime dateB = DateTime(b.date.year, b.date.month, b.date.day);
-        
+
         int dateCmp = dateB.compareTo(dateA);
         if (dateCmp != 0) return dateCmp;
-        
+
         int timeA = a.time.hour * 60 + a.time.minute;
         int timeB = b.time.hour * 60 + b.time.minute;
         return timeB.compareTo(timeA);
       });
 
-      expenses.assignAll(fetchedList);
+      expenses = fetchedList;
       groupExpenses();
-
     } catch (e) {
       print('Error fetching expenses: $e');
     } finally {
-      isLoading.value = false;
+      isLoading = false;
+      update();
     }
   }
 
   void groupExpenses() {
     Map<String, List<ExpenseModel>> map = {};
     for (var exp in expenses) {
-      // Create a clean date representation for grouping
       DateTime cleanDate = DateTime(exp.date.year, exp.date.month, exp.date.day);
       String dateStr = DateFormat('dd MMMM, yyyy').format(cleanDate);
-      
+
       if (!map.containsKey(dateStr)) {
         map[dateStr] = [];
       }
       map[dateStr]!.add(exp);
     }
-    groupedExpenses.value = map;
+    groupedExpenses = map;
   }
 
   Future<void> submitExpense({String? expenseId}) async {
     String amountStr = amountController.text.trim();
     String desc = descriptionController.text.trim();
-    
+
+    amountError = null;
+    update();
+
     if (amountStr.isEmpty) {
-      Get.snackbar('Error', 'Please enter amount', snackPosition: SnackPosition.BOTTOM);
+      amountError = 'Please enter amount';
+      update();
       return;
     }
 
-    double amount = double.tryParse(amountStr) ?? 0.0;
+    double? parsedAmount = double.tryParse(amountStr);
+    if (parsedAmount == null || parsedAmount <= 0) {
+      amountError = 'Please enter a valid amount';
+      update();
+      return;
+    }
+
+    double amount = parsedAmount;
 
     try {
       Get.back(); // close bottom sheet
-      isLoading.value = true;
-      
+      isLoading = true;
+      update();
+
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userName = prefs.getString(AppConstant.keyUserName);
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);
@@ -165,39 +147,53 @@ class ExpenseController extends GetxController {
       Map<String, dynamic> data = {
         'description': desc.isEmpty ? 'Expense' : desc,
         'amount': amount,
-        'date': selectedDate.value.toIso8601String(),
-        'time_hour': selectedTime.value.hour,
-        'time_minute': selectedTime.value.minute,
+        'date': selectedDate.toIso8601String(),
+        'time_hour': selectedTime.hour,
+        'time_minute': selectedTime.minute,
         'user_name': userName,
         'user_phone': userPhone,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toIso8601String(), // Or use FieldValue.serverTimestamp() in repository
       };
 
       if (expenseId == null) {
-        data['createdAt'] = FieldValue.serverTimestamp();
-        await FirebaseFirestore.instance.collection(AppConstant.collectionExpenses).add(data);
+        data['createdAt'] = DateTime.now().toIso8601String();
+        await repository.addExpense(data);
       } else {
-        await FirebaseFirestore.instance.collection(AppConstant.collectionExpenses).doc(expenseId).update(data);
+        await repository.updateExpense(expenseId, data);
       }
 
       await fetchExpenses();
-      Get.snackbar('Success', expenseId == null ? 'Expense added' : 'Expense updated', snackPosition: SnackPosition.BOTTOM);
+      if (Get.isRegistered<MealController>()) {
+        Get.find<MealController>().fetchMonthlyStats();
+      }
+      CustomSnackbar.show(
+          type: SnackbarType.success,
+          message: expenseId == null ? 'Expense added' : 'Expense updated');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to save expense', snackPosition: SnackPosition.BOTTOM);
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'Failed to save expense');
     } finally {
-      isLoading.value = false;
+      isLoading = false;
+      update();
     }
   }
 
   Future<void> deleteExpense(String id) async {
     try {
-      isLoading.value = true;
-      await FirebaseFirestore.instance.collection(AppConstant.collectionExpenses).doc(id).delete();
+      isLoading = true;
+      update();
+      await repository.deleteExpense(id);
       await fetchExpenses();
-      Get.snackbar('Success', 'Expense deleted', snackPosition: SnackPosition.BOTTOM);
+      if (Get.isRegistered<MealController>()) {
+        Get.find<MealController>().fetchMonthlyStats();
+      }
+      CustomSnackbar.show(type: SnackbarType.success, message: 'Expense deleted');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to delete expense', snackPosition: SnackPosition.BOTTOM);
-      isLoading.value = false;
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'Failed to delete expense');
+      isLoading = false;
+      update();
     }
   }
 }
+

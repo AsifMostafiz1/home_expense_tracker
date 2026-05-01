@@ -1,12 +1,15 @@
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../utils/app_constant.dart';
 import '../model/member_model.dart';
+import '../repository/member_repository.dart';
 
-class MemberController extends GetxController {
-  final RxList<MemberModel> members = <MemberModel>[].obs;
-  final RxBool isLoading = true.obs;
-  final RxString errorMessage = ''.obs;
+class MemberController extends GetxController implements GetxService {
+  final MemberRepository repository;
+
+  MemberController({required this.repository});
+
+  List<MemberModel> members = [];
+  bool isLoading = true;
+  String errorMessage = '';
 
   @override
   void onInit() {
@@ -15,21 +18,19 @@ class MemberController extends GetxController {
   }
 
   void fetchMembers() {
-    FirebaseFirestore.instance
-        .collection(AppConstant.collectionUsers)
-        .snapshots()
-        .listen(
-      (snapshot) {
-        isLoading.value = false;
-        errorMessage.value = '';
-        members.value = snapshot.docs.map((doc) {
-          return MemberModel.fromMap(doc.data() as Map<String, dynamic>);
-        }).toList();
+    repository.getMembersStream().listen(
+      (membersList) {
+        isLoading = false;
+        errorMessage = '';
+        members = membersList;
+        update();
       },
       onError: (error) {
-        isLoading.value = false;
-        errorMessage.value = error.toString();
+        isLoading = false;
+        errorMessage = error.toString();
+        update();
       },
     );
   }
 }
+

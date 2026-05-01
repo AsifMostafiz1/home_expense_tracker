@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:demo_project/presentation/auth/view/sign_in_screen.dart';
 import 'package:demo_project/presentation/dashboard/view/dashboard_screen.dart';
 import 'package:demo_project/utils/app_constant.dart';
+import 'package:demo_project/utils/app_theme.dart';
+import 'package:demo_project/common/binding/initial_binding.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,12 +32,12 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'Home Expense Tracker',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-        useMaterial3: true,
-        fontFamily: 'Roboto', // Default fallback font
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
+      initialBinding: InitialBinding(),
       home: isLoggedIn ? const DashboardScreen() : const SignInScreen(),
     );
   }
 }
+

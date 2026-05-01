@@ -3,49 +3,74 @@ import 'package:get/get.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../controller/member_controller.dart';
 
-class MemberScreen extends StatelessWidget {
+class MemberScreen extends GetView<MemberController> {
   const MemberScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Inject the controller here since we are not using GetX routing (GetPage) yet.
-    final controller = Get.put(MemberController());
+    // Controller is provided via MemberBinding
 
     return Scaffold(
       appBar: const CustomAppBar(
         title: 'Registered Members',
       ),
-      body: Obx(() {
-        if (controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator());
-        }
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: GetBuilder<MemberController>(
+        builder: (controller) {
+          if (controller.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        if (controller.errorMessage.value.isNotEmpty) {
-          return Center(child: Text('Error: ${controller.errorMessage.value}'));
-        }
-
-        if (controller.members.isEmpty) {
-          return const Center(child: Text('No members found.'));
-        }
-
-        return ListView.builder(
-          itemCount: controller.members.length,
-          itemBuilder: (context, index) {
-            final member = controller.members[index];
-            
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: ListTile(
-                leading: const CircleAvatar(
-                  child: Icon(Icons.person),
-                ),
-                title: Text(member.name),
-                subtitle: Text(member.phone),
+          if (controller.errorMessage.isNotEmpty) {
+            return Center(
+              child: Text(
+                'Error: ${controller.errorMessage}',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             );
-          },
-        );
-      }),
+          }
+
+          if (controller.members.isEmpty) {
+            return const Center(child: Text('No members found.'));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: controller.members.length,
+            itemBuilder: (context, index) {
+              final member = controller.members[index];
+
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.person,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  title: Text(
+                    member.name,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  subtitle: Text(
+                    member.phone,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
+
