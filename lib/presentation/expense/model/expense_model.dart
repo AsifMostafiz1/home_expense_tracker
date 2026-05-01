@@ -8,6 +8,7 @@ class ExpenseModel {
   TimeOfDay time;
   String userName;
   String userPhone;
+  String type; // 'expense' or 'others'
 
   ExpenseModel({
     required this.id,
@@ -17,6 +18,7 @@ class ExpenseModel {
     required this.time,
     required this.userName,
     required this.userPhone,
+    required this.type,
   });
 
   factory ExpenseModel.fromMap(String id, Map<String, dynamic> map) {
@@ -31,6 +33,7 @@ class ExpenseModel {
       ),
       userName: map['user_name'] ?? '',
       userPhone: map['user_phone'] ?? '',
+      type: map['type'] ?? 'expense',
     );
   }
 
@@ -43,6 +46,7 @@ class ExpenseModel {
       'time_minute': time.minute,
       'user_name': userName,
       'user_phone': userPhone,
+      'type': type,
     };
   }
 }

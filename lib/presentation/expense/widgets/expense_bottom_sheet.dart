@@ -128,6 +128,69 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                 ),
 
                 const SizedBox(height: 24),
+                const Text('Expense Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => controller.setExpenseType('expense'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: controller.selectedType == 'expense' 
+                                ? Theme.of(context).colorScheme.primary 
+                                : Theme.of(context).scaffoldBackgroundColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: controller.selectedType == 'expense' 
+                                  ? Theme.of(context).colorScheme.primary 
+                                  : Colors.grey.shade300
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Expense',
+                            style: TextStyle(
+                              color: controller.selectedType == 'expense' ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.bold
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => controller.setExpenseType('others'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: controller.selectedType == 'others' 
+                                ? Theme.of(context).colorScheme.primary 
+                                : Theme.of(context).scaffoldBackgroundColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: controller.selectedType == 'others' 
+                                  ? Theme.of(context).colorScheme.primary 
+                                  : Colors.grey.shade300
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Others',
+                            style: TextStyle(
+                              color: controller.selectedType == 'others' ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.bold
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
                 CustomTextField(
                   controller: controller.amountController,
                   hintText: 'Amount',

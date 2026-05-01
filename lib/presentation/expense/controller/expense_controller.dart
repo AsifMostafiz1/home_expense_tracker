@@ -18,6 +18,7 @@ class ExpenseController extends GetxController implements GetxService {
   List<ExpenseModel> expenses = [];
   Map<String, List<ExpenseModel>> groupedExpenses = {};
   int selectedMonthIndex = 0; // 0 for current, 1 for next
+  String selectedType = 'expense'; // 'expense' or 'others'
 
   DateTime get targetMonth {
     DateTime now = DateTime.now();
@@ -30,6 +31,12 @@ class ExpenseController extends GetxController implements GetxService {
   double get displayTotal =>
       filteredExpenses.fold(0.0, (sum, item) => sum + item.amount);
 
+  double get mealTotal =>
+      filteredExpenses.where((exp) => exp.type == 'expense').fold(0.0, (sum, item) => sum + item.amount);
+
+  double get othersTotal =>
+      filteredExpenses.where((exp) => exp.type == 'others').fold(0.0, (sum, item) => sum + item.amount);
+
   List<ExpenseModel> get filteredExpenses {
     DateTime target = targetMonth;
     return expenses.where((exp) => exp.date.year == target.year && exp.date.month == target.month).toList();
@@ -38,6 +45,11 @@ class ExpenseController extends GetxController implements GetxService {
   void setMonthIndex(int index) {
     selectedMonthIndex = index;
     groupExpenses();
+    update();
+  }
+
+  void setExpenseType(String type) {
+    selectedType = type;
     update();
   }
 
@@ -60,6 +72,7 @@ class ExpenseController extends GetxController implements GetxService {
     amountError = null;
     selectedDate = DateTime.now();
     selectedTime = TimeOfDay.now();
+    selectedType = 'expense';
     update();
   }
 
@@ -175,6 +188,7 @@ class ExpenseController extends GetxController implements GetxService {
         'time_minute': selectedTime.minute,
         'user_name': userName,
         'user_phone': userPhone,
+        'type': selectedType,
         'updatedAt': DateTime.now().toIso8601String(), // Or use FieldValue.serverTimestamp() in repository
       };
 

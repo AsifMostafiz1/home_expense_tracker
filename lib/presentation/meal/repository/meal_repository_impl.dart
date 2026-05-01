@@ -67,6 +67,12 @@ class MealRepositoryImpl implements MealRepository {
       }
     }
 
+    // User Count
+    QuerySnapshot usersSnap = await FirebaseFirestore.instance
+        .collection(AppConstant.collectionUsers)
+        .get();
+    int userCount = usersSnap.docs.length;
+
     // Expenses
     QuerySnapshot expenseSnap = await FirebaseFirestore.instance
         .collection(AppConstant.collectionExpenses)
@@ -76,27 +82,45 @@ class MealRepositoryImpl implements MealRepository {
 
     double totalExpense = 0;
     double myExpense = 0;
+    double totalOtherExpense = 0;
+    double myOtherExpense = 0;
 
     for (var doc in expenseSnap.docs) {
       var data = doc.data() as Map<String, dynamic>;
       double amount = (data['amount'] ?? 0).toDouble();
       String phone = data['user_phone'] ?? '';
       String name = data['user_name'] ?? 'Unknown';
-      totalExpense += amount;
-      if (phone == userPhone) {
-        myExpense += amount;
-      } else {
-        if (!othersMap.containsKey(phone)) {
-          othersMap[phone] = {'name': name, 'count': 0, 'phone': phone, 'expense': amount};
+      String type = data['type'] ?? 'expense';
+
+      if (type == 'expense') {
+        totalExpense += amount;
+        if (phone == userPhone) {
+          myExpense += amount;
         } else {
-          othersMap[phone]!['expense'] = (othersMap[phone]!['expense'] as double? ?? 0) + amount;
+          if (!othersMap.containsKey(phone)) {
+            othersMap[phone] = {'name': name, 'count': 0, 'phone': phone, 'expense': amount, 'other_expense': 0.0};
+          } else {
+            othersMap[phone]!['expense'] = (othersMap[phone]!['expense'] as double? ?? 0) + amount;
+          }
+        }
+      } else {
+        totalOtherExpense += amount;
+        if (phone == userPhone) {
+          myOtherExpense += amount;
+        } else {
+          if (!othersMap.containsKey(phone)) {
+            othersMap[phone] = {'name': name, 'count': 0, 'phone': phone, 'expense': 0.0, 'other_expense': amount};
+          } else {
+            othersMap[phone]!['other_expense'] = (othersMap[phone]!['other_expense'] as double? ?? 0) + amount;
+          }
         }
       }
     }
 
-    // Ensure expense field exists for all others
+    // Ensure fields exist for all others
     for (var key in othersMap.keys) {
       othersMap[key]!.putIfAbsent('expense', () => 0.0);
+      othersMap[key]!.putIfAbsent('other_expense', () => 0.0);
     }
 
     return MealStats(
@@ -104,6 +128,9 @@ class MealRepositoryImpl implements MealRepository {
       totalCount: totalCount,
       totalExpense: totalExpense,
       myExpense: myExpense,
+      totalOtherExpense: totalOtherExpense,
+      myOtherExpense: myOtherExpense,
+      userCount: userCount,
       otherUsersMeals: othersMap.values.toList(),
       dailyMeals: dailyMeals,
       totalDailyMeals: totalDailyMeals,

@@ -209,7 +209,9 @@ class MealScreen extends GetView<MealController> {
                           title: 'Total Monthly Stats',
                           count: controller.totalMealCount,
                           expense: controller.totalMonthlyExpense,
+                          otherExpense: controller.totalOtherExpense,
                           rate: controller.avgMealRate,
+                          otherRate: controller.totalOtherExpense, // For total card, we show the total other expense as the rate placeholder or similar
                           color: Colors.indigo,
                           icon: Icons.restaurant,
                           isTotal: true,
@@ -220,7 +222,9 @@ class MealScreen extends GetView<MealController> {
                           title: 'My Meals',
                           count: controller.myMealCount,
                           expense: controller.myMonthlyExpense,
+                          otherExpense: controller.myOtherExpense,
                           rate: controller.avgMealRate,
+                          otherRate: controller.otherCostPerPerson,
                           color: Colors.teal,
                           icon: Icons.person,
                         ),
@@ -244,7 +248,9 @@ class MealScreen extends GetView<MealController> {
                               title: entry.value['name'] ?? 'Unknown',
                               count: entry.value['count'] as int,
                               expense: entry.value['expense'] as double? ?? 0.0,
+                              otherExpense: entry.value['other_expense'] as double? ?? 0.0,
                               rate: controller.avgMealRate,
+                              otherRate: controller.otherCostPerPerson,
                               color: color,
                               icon: Icons.person_outline,
                             ),
@@ -402,13 +408,18 @@ class MealScreen extends GetView<MealController> {
     required String title,
     required int count,
     required double expense,
+    double otherExpense = 0.0,
     required double rate,
+    required double otherRate,
     required MaterialColor color,
     required IconData icon,
     bool isTotal = false,
   }) {
-    double cost = count * rate;
-    double balance = expense - cost;
+    double mealCost = count * rate;
+    double totalCost = mealCost + otherRate;
+    double totalPaid = expense + otherExpense;
+    double balance = totalPaid - totalCost;
+    
     String balanceLabel = balance >= 0 ? 'WILL GET' : 'TO GIVE';
     String balanceValue = '৳${balance.abs().toStringAsFixed(2)}';
     Color balanceColor = balance >= 0 ? Colors.teal : Colors.red;
@@ -428,7 +439,6 @@ class MealScreen extends GetView<MealController> {
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          // Subtle side accent
           Positioned(
             left: 0,
             top: 0,
@@ -498,17 +508,38 @@ class MealScreen extends GetView<MealController> {
                 const SizedBox(height: 20),
                 const Divider(height: 1),
                 const SizedBox(height: 20),
+                
+                // Expenses row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildInfoColumn(context, 'EXPENSE',
+                    _buildInfoColumn(context, 'MEAL PAID',
                         '৳${expense.toStringAsFixed(1)}', Colors.black87),
+                    _buildInfoColumn(context, 'OTHER PAID',
+                        '৳${otherExpense.toStringAsFixed(1)}', Colors.black87),
                     if (isTotal)
-                      _buildInfoColumn(context, 'AVG RATE',
+                      _buildInfoColumn(context, 'MEAL RATE',
                           '৳${rate.toStringAsFixed(2)}', color.shade700)
-                    else ...[
-                      _buildInfoColumn(context, 'COST',
-                          '৳${cost.toStringAsFixed(1)}', Colors.black87),
+                    else
+                      _buildInfoColumn(context, 'MEAL COST',
+                          '৳${mealCost.toStringAsFixed(1)}', Colors.black87),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Costs row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (isTotal) ...[
+                       _buildInfoColumn(context, 'OTHER RATE',
+                          '৳${otherRate.toStringAsFixed(2)}', color.shade700),
+                       const SizedBox(width: 20),
+                       _buildInfoColumn(context, 'TOTAL USERS',
+                          '${controller.userCount}', Colors.black87),
+                    ] else ...[
+                      _buildInfoColumn(context, 'OTHER COST',
+                          '৳${otherRate.toStringAsFixed(1)}', Colors.black87),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [

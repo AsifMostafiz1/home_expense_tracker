@@ -87,12 +87,35 @@ class ExpenseScreen extends GetView<ExpenseController> {
                             ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '\$${controller.displayTotal.toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '৳${controller.displayTotal.toStringAsFixed(1)}',
+                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                              const Text(
+                                'Total Paid',
+                                style: TextStyle(color: Colors.white70, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              _buildCardStat(context, 'Meal', controller.mealTotal),
+                              const SizedBox(height: 4),
+                              _buildCardStat(context, 'Others', controller.othersTotal),
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -213,11 +236,31 @@ class ExpenseScreen extends GetView<ExpenseController> {
                                                     fontWeight: FontWeight.w500,
                                                   ),
                                             ),
-                                            subtitle: Text(
-                                              formattedTime,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall,
+                                            subtitle: Row(
+                                              children: [
+                                                Text(
+                                                  formattedTime,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: item.type == 'expense' ? Colors.blue.shade50 : Colors.orange.shade50,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Text(
+                                                    item.type.toUpperCase(),
+                                                    style: TextStyle(
+                                                      fontSize: 8,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: item.type == 'expense' ? Colors.blue.shade700 : Colors.orange.shade700,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                             trailing: Row(
                                               mainAxisSize: MainAxisSize.min,
@@ -283,6 +326,26 @@ class ExpenseScreen extends GetView<ExpenseController> {
   );
 }
 
+  Widget _buildCardStat(BuildContext context, String label, double amount) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$label: ',
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        Text(
+          '৳${amount.toStringAsFixed(1)}',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showDeleteConfirmation(BuildContext context, ExpenseModel item) {
     showDialog(
       context: context,
@@ -312,7 +375,8 @@ class ExpenseScreen extends GetView<ExpenseController> {
       controller.descriptionController.text = item.description;
       controller.selectedDate = item.date;
       controller.selectedTime = item.time;
-      controller.update(); // Manual update to reflect date/time change in UI
+      controller.selectedType = item.type;
+      controller.update(); // Manual update to reflect changes in UI
     } else {
       controller.clearForm();
     }

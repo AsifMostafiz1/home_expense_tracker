@@ -29,6 +29,9 @@ class MealController extends GetxController implements GetxService {
   int totalMealCount = 0;
   double totalMonthlyExpense = 0.0;
   double myMonthlyExpense = 0.0;
+  double totalOtherExpense = 0.0;
+  double myOtherExpense = 0.0;
+  int userCount = 1;
   String? shoppingListText;
   DateTime? shoppingListUpdatedAt;
   bool isShoppingListDismissed = false;
@@ -37,6 +40,11 @@ class MealController extends GetxController implements GetxService {
   double get avgMealRate {
     if (totalMealCount == 0) return 0.0;
     return totalMonthlyExpense / totalMealCount;
+  }
+
+  double get otherCostPerPerson {
+    if (userCount == 0) return 0.0;
+    return totalOtherExpense / userCount;
   }
 
   late final DateTime firstDay;
@@ -103,6 +111,9 @@ class MealController extends GetxController implements GetxService {
       totalMealCount = stats.totalCount;
       totalMonthlyExpense = stats.totalExpense;
       myMonthlyExpense = stats.myExpense;
+      totalOtherExpense = stats.totalOtherExpense;
+      myOtherExpense = stats.myOtherExpense;
+      userCount = stats.userCount;
       otherUsersMeals = stats.otherUsersMeals;
       dailyMeals.addAll(stats.dailyMeals);
       totalDailyMeals.addAll(stats.totalDailyMeals);
