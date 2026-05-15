@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
 import '../../../common/widgets/custom_button.dart';
+import '../../../common/widgets/custom_text_field.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
 
@@ -119,7 +120,5 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         );
       },
     );
-  }
-
   }
 }
