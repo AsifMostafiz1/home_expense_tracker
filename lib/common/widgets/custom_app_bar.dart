@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter/services.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String? title;
@@ -34,16 +35,17 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     bool canPop = showBackButton && Navigator.canPop(context);
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
     
     final effectiveBgColor = backgroundColor ?? Theme.of(context).cardColor;
-    final effectiveFgColor = foregroundColor ?? Theme.of(context).textTheme.titleLarge?.color ?? Colors.black87;
+    final effectiveFgColor = foregroundColor ?? Theme.of(context).textTheme.titleLarge?.color ?? (isDark ? Colors.white : Colors.black87);
 
     return Container(
       decoration: BoxDecoration(
         color: effectiveBgColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.08),
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.08),
             blurRadius: 20,
             offset: const Offset(0, 5),
           ),
@@ -54,6 +56,11 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         foregroundColor: effectiveFgColor,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        ),
         centerTitle: centerTitle,
         toolbarHeight: kToolbarHeight,
         titleSpacing: canPop ? 0 : 16,
@@ -68,9 +75,11 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         title: titleWidget ??
             Text(
               title ?? '',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: effectiveFgColor,
+                letterSpacing: -0.5,
               ),
             ),
         actions: actions ?? [const SizedBox(width: 16)], // Empty spacing if no actions
