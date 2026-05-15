@@ -82,11 +82,19 @@ class ChatController extends GetxController implements GetxService {
 
     if (atIndex != -1) {
       String query = text.substring(atIndex + 1, cursorPosition).toLowerCase();
-      filteredMentionUsers = allUsers.where((user) {
+      
+      // Filter real users
+      List<Map<String, dynamic>> users = allUsers.where((user) {
         String name = (user['name'] ?? '').toString().toLowerCase();
         return name.contains(query);
       }).toList();
-      
+
+      // Add 'everyone' option if it matches query or query is small
+      if ('everyone'.contains(query) || query.isEmpty) {
+        users.insert(0, {'name': 'everyone', 'phone': 'all'});
+      }
+
+      filteredMentionUsers = users;
       _currentMentionStartIndex = atIndex;
       if (!isMentioning) {
         isMentioning = true;
@@ -234,8 +242,36 @@ class ChatController extends GetxController implements GetxService {
 
     try {
       await repository.sendMessage(text, userName, userPhone, senderImage: userProfileImage, replyTo: replyTo);
-      // Send FCM Notification to all other users
-      _sendPushNotification(text, userName, replyTo: replyTo);
+      
+      // Determine notification targets
+      final RegExp mentionRegExp = RegExp(r'@(\w+)');
+      final Iterable<RegExpMatch> matches = mentionRegExp.allMatches(text);
+      final List<String> mentionList = matches.map((m) => m.group(1) ?? '').toList();
+      final bool hasEveryone = mentionList.contains('everyone');
+      
+      List<String>? targetPhones;
+      if (mentionList.isNotEmpty && !hasEveryone) {
+        // Targeted mentions
+        targetPhones = [];
+        for (final mention in mentionList) {
+          final user = allUsers.firstWhereOrNull((u) => (u['name'] ?? '').toString().replaceAll(' ', '') == mention);
+          if (user != null && user['phone'] != null) {
+            targetPhones.add(user['phone']);
+          }
+        }
+        // Also notify the person being replied to
+        if (replyTo != null && !targetPhones.contains(replyTo.senderPhone)) {
+          targetPhones.add(replyTo.senderPhone);
+        }
+      } else if (replyTo != null) {
+        // No mentions but it's a reply
+        targetPhones = [replyTo.senderPhone];
+      }
+
+      // If mentions is empty AND replyTo is null, targetPhones stays null (sends to group_chat)
+      // If mentions has everyone, targetPhones stays null (sends to group_chat)
+
+      _sendPushNotification(text, userName, replyTo: replyTo, targetPhones: targetPhones);
     } catch (e) {
       print('Error sending message: $e');
       Get.snackbar(
@@ -248,60 +284,83 @@ class ChatController extends GetxController implements GetxService {
     }
   }
 
-  Future<void> reactToMessage(String messageId, String emoji) async {
+  Future<void> reactToMessage(ChatMessageModel message, String emoji) async {
     try {
-      await repository.toggleReaction(messageId, userPhone, emoji);
+      await repository.toggleReaction(message.id, userPhone, emoji);
+      
+      // Notify the message sender about the reaction
+      if (message.senderPhone != userPhone) {
+        _sendPushNotification(
+          '$userName reacted $emoji to your message', 
+          userName, 
+          targetPhones: [message.senderPhone],
+          isReaction: true,
+        );
+      }
     } catch (e) {
       print('Error reacting to message: $e');
     }
   }
 
-  Future<void> _sendPushNotification(String text, String senderName, {ChatMessageModel? replyTo}) async {
+  Future<void> _sendPushNotification(String text, String senderName, {ChatMessageModel? replyTo, List<String>? targetPhones, bool isReaction = false}) async {
     try {
       final String accessToken = await FcmV1Service().getAccessToken();
-      if (accessToken.isEmpty) {
-        print('Failed to get access token');
-        return;
-      }
+      if (accessToken.isEmpty) return;
 
       final RegExp mentionRegExp = RegExp(r'@(\w+)');
       final Iterable<RegExpMatch> matches = mentionRegExp.allMatches(text);
-      final String mentions = matches.map((m) => m.group(1) ?? '').join(',');
+      final List<String> mentionList = matches.map((m) => m.group(1) ?? '').toList();
+      final bool hasEveryone = mentionList.contains('everyone');
+      final String mentions = mentionList.join(',');
 
-      final String projectId = 'home-expense-tracker-54c89'; // from your service_account.json
+      final String projectId = 'home-expense-tracker-54c89'; 
       final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
       
       final headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
       };
-      
-      final body = {
-        'message': {
-          'topic': 'group_chat',
-          // Removed 'notification' to make it a data-only message.
-          // This allows the app to intercept it in the background and decide whether to show it.
-          'data': {
-            'title': 'New message from $senderName',
-            'body': text,
-            'senderName': senderName,
-            'senderPhone': userPhone,
-            'replyToSenderName': replyTo?.senderName ?? '',
-            'mentions': mentions,
-            'type': 'chat_message',
-            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-          },
-        }
-      };
 
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: jsonEncode(body),
-      );
+      String notificationTitle = 'New message from $senderName';
+      if (isReaction) {
+        notificationTitle = 'Reaction from $senderName';
+      } else if (hasEveryone) {
+        notificationTitle = '📢 @everyone: New message from $senderName';
+      } else if (mentionList.isNotEmpty) {
+        notificationTitle = '👋 You were mentioned by $senderName';
+      } else if (replyTo != null) {
+        notificationTitle = '💬 $senderName replied to you';
+      }
+
+      final List<String> topics = [];
+      if (targetPhones != null && targetPhones.isNotEmpty) {
+        for (final phone in targetPhones) {
+          String safePhone = phone.replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '');
+          topics.add('user_$safePhone');
+        }
+      } else {
+        topics.add('group_chat');
+      }
       
-      if (response.statusCode != 200) {
-        print('FCM Send Error: ${response.body}');
+      for (final topic in topics) {
+        final body = {
+          'message': {
+            'topic': topic,
+            'data': {
+              'title': notificationTitle,
+              'body': text,
+              'senderName': senderName,
+              'senderPhone': userPhone,
+              'replyToSenderName': replyTo?.senderName ?? '',
+              'mentions': mentions,
+              'isEveryone': hasEveryone.toString(),
+              'type': 'chat_message',
+              'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+            },
+          }
+        };
+
+        await http.post(url, headers: headers, body: jsonEncode(body));
       }
     } catch (e) {
       print('Error sending push notification: $e');

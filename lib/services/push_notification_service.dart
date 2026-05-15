@@ -149,6 +149,15 @@ class PushNotificationService {
     // Subscribe to group chat topic
     await _fcm.subscribeToTopic('group_chat');
 
+    // Subscribe to personal topic based on phone number
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
+    if (userPhone.isNotEmpty) {
+      String safePhone = userPhone.replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '');
+      await _fcm.subscribeToTopic('user_$safePhone');
+      print('Subscribed to personal topic: user_$safePhone');
+    }
+
     _isInitialized = true;
   }
 

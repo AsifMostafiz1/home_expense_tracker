@@ -190,6 +190,103 @@ class ChatScreen extends GetView<ChatController> {
     );
   }
 
+  Widget _buildReplyPreview(BuildContext context) {
+    final message = controller.replyingToMessage!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.reply_rounded, color: Theme.of(context).colorScheme.primary, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'replying_to'.trParams({'name': message.senderName}),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    color: Theme.of(context).colorScheme.primary, 
+                    fontSize: 13
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7), fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 20),
+            onPressed: controller.cancelReply,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            color: Colors.grey.shade600,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMentionSuggestionBox(BuildContext context) {
+    if (controller.filteredMentionUsers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 150),
+      margin: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: controller.filteredMentionUsers.length,
+        itemBuilder: (context, index) {
+          final user = controller.filteredMentionUsers[index];
+          final name = user['name'] ?? 'unknown'.tr;
+          
+          return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            leading: CircleAvatar(
+              radius: 14,
+              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            title: Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+            onTap: () => controller.insertMention(name),
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _MessageBubble extends StatelessWidget {
@@ -289,56 +386,74 @@ class _MessageBubble extends StatelessWidget {
                   const SizedBox(width: 32),
 
                 Flexible(
-                  child: Column(
-                    crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                    children: [
-                      CompositedTransformTarget(
-                        link: _layerLink,
-                        child: GestureDetector(
-                          onLongPress: () {
-                            HapticFeedback.mediumImpact();
-                            _showReactionPicker(context, controller, message, _layerLink, isMe);
-                          },
-                          onTap: () => controller.toggleTimeDisplay(message.id),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: isMe 
-                                  ? Theme.of(context).colorScheme.primary 
-                                  : (Theme.of(context).brightness == Brightness.dark 
-                                      ? Theme.of(context).cardColor 
-                                      : Colors.black.withOpacity(0.05)),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(!isMe ? (isFirstInGroup ? 20 : 4) : 20),
-                                topRight: Radius.circular(isMe ? (isFirstInGroup ? 20 : 4) : 20),
-                                bottomLeft: Radius.circular(!isMe ? (isLastInGroup ? 20 : 4) : 20),
-                                bottomRight: Radius.circular(isMe ? (isLastInGroup ? 20 : 4) : 20),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (message.replyToText != null)
-                                  _buildReplyContent(context),
-                                RichText(
-                                  text: TextSpan(
-                                    children: _parseMentionText(message.text, context, isMe),
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      height: 1.3,
-                                      color: isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: isMe ? 50 : 0,
+                      right: !isMe ? 50 : 0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            CompositedTransformTarget(
+                              link: _layerLink,
+                              child: GestureDetector(
+                                onLongPress: () {
+                                  HapticFeedback.mediumImpact();
+                                  _showReactionPicker(context, controller, message, _layerLink, isMe);
+                                },
+                                onTap: () => controller.toggleTimeDisplay(message.id),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: isMe 
+                                        ? Theme.of(context).colorScheme.primary 
+                                        : (Theme.of(context).brightness == Brightness.dark 
+                                            ? Theme.of(context).cardColor 
+                                            : Colors.black.withOpacity(0.05)),
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: Radius.circular(!isMe ? (isFirstInGroup ? 20 : 4) : 20),
+                                      topRight: Radius.circular(isMe ? (isFirstInGroup ? 20 : 4) : 20),
+                                      bottomLeft: Radius.circular(!isMe ? (isLastInGroup ? 20 : 4) : 20),
+                                      bottomRight: Radius.circular(isMe ? (isLastInGroup ? 20 : 4) : 20),
                                     ),
                                   ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (message.replyToText != null)
+                                        _buildReplyContent(context),
+                                      RichText(
+                                        text: TextSpan(
+                                          children: _parseMentionText(message.text, context, isMe),
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            height: 1.3,
+                                            color: isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                            
+                            if (message.reactions != null && message.reactions!.isNotEmpty)
+                              Positioned(
+                                bottom: -10,
+                                right: 0,
+                                child: _buildReactions(context, message, isMe),
+                              ),
+                          ],
                         ),
-                      ),
-                      
-                      if (message.reactions != null && message.reactions!.isNotEmpty)
-                        _buildReactions(context, message, isMe),
-                    ],
+                        
+                        if (message.reactions != null && message.reactions!.isNotEmpty)
+                          const SizedBox(height: 12),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -429,7 +544,7 @@ class _MessageBubble extends StatelessWidget {
               color: Colors.transparent,
               child: _ReactionPickerWidget(
                 onEmojiSelected: (emoji) {
-                  controller.reactToMessage(message.id, emoji);
+                  controller.reactToMessage(message, emoji);
                   overlayEntry.remove();
                 },
               ),
@@ -448,41 +563,35 @@ class _MessageBubble extends StatelessWidget {
       counts[emoji] = (counts[emoji] ?? 0) + 1;
     });
 
-    return Padding(
-      padding: EdgeInsets.only(
-        top: 4, 
-        left: isMe ? 0 : 4,
-        right: isMe ? 4 : 0
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Wrap(
-        spacing: 4,
-        runSpacing: 4,
-        alignment: isMe ? WrapAlignment.end : WrapAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: counts.entries.map((entry) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(entry.key, style: const TextStyle(fontSize: 12)),
                 if (entry.value > 1) ...[
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 2),
                   Text(
                     entry.value.toString(), 
                     style: TextStyle(
-                      fontSize: 11, 
+                      fontSize: 10, 
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).textTheme.bodySmall?.color,
                     ),
