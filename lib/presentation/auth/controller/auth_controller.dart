@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../view/sign_in_screen.dart';
 import '../../dashboard/view/dashboard_screen.dart';
 import '../../../utils/app_constant.dart';
@@ -42,7 +43,7 @@ class AuthController extends GetxController implements GetxService {
 
     if (name.isEmpty || phone.isEmpty || password.isEmpty) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Please fill all fields');
+          type: SnackbarType.error, message: 'please_fill_all_fields'.tr);
       return;
     }
 
@@ -50,7 +51,7 @@ class AuthController extends GetxController implements GetxService {
     if (!bangladeshiPhoneRegex.hasMatch(phone)) {
       CustomSnackbar.show(
           type: SnackbarType.error,
-          message: 'Please enter a valid 11-digit Bangladeshi phone number (e.g., 01700112233)');
+          message: 'invalid_phone_number'.tr);
       return;
     }
 
@@ -64,7 +65,7 @@ class AuthController extends GetxController implements GetxService {
         update();
         CustomSnackbar.show(
             type: SnackbarType.error,
-            message: 'User with this phone number already exists');
+            message: 'user_already_exists'.tr);
         return;
       }
 
@@ -84,14 +85,14 @@ class AuthController extends GetxController implements GetxService {
       isLoading = false;
       update();
       CustomSnackbar.show(
-          type: SnackbarType.success, message: 'Account created successfully');
+          type: SnackbarType.success, message: 'account_created_success'.tr);
 
       Get.offAll(() => const DashboardScreen());
     } catch (e) {
       isLoading = false;
       update();
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Failed to create account.');
+          type: SnackbarType.error, message: 'failed_create_account'.tr);
     }
   }
 
@@ -101,7 +102,7 @@ class AuthController extends GetxController implements GetxService {
 
     if (phone.isEmpty || password.isEmpty) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Please fill all fields');
+          type: SnackbarType.error, message: 'please_fill_all_fields'.tr);
       return;
     }
 
@@ -121,31 +122,32 @@ class AuthController extends GetxController implements GetxService {
           isLoading = false;
           update();
           CustomSnackbar.show(
-              type: SnackbarType.success, message: 'Login successful');
+              type: SnackbarType.success, message: 'login_successful'.tr);
           Get.offAll(() => const DashboardScreen());
         } else {
           isLoading = false;
           update();
           CustomSnackbar.show(
-              type: SnackbarType.error, message: 'Incorrect password');
+              type: SnackbarType.error, message: 'incorrect_password'.tr);
         }
       } else {
         isLoading = false;
         update();
         CustomSnackbar.show(
-            type: SnackbarType.error, message: 'User not found');
+            type: SnackbarType.error, message: 'user_not_found'.tr);
       }
     } catch (e) {
       isLoading = false;
       update();
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Failed to sign in.');
+          type: SnackbarType.error, message: 'failed_sign_in'.tr);
     }
   }
 
   Future<void> signOut() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+    await FirebaseAuth.instance.signOut();
     Get.deleteAll(force: true);
 
     Get.offAll(() => const SignInScreen(), binding: AuthBinding());

@@ -11,8 +11,8 @@ class MemberScreen extends GetView<MemberController> {
     // Controller is provided via MemberBinding
 
     return Scaffold(
-      appBar: const CustomAppBar(
-        title: 'Registered Members',
+      appBar: CustomAppBar(
+        title: 'registered_members'.tr,
       ),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: GetBuilder<MemberController>(
@@ -24,14 +24,14 @@ class MemberScreen extends GetView<MemberController> {
           if (controller.errorMessage.isNotEmpty) {
             return Center(
               child: Text(
-                'Error: ${controller.errorMessage}',
+                '${'error'.tr}: ${controller.errorMessage}',
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             );
           }
 
           if (controller.members.isEmpty) {
-            return const Center(child: Text('No members found.'));
+            return Center(child: Text('no_members_found'.tr));
           }
 
           return ListView.builder(

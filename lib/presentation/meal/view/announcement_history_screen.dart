@@ -11,16 +11,16 @@ class AnnouncementHistoryScreen extends GetView<MealController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(
-        title: 'Announcement History',
+      appBar: CustomAppBar(
+        title: 'announcement_history'.tr,
         showBackButton: true,
       ),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: GetBuilder<MealController>(
         builder: (controller) {
           if (controller.announcements.isEmpty) {
-            return const Center(
-              child: Text('No announcements found'),
+            return Center(
+              child: Text('no_announcements_found'.tr),
             );
           }
 
@@ -37,7 +37,7 @@ class AnnouncementHistoryScreen extends GetView<MealController> {
             
             final dateKey = date != null 
                 ? DateFormat('dd MMMM, yyyy').format(date) 
-                : 'Unknown Date';
+                : 'unknown_date'.tr;
             
             if (!grouped.containsKey(dateKey)) {
               grouped[dateKey] = [];
@@ -74,7 +74,7 @@ class AnnouncementHistoryScreen extends GetView<MealController> {
 
               final announcement = item as Map<String, dynamic>;
               final text = announcement['text'] ?? '';
-              final userName = announcement['user_name'] ?? 'Unknown';
+              final userName = announcement['user_name'] ?? 'unknown'.tr;
               final updatedAt = announcement['updatedAt'];
               
               DateTime? date;

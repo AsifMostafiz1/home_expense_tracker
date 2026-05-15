@@ -12,8 +12,8 @@ class ChatScreen extends GetView<ChatController> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: const CustomAppBar(
-        title: 'Group Chat',
+      appBar: CustomAppBar(
+        title: 'group_chat'.tr,
         showBackButton: false,
       ),
       body: Column(
@@ -29,12 +29,12 @@ class ChatScreen extends GetView<ChatController> {
                         Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade300),
                         const SizedBox(height: 16),
                         Text(
-                          'No messages yet',
+                          'no_messages_yet'.tr,
                           style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Start the conversation!',
+                          'start_conversation'.tr,
                           style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                         ),
                       ],
@@ -127,7 +127,7 @@ class ChatScreen extends GetView<ChatController> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade600,
+                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                   ),
                 ),
               ),
@@ -141,14 +141,19 @@ class ChatScreen extends GetView<ChatController> {
                     child: CircleAvatar(
                       radius: 16,
                       backgroundColor: Colors.amber.shade100,
-                      child: Text(
-                        message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
-                        style: TextStyle(
-                          color: Colors.amber.shade900,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
+                      backgroundImage: message.senderImage != null
+                          ? NetworkImage(message.senderImage!)
+                          : null,
+                      child: message.senderImage == null
+                          ? Text(
+                              message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
+                              style: const TextStyle(
+                                color: Colors.amber,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            )
+                          : null,
                     ),
                   )
                 else if (!isMe)
@@ -160,7 +165,7 @@ class ChatScreen extends GetView<ChatController> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isMe ? Theme.of(context).colorScheme.primary : Colors.black.withOpacity(0.05),
+                        color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).cardColor,
                         borderRadius: BorderRadius.only(
                           topLeft: Radius.circular(!isMe ? (isFirstInGroup ? 20 : 4) : 20),
                           topRight: Radius.circular(isMe ? (isFirstInGroup ? 20 : 4) : 20),
@@ -182,7 +187,7 @@ class ChatScreen extends GetView<ChatController> {
                               margin: const EdgeInsets.only(bottom: 8),
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: isMe ? Colors.white.withOpacity(0.2) : Colors.black.withOpacity(0.05),
+                                color: isMe ? Colors.white.withOpacity(0.2) : Theme.of(context).colorScheme.primary.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border(
                                   left: BorderSide(
@@ -195,7 +200,7 @@ class ChatScreen extends GetView<ChatController> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  message.replyToSenderName ?? 'Unknown',
+                                  message.replyToSenderName ?? 'unknown'.tr,
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold, 
                                     fontSize: 11, 
@@ -209,7 +214,7 @@ class ChatScreen extends GetView<ChatController> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 12, 
-                                    color: isMe ? Colors.white.withOpacity(0.9) : Colors.black87
+                                    color: isMe ? Colors.white.withOpacity(0.9) : Theme.of(context).textTheme.bodyMedium?.color
                                   ),
                                 ),
                               ],
@@ -222,7 +227,7 @@ class ChatScreen extends GetView<ChatController> {
                             style: TextStyle(
                               fontSize: 15,
                               height: 1.3,
-                              color: isMe ? Colors.white : Colors.black87,
+                              color: isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
                             ),
                           ),
                         ),
@@ -258,11 +263,12 @@ class ChatScreen extends GetView<ChatController> {
   Widget _buildMessageInput(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.05),
+            blurRadius: 15,
             offset: const Offset(0, -5),
           ),
         ],
@@ -289,9 +295,9 @@ class ChatScreen extends GetView<ChatController> {
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Theme.of(context).cardColor,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.grey.shade300),
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Theme.of(context).dividerColor),
                       ),
                       child: Row(
                         children: [
@@ -301,12 +307,13 @@ class ChatScreen extends GetView<ChatController> {
                               textCapitalization: TextCapitalization.sentences,
                               minLines: 1,
                               maxLines: 4,
-                              decoration: const InputDecoration(
-                                hintText: 'Type a message...',
-                                hintStyle: TextStyle(color: Colors.grey),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              ),
+                                decoration: InputDecoration(
+                                  hintText: 'type_message'.tr,
+                                  hintStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
+                                  border: InputBorder.none,
+                                  filled: false,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                ),
                             ),
                           ),
                         ],
@@ -350,8 +357,9 @@ class ChatScreen extends GetView<ChatController> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
       ),
       child: Row(
         children: [
@@ -362,7 +370,7 @@ class ChatScreen extends GetView<ChatController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Replying to ${message.senderName}',
+                  'replying_to'.trParams({'name': message.senderName}),
                   style: TextStyle(
                     fontWeight: FontWeight.bold, 
                     color: Theme.of(context).colorScheme.primary, 
@@ -374,7 +382,7 @@ class ChatScreen extends GetView<ChatController> {
                   message.text,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.black54, fontSize: 13),
+                  style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7), fontSize: 13),
                 ),
               ],
             ),
@@ -409,7 +417,7 @@ class ChatScreen extends GetView<ChatController> {
             offset: const Offset(0, -2),
           ),
         ],
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: ListView.builder(
         shrinkWrap: true,
@@ -417,7 +425,7 @@ class ChatScreen extends GetView<ChatController> {
         itemCount: controller.filteredMentionUsers.length,
         itemBuilder: (context, index) {
           final user = controller.filteredMentionUsers[index];
-          final name = user['name'] ?? 'Unknown';
+          final name = user['name'] ?? 'unknown'.tr;
           
           return ListTile(
             dense: true,

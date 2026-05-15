@@ -20,18 +20,18 @@ class SignInScreen extends GetView<AuthController> {
             children: [
               const SizedBox(height: 40),
               Text(
-                'Welcome\nBack',
+                'welcome_back'.tr,
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const SizedBox(height: 12),
               Text(
-                'Sign in to your account',
+                'sign_in_to_account'.tr,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 60),
               CustomTextField(
                 controller: controller.phoneController,
-                hintText: 'Phone Number',
+                hintText: 'phone_number'.tr,
                 prefixIcon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
               ),
@@ -39,7 +39,7 @@ class SignInScreen extends GetView<AuthController> {
               GetBuilder<AuthController>(
                 builder: (controller) => CustomTextField(
                   controller: controller.passwordController,
-                  hintText: 'Password',
+                  hintText: 'password'.tr,
                   prefixIcon: Icons.lock_outline,
                   obscureText: !controller.isPasswordVisible,
                   suffixIcon: IconButton(
@@ -66,9 +66,9 @@ class SignInScreen extends GetView<AuthController> {
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2),
                           )
-                        : const Text(
-                            'Sign In',
-                            style: TextStyle(
+                        : Text(
+                            'sign_in'.tr,
+                            style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                             ),
@@ -86,11 +86,11 @@ class SignInScreen extends GetView<AuthController> {
                   },
                   child: RichText(
                     text: TextSpan(
-                      text: "Don't have an account? ",
+                      text: 'dont_have_account'.tr,
                       style: Theme.of(context).textTheme.bodySmall,
                       children: [
                         TextSpan(
-                          text: 'Sign Up',
+                          text: 'sign_up'.tr,
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.bold,

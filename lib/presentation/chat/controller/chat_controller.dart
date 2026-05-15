@@ -20,6 +20,7 @@ class ChatController extends GetxController implements GetxService {
   List<ChatMessageModel> messages = [];
   String userName = '';
   String userPhone = '';
+  String? userProfileImage;
   StreamSubscription? _messagesSubscription;
   ChatMessageModel? replyingToMessage;
   String? highlightedMessageId;
@@ -123,6 +124,7 @@ class ChatController extends GetxController implements GetxService {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     userName = prefs.getString(AppConstant.keyUserName) ?? 'Unknown';
     userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
+    userProfileImage = prefs.getString(AppConstant.keyUserProfileImage);
     update();
   }
 
@@ -218,6 +220,9 @@ class ChatController extends GetxController implements GetxService {
     final replyTo = replyingToMessage;
     cancelReply();
     
+    // Refresh user config to get latest profile image
+    await _loadUserConfig();
+    
     // Scroll to bottom optimistically (messages are reversed, so scroll to 0)
     if (scrollController.hasClients) {
       scrollController.animateTo(
@@ -228,7 +233,7 @@ class ChatController extends GetxController implements GetxService {
     }
 
     try {
-      await repository.sendMessage(text, userName, userPhone, replyTo: replyTo);
+      await repository.sendMessage(text, userName, userPhone, senderImage: userProfileImage, replyTo: replyTo);
       // Send FCM Notification to all other users
       _sendPushNotification(text, userName, replyTo: replyTo);
     } catch (e) {

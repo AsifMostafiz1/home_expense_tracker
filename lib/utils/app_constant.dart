@@ -3,6 +3,9 @@ class AppConstant {
   static const String keyIsLoggedIn = 'isLoggedIn';
   static const String keyUserPhone = 'userPhone';
   static const String keyUserName = 'userName';
+  static const String keyUserProfileImage = 'userProfileImage';
+  static const String keyThemeMode = 'themeMode';
+  static const String keyLanguage = 'language';
 
 
   // Firestore Collection Names

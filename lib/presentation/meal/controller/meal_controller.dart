@@ -182,17 +182,17 @@ class MealController extends GetxController implements GetxService {
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);
       if (userName == null || userPhone == null) {
         CustomSnackbar.show(
-            type: SnackbarType.error, message: 'User info not found.');
+            type: SnackbarType.error, message: 'user_info_not_found'.tr);
         return;
       }
       await repository.addBulkMeal(userName, userPhone, focusedDay);
       await fetchMeals();
       await fetchMonthlyStats();
       CustomSnackbar.show(
-          type: SnackbarType.success, message: 'Bulk meals added!');
+          type: SnackbarType.success, message: 'bulk_meals_added'.tr);
     } catch (e) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Failed to add bulk meals.');
+          type: SnackbarType.error, message: 'failed_add_bulk_meals'.tr);
     } finally {
       isLoading = false;
       update();
@@ -209,16 +209,16 @@ class MealController extends GetxController implements GetxService {
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);
       if (userName == null || userPhone == null) {
         CustomSnackbar.show(
-            type: SnackbarType.error, message: 'User info not found.');
+            type: SnackbarType.error, message: 'user_info_not_found'.tr);
         return;
       }
       await repository.updateMeal(userName, userPhone, date, count);
       await fetchMeals();
       await fetchMonthlyStats();
-      CustomSnackbar.show(type: SnackbarType.success, message: 'Meal updated!');
+      CustomSnackbar.show(type: SnackbarType.success, message: 'meal_updated'.tr);
     } catch (e) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Failed to update meal.');
+          type: SnackbarType.error, message: 'failed_update_meal'.tr);
     } finally {
       isLoading = false;
       update();
@@ -232,18 +232,18 @@ class MealController extends GetxController implements GetxService {
     RxInt selectedCount = currentCount.obs;
 
     List<String> months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
+      'jan'.tr,
+      'feb'.tr,
+      'mar'.tr,
+      'apr'.tr,
+      'may'.tr,
+      'jun'.tr,
+      'jul'.tr,
+      'aug'.tr,
+      'sep'.tr,
+      'oct'.tr,
+      'nov'.tr,
+      'dec'.tr
     ];
     String formattedDate =
         '${date.day} ${months[date.month - 1]}, ${date.year}';
@@ -251,18 +251,18 @@ class MealController extends GetxController implements GetxService {
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: Theme.of(Get.context!).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Update Meal Count',
+            Text('update_meal_count'.tr,
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(formattedDate,
-                style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                style: TextStyle(fontSize: 14, color: Theme.of(Get.context!).textTheme.bodySmall?.color)),
             const SizedBox(height: 24),
             GridView.builder(
               shrinkWrap: true,
@@ -283,12 +283,12 @@ class MealController extends GetxController implements GetxService {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Theme.of(context).colorScheme.primary
-                            : Colors.grey[100],
+                            : Theme.of(context).dividerColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                             color: isSelected
                                 ? Theme.of(context).colorScheme.primary
-                                : Colors.grey.shade300),
+                                : Theme.of(context).dividerColor),
                       ),
                       alignment: Alignment.center,
                       child: Text('$index',
@@ -296,7 +296,7 @@ class MealController extends GetxController implements GetxService {
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color:
-                                  isSelected ? Colors.white : Colors.black87)),
+                                  isSelected ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color)),
                     ),
                   );
                 });
@@ -314,7 +314,7 @@ class MealController extends GetxController implements GetxService {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Submit',
+                child: Text('submit'.tr,
                     style:
                         TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
@@ -341,7 +341,7 @@ class MealController extends GetxController implements GetxService {
     String text = announcementController.text.trim();
     if (text.isEmpty) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Please enter announcement');
+          type: SnackbarType.error, message: 'please_enter_announcement'.tr);
       return;
     }
 
@@ -352,19 +352,19 @@ class MealController extends GetxController implements GetxService {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userName = prefs.getString(AppConstant.keyUserName);
 
-      await repository.updateAnnouncement(text, userName ?? 'Unknown');
+      await repository.updateAnnouncement(text, userName ?? 'unknown'.tr);
       
       // Send Push Notification
       String? userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
-      _sendAnnouncementNotification(text, userName ?? 'Unknown', userPhone);
+      _sendAnnouncementNotification(text, userName ?? 'unknown'.tr, userPhone);
 
       await fetchAnnouncement();
       announcementController.clear();
       Get.back();
-      CustomSnackbar.show(type: SnackbarType.success, message: 'Announcement updated!');
+      CustomSnackbar.show(type: SnackbarType.success, message: 'announcement_updated'.tr);
     } catch (e) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Failed to update announcement');
+          type: SnackbarType.error, message: 'failed_update_announcement'.tr);
     } finally {
       isLoading = false;
       update();
@@ -391,7 +391,7 @@ class MealController extends GetxController implements GetxService {
         'message': {
           'topic': 'group_chat',
           'data': {
-            'title': 'New Announcement from $senderName',
+            'title': 'new_announcement_from'.trParams({'name': senderName}),
             'body': text,
             'senderName': senderName,
             'senderPhone': senderPhone,

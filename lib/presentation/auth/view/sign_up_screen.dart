@@ -20,24 +20,24 @@ class SignUpScreen extends GetView<AuthController> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Create\nAccount',
+                'create_account'.tr,
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const SizedBox(height: 12),
               Text(
-                'Sign up to get started',
+                'setup_profile'.tr,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 48),
               CustomTextField(
                 controller: controller.nameController,
-                hintText: 'Full Name',
+                hintText: 'full_name'.tr,
                 prefixIcon: Icons.person_outline,
               ),
               const SizedBox(height: 20),
               CustomTextField(
                 controller: controller.phoneController,
-                hintText: 'Phone Number',
+                hintText: 'phone_number'.tr,
                 prefixIcon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
                 maxLength: 11,
@@ -49,7 +49,7 @@ class SignUpScreen extends GetView<AuthController> {
               GetBuilder<AuthController>(
                 builder: (controller) => CustomTextField(
                   controller: controller.passwordController,
-                  hintText: 'Password',
+                  hintText: 'password'.tr,
                   prefixIcon: Icons.lock_outline,
                   obscureText: !controller.isPasswordVisible,
                   suffixIcon: IconButton(
@@ -76,9 +76,9 @@ class SignUpScreen extends GetView<AuthController> {
                             width: 20,
                             child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                           )
-                        : const Text(
-                            'Sign Up',
-                            style: TextStyle(
+                        : Text(
+                            'sign_up'.tr,
+                            style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                             ),
@@ -94,11 +94,11 @@ class SignUpScreen extends GetView<AuthController> {
                   },
                   child: RichText(
                     text: TextSpan(
-                      text: "Already have an account? ",
+                      text: 'already_have_account'.tr,
                       style: Theme.of(context).textTheme.bodySmall,
                       children: [
                         TextSpan(
-                          text: 'Sign In',
+                          text: 'sign_in'.tr,
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.bold,

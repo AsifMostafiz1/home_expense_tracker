@@ -17,8 +17,8 @@ class MealScreen extends GetView<MealController> {
     // Controller is provided via MealBinding
 
     return Scaffold(
-      appBar: const CustomAppBar(
-        title: 'Meal Calendar',
+      appBar: CustomAppBar(
+        title: 'meal'.tr,
       ),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: FloatingActionButton(
@@ -45,7 +45,7 @@ class MealScreen extends GetView<MealController> {
                         Expanded(
                           child: _buildQuickStatCard(
                             context,
-                            title: "Today's Total",
+                            title: "today_total".tr,
                             count: controller.getTodayTotal(),
                             color: Colors.blue,
                             icon: Icons.today,
@@ -53,7 +53,7 @@ class MealScreen extends GetView<MealController> {
                               final now = DateTime.now();
                               String dateKey =
                                   '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-                              _showMealBreakdownDialog(context, "Today's", dateKey);
+                              _showMealBreakdownDialog(context, "today".tr, dateKey);
                             },
                           ),
                         ),
@@ -61,7 +61,7 @@ class MealScreen extends GetView<MealController> {
                         Expanded(
                           child: _buildQuickStatCard(
                             context,
-                            title: "Tomorrow's Total",
+                            title: "tomorrow_total".tr,
                             count: controller.getTomorrowTotal(),
                             color: Colors.orange,
                             icon: Icons.event,
@@ -71,7 +71,7 @@ class MealScreen extends GetView<MealController> {
                               String dateKey =
                                   '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
                               _showMealBreakdownDialog(
-                                  context, "Tomorrow's", dateKey);
+                                  context, "tomorrow".tr, dateKey);
                             },
                           ),
                         ),
@@ -140,18 +140,17 @@ class MealScreen extends GetView<MealController> {
                           Color textColor;
 
                           if (count == 0) {
-                            bgColor = Colors.red.shade100;
-                            textColor = Colors.red.shade800;
+                            bgColor = Colors.red.withOpacity(0.2);
+                            textColor = Colors.red.shade400;
                           } else if (count == 1) {
                             bgColor = Theme.of(context)
                                 .colorScheme
                                 .primary
-                                .withOpacity(0.1);
+                                .withOpacity(0.2);
                             textColor = Theme.of(context).colorScheme.primary;
                           } else {
-                            bgColor = Colors.amber.shade100;
-                            textColor =
-                                Colors.amber.shade900; // Yellowish color
+                            bgColor = Colors.amber.withOpacity(0.2);
+                            textColor = Colors.amber.shade400;
                           }
 
                           return Positioned(
@@ -206,8 +205,8 @@ class MealScreen extends GetView<MealController> {
                                       child: CircularProgressIndicator(
                                           color: Colors.white, strokeWidth: 2),
                                     )
-                                  : const Text('Add bulk Meal',
-                                      style: TextStyle(
+                                  : Text('add_bulk_meal'.tr,
+                                      style: const TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold)),
                             ),
@@ -215,7 +214,7 @@ class MealScreen extends GetView<MealController> {
                           const SizedBox(height: 24),
                         ],
                         Text(
-                          'Monthly Summary',
+                          'monthly_summary'.tr,
                           style:
                               Theme.of(context).textTheme.titleLarge?.copyWith(
                                     fontWeight: FontWeight.bold,
@@ -224,7 +223,7 @@ class MealScreen extends GetView<MealController> {
                         const SizedBox(height: 16),
                         _buildSummaryCard(
                           context,
-                          title: 'Total Monthly Stats',
+                          title: 'total_monthly_stats'.tr,
                           count: controller.totalMealCount,
                           expense: controller.totalMonthlyExpense,
                           otherExpense: controller.totalOtherExpense,
@@ -237,7 +236,7 @@ class MealScreen extends GetView<MealController> {
                         const SizedBox(height: 12),
                         _buildSummaryCard(
                           context,
-                          title: 'My Meals',
+                          title: 'my_meals'.tr,
                           count: controller.myMealCount,
                           expense: controller.myMonthlyExpense,
                           otherExpense: controller.myOtherExpense,
@@ -246,7 +245,7 @@ class MealScreen extends GetView<MealController> {
                           color: Colors.teal,
                           icon: Icons.person,
                           onCountPressed: () => _showUserCalendarBottomSheet(context, {
-                            'name': 'Me (You)',
+                            'name': 'me_you'.tr,
                             'count': controller.myMealCount,
                             'daily_meals': controller.dailyMeals,
                             'expenses': controller.myExpenses,
@@ -271,7 +270,7 @@ class MealScreen extends GetView<MealController> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _buildSummaryCard(
                               context,
-                              title: entry.value['name'] ?? 'Unknown',
+                              title: entry.value['name'] ?? 'unknown'.tr,
                               count: entry.value['count'] as int,
                               expense: entry.value['expense'] as double? ?? 0.0,
                               otherExpense: entry.value['other_expense'] as double? ?? 0.0,
@@ -425,7 +424,7 @@ class MealScreen extends GetView<MealController> {
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Colors.grey.shade600,
+                color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
                 fontWeight: FontWeight.w500,
               ),
         ),
@@ -459,7 +458,7 @@ class MealScreen extends GetView<MealController> {
     double totalPaid = expense + otherExpense;
     double balance = totalPaid - totalCost;
     
-    String balanceLabel = balance >= 0 ? 'WILL GET' : 'TO GIVE';
+    String balanceLabel = balance >= 0 ? 'will_get'.tr : 'to_give'.tr;
     String balanceValue = '৳${balance.abs().toStringAsFixed(2)}';
     Color balanceColor = balance >= 0 ? Colors.teal : Colors.red;
 
@@ -484,7 +483,7 @@ class MealScreen extends GetView<MealController> {
             left: 0,
             top: 0,
             bottom: 0,
-            child: Container(width: 6, color: color.shade400),
+            child: Container(width: 6, color: color),
           ),
           Padding(
             padding: const EdgeInsets.all(20),
@@ -495,10 +494,10 @@ class MealScreen extends GetView<MealController> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: color.shade50,
+                        color: color.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(icon, color: color.shade600, size: 24),
+                      child: Icon(icon, color: color, size: 24),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -517,12 +516,12 @@ class MealScreen extends GetView<MealController> {
                           ),
                           if (!isTotal)
                             Text(
-                              'Member Stats',
+                              'member_stats'.tr,
                               style: Theme.of(context)
                                   .textTheme
                                   .bodySmall
                                   ?.copyWith(
-                                    color: Colors.grey.shade500,
+                                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
                                   ),
                             ),
                         ],
@@ -532,11 +531,11 @@ class MealScreen extends GetView<MealController> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: color.shade600,
+                        color: color,
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Text(
-                        '$count Meals',
+                        'meals_count'.trParams({'count': count.toString()}),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -554,16 +553,16 @@ class MealScreen extends GetView<MealController> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildInfoColumn(context, 'MEAL PAID',
-                        '৳${expense.toStringAsFixed(1)}', Colors.black87),
-                    _buildInfoColumn(context, 'OTHER PAID',
-                        '৳${otherExpense.toStringAsFixed(1)}', Colors.black87),
+                    _buildInfoColumn(context, 'meal_paid'.tr,
+                        '৳${expense.toStringAsFixed(1)}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
+                    _buildInfoColumn(context, 'other_paid'.tr,
+                        '৳${otherExpense.toStringAsFixed(1)}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
                     if (isTotal)
-                      _buildInfoColumn(context, 'MEAL RATE',
-                          '৳${rate.toStringAsFixed(2)}', color.shade700)
+                      _buildInfoColumn(context, 'meal_rate'.tr,
+                          '৳${rate.toStringAsFixed(2)}', color)
                     else
-                      _buildInfoColumn(context, 'MEAL COST',
-                          '৳${mealCost.toStringAsFixed(1)}', Colors.black87),
+                      _buildInfoColumn(context, 'meal_cost'.tr,
+                          '৳${mealCost.toStringAsFixed(1)}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -573,14 +572,14 @@ class MealScreen extends GetView<MealController> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     if (isTotal) ...[
-                       _buildInfoColumn(context, 'OTHER RATE',
-                          '৳${otherRate.toStringAsFixed(2)}', color.shade700),
+                       _buildInfoColumn(context, 'other_rate'.tr,
+                          '৳${otherRate.toStringAsFixed(2)}', color),
                        const SizedBox(width: 20),
-                       _buildInfoColumn(context, 'TOTAL USERS',
-                          '${controller.userCount}', Colors.black87),
+                       _buildInfoColumn(context, 'total_users'.tr,
+                          '${controller.userCount}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
                     ] else ...[
-                      _buildInfoColumn(context, 'OTHER COST',
-                          '৳${otherRate.toStringAsFixed(1)}', Colors.black87),
+                       _buildInfoColumn(context, 'other_cost'.tr,
+                          '৳${otherRate.toStringAsFixed(1)}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -623,7 +622,7 @@ class MealScreen extends GetView<MealController> {
 
     final latest = controller.announcements.first;
     final text = latest['text'] ?? '';
-    final userName = latest['user_name'] ?? 'Unknown';
+    final userName = latest['user_name'] ?? 'unknown'.tr;
     final updatedAt = latest['updatedAt'];
 
     DateTime? date;
@@ -637,12 +636,12 @@ class MealScreen extends GetView<MealController> {
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.amber.shade50,
+        color: Colors.amber.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.shade200),
+        border: Border.all(color: Colors.amber.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.amber.withOpacity(0.1),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -656,7 +655,7 @@ class MealScreen extends GetView<MealController> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade100,
+                  color: Colors.amber.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.campaign, color: Colors.amber, size: 20),
@@ -673,9 +672,9 @@ class MealScreen extends GetView<MealController> {
                           children: [
                             Text(
                               userName,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 12,
-                                color: Colors.amber.shade900,
+                                color: Colors.amber,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -684,7 +683,7 @@ class MealScreen extends GetView<MealController> {
                               DateFormat('dd MMM, hh:mm a').format(date!),
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.amber.shade700,
+                                color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -695,8 +694,8 @@ class MealScreen extends GetView<MealController> {
                       text,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.black87,
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -717,10 +716,10 @@ class MealScreen extends GetView<MealController> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
-                  'See more',
-                  style: TextStyle(
+                  'see_more'.tr,
+                  style: const TextStyle(
                     fontSize: 12,
-                    color: Colors.amber.shade900,
+                    color: Colors.amber,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -749,7 +748,7 @@ class MealScreen extends GetView<MealController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Announcement',
+              'announcement'.tr,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -757,7 +756,7 @@ class MealScreen extends GetView<MealController> {
             const SizedBox(height: 24),
             CustomTextField(
               controller: controller.announcementController,
-              hintText: 'Enter announcement...',
+              hintText: 'enter_announcement'.tr,
               maxLines: 3,
             ),
             const SizedBox(height: 24),
@@ -772,8 +771,8 @@ class MealScreen extends GetView<MealController> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  'Submit',
+                child: Text(
+                  'submit'.tr,
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -830,7 +829,7 @@ class MealScreen extends GetView<MealController> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              "$userName's Summary",
+              'summary_of'.trParams({'name': userName}),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -844,19 +843,19 @@ class MealScreen extends GetView<MealController> {
                 children: [
                   _buildSheetBadge(
                     context,
-                    "${user['count']} Meals",
+                    'meals_count'.trParams({'count': (user['count'] ?? 0).toString()}),
                     Colors.blue,
                   ),
                   const SizedBox(width: 8),
                   _buildSheetBadge(
                     context,
-                    "Meal: ৳${(user['expense'] as num? ?? 0).toStringAsFixed(1)}",
+                    'meal_paid_val'.trParams({'val': (user['expense'] as num? ?? 0).toStringAsFixed(1)}),
                     Colors.teal,
                   ),
                   const SizedBox(width: 8),
                   _buildSheetBadge(
                     context,
-                    "Other: ৳${(user['other_expense'] as num? ?? 0).toStringAsFixed(1)}",
+                    'other_paid_val'.trParams({'val': (user['other_expense'] as num? ?? 0).toStringAsFixed(1)}),
                     Colors.orange,
                   ),
                 ],
@@ -951,7 +950,7 @@ class MealScreen extends GetView<MealController> {
                               color: Colors.amber.shade900),
                           const SizedBox(width: 12),
                           Text(
-                            "Expenses Breakdown",
+                            "expenses_breakdown".tr,
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
@@ -971,7 +970,7 @@ class MealScreen extends GetView<MealController> {
                                 size: 48, color: Colors.grey.shade300),
                             const SizedBox(height: 8),
                             Text(
-                              "No expenses recorded this month",
+                              "no_expenses_recorded".tr,
                               style: TextStyle(color: Colors.grey.shade500),
                             ),
                           ],
@@ -1067,7 +1066,7 @@ class MealScreen extends GetView<MealController> {
     // Get all members from controller stats to ensure we show those with 0 meals too
     // Combine current user and other users
     final List<Map<String, dynamic>> allMembers = [
-      {'name': 'Me (You)', 'count': controller.dailyMeals[dateKey] ?? 0},
+      {'name': 'me_you'.tr, 'count': controller.dailyMeals[dateKey] ?? 0},
       ...controller.otherUsersMeals.map((u) {
         // Find their count for this specific day in userDailyMeals
         final dayMeals = controller.userDailyMeals[dateKey] ?? [];
@@ -1084,7 +1083,7 @@ class MealScreen extends GetView<MealController> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('$title Breakdown'),
+        title: Text('breakdown_title'.trParams({'title': title})),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.separated(
@@ -1099,7 +1098,7 @@ class MealScreen extends GetView<MealController> {
                 title: Text(member['name'] ?? 'Unknown',
                     style: const TextStyle(fontSize: 14)),
                 trailing: Text(
-                  count > 0 ? '$count meals' : 'no meal',
+                  count > 0 ? 'meals_count'.trParams({'count': count.toString()}) : 'no_meal'.tr,
                   style: TextStyle(
                     fontSize: 14,
                     color: count > 0 ? Colors.teal : Colors.red,
@@ -1113,7 +1112,7 @@ class MealScreen extends GetView<MealController> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text('close'.tr),
           ),
         ],
       ),

@@ -16,12 +16,12 @@ class ExpenseScreen extends GetView<ExpenseController> {
       length: 2,
       child: Scaffold(
         appBar: CustomAppBar(
-          title: 'Expense',
+          title: 'expense'.tr,
           bottom: TabBar(
             onTap: (index) => controller.setMonthIndex(index),
-            tabs: const [
-              Tab(text: 'Current Month'),
-              Tab(text: 'Next Month'),
+            tabs: [
+              Tab(text: 'current_month'.tr),
+              Tab(text: 'next_month'.tr),
             ],
             indicatorColor: Theme.of(context).colorScheme.primary,
             labelColor: Theme.of(context).colorScheme.primary,
@@ -79,7 +79,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${controller.selectedMonthName} Expense',
+                        'monthly_expense'.trParams({'month': controller.selectedMonthName}),
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                               color: Colors.white70,
                               fontWeight: FontWeight.w500,
@@ -101,18 +101,18 @@ class ExpenseScreen extends GetView<ExpenseController> {
                                       fontWeight: FontWeight.bold,
                                     ),
                               ),
-                              const Text(
-                                'Total Paid',
-                                style: TextStyle(color: Colors.white70, fontSize: 12),
+                              Text(
+                                'total_paid'.tr,
+                                style: const TextStyle(color: Colors.white70, fontSize: 12),
                               ),
                             ],
                           ),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              _buildCardStat(context, 'Meal', controller.mealTotal),
+                              _buildCardStat(context, 'meal'.tr, controller.mealTotal),
                               const SizedBox(height: 4),
-                              _buildCardStat(context, 'Others', controller.othersTotal),
+                              _buildCardStat(context, 'others'.tr, controller.othersTotal),
                             ],
                           ),
                         ],
@@ -127,7 +127,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                         height: 200,
                         child: Center(
                           child: Text(
-                            'No expenses found for ${controller.selectedMonthName}',
+                            'no_expenses_found'.trParams({'month': controller.selectedMonthName}),
                             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                   color: Theme.of(context).hintColor,
                                 ),
@@ -175,7 +175,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                                             ),
                                       ),
                                       Text(
-                                        'Total: $displayTotal',
+                                        'total'.tr + ': $displayTotal',
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodySmall
@@ -218,7 +218,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                                             leading: Container(
                                               padding: const EdgeInsets.all(8),
                                               decoration: BoxDecoration(
-                                                color: Colors.red.shade50,
+                                                color: Colors.red.withOpacity(0.1),
                                                 shape: BoxShape.circle,
                                               ),
                                               child: const Icon(
@@ -248,7 +248,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                                                 Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                   decoration: BoxDecoration(
-                                                    color: item.type == 'expense' ? Colors.blue.shade50 : Colors.orange.shade50,
+                                                    color: item.type == 'expense' ? Colors.blue.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
                                                     borderRadius: BorderRadius.circular(4),
                                                   ),
                                                   child: Text(
@@ -256,7 +256,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                                                     style: TextStyle(
                                                       fontSize: 8,
                                                       fontWeight: FontWeight.bold,
-                                                      color: item.type == 'expense' ? Colors.blue.shade700 : Colors.orange.shade700,
+                                                      color: item.type == 'expense' ? Colors.blue.shade400 : Colors.orange.shade400,
                                                     ),
                                                   ),
                                                 ),
@@ -287,17 +287,17 @@ class ExpenseScreen extends GetView<ExpenseController> {
                                                     }
                                                   },
                                                   itemBuilder: (context) => [
-                                                    const PopupMenuItem(
+                                                    PopupMenuItem(
                                                       value: 'update',
-                                                      child: Text('Update'),
+                                                      child: Text('update'.tr),
                                                     ),
-                                                    const PopupMenuItem(
+                                                    PopupMenuItem(
                                                       value: 'delete',
-                                                      child: Text('Delete'),
+                                                      child: Text('delete'.tr),
                                                     ),
                                                   ],
-                                                  icon: const Icon(Icons.more_vert,
-                                                      color: Colors.black54),
+                                                  icon: Icon(Icons.more_vert,
+                                                      color: Theme.of(context).textTheme.bodySmall?.color),
                                                 ),
                                               ],
                                             ),
@@ -350,19 +350,19 @@ class ExpenseScreen extends GetView<ExpenseController> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Expense'),
-        content: const Text('Are you sure you want to delete this item?'),
+        title: Text('delete_expense'.tr),
+        content: Text('confirm_delete'.tr),
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: const Text('Cancel'),
+            child: Text('cancel'.tr),
           ),
           TextButton(
             onPressed: () {
               Get.back();
               controller.deleteExpense(item.id);
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text('delete'.tr, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),

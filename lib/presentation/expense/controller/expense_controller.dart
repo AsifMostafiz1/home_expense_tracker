@@ -155,14 +155,14 @@ class ExpenseController extends GetxController implements GetxService {
     update();
 
     if (amountStr.isEmpty) {
-      amountError = 'Please enter amount';
+      amountError = 'please_enter_amount'.tr;
       update();
       return;
     }
 
     double? parsedAmount = double.tryParse(amountStr);
     if (parsedAmount == null || parsedAmount <= 0) {
-      amountError = 'Please enter a valid amount';
+      amountError = 'please_enter_valid_amount'.tr;
       update();
       return;
     }
@@ -181,7 +181,7 @@ class ExpenseController extends GetxController implements GetxService {
       if (userName == null || userPhone == null) return;
 
       Map<String, dynamic> data = {
-        'description': desc.isEmpty ? 'Expense' : desc,
+        'description': desc.isEmpty ? 'expense'.tr : desc,
         'amount': amount,
         'date': selectedDate.toIso8601String(),
         'time_hour': selectedTime.hour,
@@ -205,10 +205,10 @@ class ExpenseController extends GetxController implements GetxService {
       }
       CustomSnackbar.show(
           type: SnackbarType.success,
-          message: expenseId == null ? 'Expense added' : 'Expense updated');
+          message: expenseId == null ? 'expense_added'.tr : 'expense_updated'.tr);
     } catch (e) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Failed to save expense');
+          type: SnackbarType.error, message: 'failed_save_expense'.tr);
     } finally {
       isLoading = false;
       update();
@@ -224,10 +224,10 @@ class ExpenseController extends GetxController implements GetxService {
       if (Get.isRegistered<MealController>()) {
         Get.find<MealController>().fetchMonthlyStats();
       }
-      CustomSnackbar.show(type: SnackbarType.success, message: 'Expense deleted');
+      CustomSnackbar.show(type: SnackbarType.success, message: 'expense_deleted'.tr);
     } catch (e) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Failed to delete expense');
+          type: SnackbarType.error, message: 'failed_delete_expense'.tr);
       isLoading = false;
       update();
     }

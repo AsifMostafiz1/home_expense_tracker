@@ -30,7 +30,7 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  item == null ? 'Add new Expense' : 'Update Expense',
+                  item == null ? 'add_new_expense'.tr : 'update_expense'.tr,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -128,7 +128,7 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                 ),
 
                 const SizedBox(height: 24),
-                const Text('Expense Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text('expense_type'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -145,14 +145,14 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                             border: Border.all(
                               color: controller.selectedType == 'expense' 
                                   ? Theme.of(context).colorScheme.primary 
-                                  : Colors.grey.shade300
+                                  : Theme.of(context).dividerColor
                             ),
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            'Expense',
+                            'expense'.tr,
                             style: TextStyle(
-                              color: controller.selectedType == 'expense' ? Colors.white : Colors.black87,
+                              color: controller.selectedType == 'expense' ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
                               fontWeight: FontWeight.bold
                             ),
                           ),
@@ -173,14 +173,14 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                             border: Border.all(
                               color: controller.selectedType == 'others' 
                                   ? Theme.of(context).colorScheme.primary 
-                                  : Colors.grey.shade300
+                                  : Theme.of(context).dividerColor
                             ),
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            'Others',
+                            'others'.tr,
                             style: TextStyle(
-                              color: controller.selectedType == 'others' ? Colors.white : Colors.black87,
+                              color: controller.selectedType == 'others' ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
                               fontWeight: FontWeight.bold
                             ),
                           ),
@@ -193,7 +193,7 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                 const SizedBox(height: 24),
                 CustomTextField(
                   controller: controller.amountController,
-                  hintText: 'Amount',
+                  hintText: 'amount'.tr,
                   errorText: controller.amountError,
                   prefixIcon: Icons.attach_money,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -204,7 +204,7 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                 const SizedBox(height: 16),
                 CustomTextField(
                   controller: controller.descriptionController,
-                  hintText: 'Description (Optional)',
+                  hintText: 'description'.tr,
                   prefixIcon: Icons.receipt_long,
                 ),
                 const SizedBox(height: 32),
@@ -227,7 +227,7 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                             width: 20,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
-                        : Text(item == null ? 'Add' : 'Update',
+                        : Text(item == null ? 'add'.tr : 'update'.tr,
                             style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,

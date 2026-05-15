@@ -21,12 +21,13 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<void> sendMessage(String text, String senderName, String senderPhone, {ChatMessageModel? replyTo}) async {
+  Future<void> sendMessage(String text, String senderName, String senderPhone, {String? senderImage, ChatMessageModel? replyTo}) async {
     final message = ChatMessageModel(
       id: '', // Firestore will auto-generate
       text: text,
       senderName: senderName,
       senderPhone: senderPhone,
+      senderImage: senderImage,
       createdAt: DateTime.now(), // Local timestamp, will be overwritten by serverTimestamp in toMap
       replyToMessageId: replyTo?.id,
       replyToText: replyTo?.text,
