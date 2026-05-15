@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../meal/view/meal_screen.dart';
 import '../../expense/view/expense_screen.dart';
 import '../../member/view/member_screen.dart';
+import '../../chat/view/chat_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,6 +18,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     MealScreen(),
     ExpenseScreen(),
     MemberScreen(),
+    ChatScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -43,8 +45,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icon(Icons.people),
             label: 'Member',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_bubble_outline),
+            label: 'Chat',
+          ),
         ],
         currentIndex: _selectedIndex,
+        type: BottomNavigationBarType.fixed,
         onTap: _onItemTapped,
       ),
     );

@@ -11,4 +11,5 @@ class AppConstant {
   static const String collectionExpenses = 'expenses';
   static const String collectionConfig = 'config';
   static const String collectionAnnouncements = 'announcements';
+  static const String collectionChats = 'chats';
 }

@@ -3,6 +3,7 @@ import '../../presentation/auth/binding/auth_binding.dart';
 import '../../presentation/meal/binding/meal_binding.dart';
 import '../../presentation/expense/binding/expense_binding.dart';
 import '../../presentation/member/binding/member_binding.dart';
+import '../../presentation/chat/binding/chat_binding.dart';
 
 class InitialBinding extends Bindings {
   @override
@@ -11,5 +12,6 @@ class InitialBinding extends Bindings {
     MealBinding().dependencies();
     ExpenseBinding().dependencies();
     MemberBinding().dependencies();
+    ChatBinding().dependencies();
   }
 }
