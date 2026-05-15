@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
 import '../../../common/widgets/custom_button.dart';
+import '../../../common/widgets/custom_snackbar.dart';
+import '../../../utils/app_enums.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
