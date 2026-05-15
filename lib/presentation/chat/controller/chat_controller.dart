@@ -29,6 +29,9 @@ class ChatController extends GetxController implements GetxService {
   List<Map<String, dynamic>> filteredMentionUsers = [];
   bool isMentioning = false;
   int _currentMentionStartIndex = -1;
+  
+  int unseenCount = 0;
+  bool isChatScreenVisible = false;
 
   @override
   void onInit() {
@@ -138,11 +141,27 @@ class ChatController extends GetxController implements GetxService {
 
   void _initChatStream() {
     _messagesSubscription = repository.getMessagesStream().listen((newMessages) {
+      if (!isChatScreenVisible && messages.isNotEmpty) {
+        final existingIds = messages.map((m) => m.id).toSet();
+        for (var msg in newMessages) {
+          if (!existingIds.contains(msg.id) && msg.senderPhone != userPhone) {
+            unseenCount++;
+          }
+        }
+      }
       messages = newMessages;
       update();
     }, onError: (error) {
       print('Error listening to chat stream: $error');
     });
+  }
+
+  void setChatScreenVisible(bool visible) {
+    isChatScreenVisible = visible;
+    if (visible) {
+      unseenCount = 0;
+      update();
+    }
   }
 
   void setReply(ChatMessageModel message) {

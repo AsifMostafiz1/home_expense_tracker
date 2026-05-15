@@ -24,7 +24,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _selectedIndex = widget.initialIndex;
     // Pre-load data for other tabs
     Get.find<ProfileController>();
-    Get.find<ChatController>();
+    final chatController = Get.find<ChatController>();
+    chatController.setChatScreenVisible(_selectedIndex == 2);
   }
 
   static const List<Widget> _screens = <Widget>[
@@ -38,9 +39,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {
       _selectedIndex = index;
     });
+    Get.find<ChatController>().setChatScreenVisible(index == 2);
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index) {
+  Widget _buildNavItem(IconData icon, String label, int index, {int badgeCount = 0}) {
     bool isSelected = _selectedIndex == index;
     final color = isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.shade400;
 
@@ -62,10 +64,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            Icon(
-              icon,
-              color: color,
-              size: 26,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  color: color,
+                  size: 26,
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: -5,
+                    top: -5,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : badgeCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -100,14 +132,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(Icons.restaurant_outlined, 'meal'.tr, 0),
-              _buildNavItem(Icons.account_balance_wallet_outlined, 'expense'.tr, 1),
-              _buildNavItem(Icons.chat_bubble_outline_rounded, 'chat'.tr, 2),
-              _buildNavItem(Icons.person_outline, 'profile'.tr, 3),
-            ],
+          child: GetBuilder<ChatController>(
+            builder: (chatController) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(Icons.restaurant_outlined, 'meal'.tr, 0),
+                  _buildNavItem(Icons.account_balance_wallet_outlined, 'expense'.tr, 1),
+                  _buildNavItem(
+                    Icons.chat_bubble_outline_rounded, 
+                    'chat'.tr, 
+                    2, 
+                    badgeCount: chatController.unseenCount
+                  ),
+                  _buildNavItem(Icons.person_outline, 'profile'.tr, 3),
+                ],
+              );
+            },
           ),
         ),
       ),
