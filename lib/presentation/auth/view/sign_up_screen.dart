@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:flutter/services.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_text_field.dart';
+import '../../../common/widgets/custom_button.dart';
 import '../controller/auth_controller.dart';
 
 class SignUpScreen extends GetView<AuthController> {
@@ -63,27 +64,10 @@ class SignUpScreen extends GetView<AuthController> {
               ),
               const SizedBox(height: 40),
               GetBuilder<AuthController>(
-                builder: (controller) => SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: controller.isLoading
-                        ? null
-                        : () => controller.signUp(),
-                    child: controller.isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : Text(
-                            'sign_up'.tr,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
+                builder: (controller) => CustomButton(
+                  text: 'sign_up'.tr,
+                  isLoading: controller.isLoading,
+                  onPressed: () => controller.signUp(),
                 ),
               ),
               const SizedBox(height: 24),

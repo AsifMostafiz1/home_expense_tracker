@@ -51,8 +51,7 @@ class AuthController extends GetxController implements GetxService {
     final bangladeshiPhoneRegex = RegExp(r'^01[346789]\d{8}$');
     if (!bangladeshiPhoneRegex.hasMatch(phone)) {
       CustomSnackbar.show(
-          type: SnackbarType.error,
-          message: 'invalid_phone_number'.tr);
+          type: SnackbarType.error, message: 'invalid_phone_number'.tr);
       return;
     }
 
@@ -65,8 +64,7 @@ class AuthController extends GetxController implements GetxService {
         isLoading = false;
         update();
         CustomSnackbar.show(
-            type: SnackbarType.error,
-            message: 'user_already_exists'.tr);
+            type: SnackbarType.error, message: 'user_already_exists'.tr);
         return;
       }
 

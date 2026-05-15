@@ -7,6 +7,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../controller/meal_controller.dart';
+import '../../../common/widgets/custom_button.dart';
 import 'announcement_history_screen.dart';
 
 class MealScreen extends GetView<MealController> {
@@ -183,33 +184,11 @@ class MealScreen extends GetView<MealController> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (controller.canAddBulkMeal) ...[
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: controller.isLoading
-                                  ? null
-                                  : () => controller.addBulkMeal(),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: controller.isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                          color: Colors.white, strokeWidth: 2),
-                                    )
-                                  : Text('add_bulk_meal'.tr,
-                                      style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold)),
-                            ),
+
+                          CustomButton(
+                            text: 'add_bulk_meal'.tr,
+                            isLoading: controller.isLoading,
+                            onPressed: () => controller.addBulkMeal(),
                           ),
                           const SizedBox(height: 24),
                         ],

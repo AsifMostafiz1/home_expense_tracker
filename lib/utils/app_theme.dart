@@ -7,8 +7,8 @@ class AppTheme {
   static final ThemeData lightTheme = ThemeData(
     brightness: Brightness.light,
     colorScheme: const ColorScheme.light(
-      primary: primaryColor,
-      secondary: primaryColor,
+      primary: primaryLight,
+      secondary: primaryLight,
     ),
     scaffoldBackgroundColor: Colors.white,
     cardColor: Colors.white,
@@ -35,7 +35,7 @@ class AppTheme {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: primaryColor,
+        backgroundColor: primaryLight,
         foregroundColor: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -45,7 +45,7 @@ class AppTheme {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: primaryColor,
+        foregroundColor: primaryLight,
       ),
     ),
     dividerColor: Colors.grey[200],
@@ -83,7 +83,7 @@ class AppTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: primaryLight,
-        foregroundColor: Colors.black87,
+        foregroundColor: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),

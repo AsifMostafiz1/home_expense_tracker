@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
+import '../../../common/widgets/custom_button.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -105,33 +106,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 48),
 
                 // Update Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    onPressed: controller.isUpdating
-                        ? null
-                        : () {
-                            controller.updateProfile(
-                              name: _nameController.text.trim(),
-                              password: _passwordController.text.trim(),
-                            );
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: controller.isUpdating
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(
-                            'save_changes'.tr,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                  ),
+                CustomButton(
+                  text: 'save_changes'.tr,
+                  isLoading: controller.isUpdating,
+                  onPressed: () {
+                    controller.updateProfile(
+                      name: _nameController.text.trim(),
+                      password: _passwordController.text.trim(),
+                    );
+                  },
                 ),
               ],
             ),

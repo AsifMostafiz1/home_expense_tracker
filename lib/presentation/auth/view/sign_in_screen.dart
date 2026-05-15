@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/auth_controller.dart';
 import '../../../common/widgets/custom_text_field.dart';
+import '../../../common/widgets/custom_button.dart';
 import 'sign_up_screen.dart';
 import '../binding/auth_binding.dart';
 
@@ -53,27 +54,10 @@ class SignInScreen extends GetView<AuthController> {
               ),
               const SizedBox(height: 40),
               GetBuilder<AuthController>(
-                builder: (controller) => SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed:
-                        controller.isLoading ? null : () => controller.signIn(),
-                    child: controller.isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2),
-                          )
-                        : Text(
-                            'sign_in'.tr,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
+                builder: (controller) => CustomButton(
+                  text: 'sign_in'.tr,
+                  isLoading: controller.isLoading,
+                  onPressed: () => controller.signIn(),
                 ),
               ),
               const SizedBox(height: 24),
