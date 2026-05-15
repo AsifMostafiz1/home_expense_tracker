@@ -1,10 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/app_constant.dart';
 import '../../auth/view/sign_in_screen.dart';
@@ -27,9 +24,6 @@ class ProfileController extends GetxController implements GetxService {
 
   ThemeMode themeMode = ThemeMode.system;
   String currentLanguage = 'en';
-
-  File? pickedImage;
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void onInit() {
@@ -99,11 +93,6 @@ class ProfileController extends GetxController implements GetxService {
           userName = userModel!.name;
           // Sync with prefs
           await prefs.setString(AppConstant.keyUserName, userName);
-          if (userModel!.profileImage != null) {
-            await prefs.setString(AppConstant.keyUserProfileImage, userModel!.profileImage!);
-          } else {
-            await prefs.remove(AppConstant.keyUserProfileImage);
-          }
         }
         
         await _fetchLifetimeStats();
@@ -158,30 +147,10 @@ class ProfileController extends GetxController implements GetxService {
     }
   }
 
-  Future<void> pickImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
-    if (image != null) {
-      pickedImage = File(image.path);
-      update();
-    }
-  }
-
   Future<void> updateProfile({required String name, required String password}) async {
     try {
       isUpdating = true;
       update();
-
-      String? imageUrl = userModel?.profileImage;
-
-      if (pickedImage != null) {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('profile_images')
-            .child('$userPhone.jpg');
-        
-        await storageRef.putFile(pickedImage!);
-        imageUrl = await storageRef.getDownloadURL();
-      }
 
       await FirebaseFirestore.instance
           .collection(AppConstant.collectionUsers)
@@ -189,17 +158,12 @@ class ProfileController extends GetxController implements GetxService {
           .update({
         'name': name,
         'password': password,
-        'profileImage': imageUrl,
       });
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString(AppConstant.keyUserName, name);
-      if (imageUrl != null) {
-        await prefs.setString(AppConstant.keyUserProfileImage, imageUrl);
-      }
       
       await _loadUserData();
-      pickedImage = null;
       
       CustomSnackbar.show(type: SnackbarType.success, message: 'profile_updated_success'.tr);
       Get.back();

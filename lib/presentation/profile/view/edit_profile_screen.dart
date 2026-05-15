@@ -12,6 +12,7 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final ProfileController _controller = Get.find<ProfileController>();
 
@@ -19,12 +20,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     _nameController.text = _controller.userModel?.name ?? '';
-    _passwordController.text = _controller.userModel?.password ?? '';
+    _phoneController.text = _controller.userModel?.phone ?? '';
+    _passwordController.text = ''; // Keep password field empty by default
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -53,40 +56,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Profile Image Selection
-                GestureDetector(
-                  onTap: () => controller.pickImage(),
-                  child: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Theme.of(context).dividerColor,
-                        backgroundImage: controller.pickedImage != null
-                            ? FileImage(controller.pickedImage!)
-                            : (controller.userModel?.profileImage != null
-                                ? NetworkImage(controller.userModel!.profileImage!) as ImageProvider
-                                : null),
-                        child: controller.pickedImage == null && controller.userModel?.profileImage == null
-                            ? const Icon(Icons.person, size: 60, color: Colors.grey)
-                            : null,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 20),
+                
+                // Phone Field (Read Only)
+                _buildTextField(
+                  label: 'phone_number'.tr,
+                  controller: _phoneController,
+                  icon: Icons.phone_outlined,
+                  readOnly: true,
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 24),
 
                 // Name Field
                 _buildTextField(
@@ -110,9 +89,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   text: 'save_changes'.tr,
                   isLoading: controller.isUpdating,
                   onPressed: () {
+                    String name = _nameController.text.trim();
+                    String password = _passwordController.text.trim();
+                    
+                    if (name.isEmpty) {
+                      CustomSnackbar.show(type: SnackbarType.error, message: 'please_fill_all_fields'.tr);
+                      return;
+                    }
+                    
+                    // If password is empty, use the existing one
+                    String finalPassword = password.isEmpty 
+                        ? (controller.userModel?.password ?? '') 
+                        : password;
+
                     controller.updateProfile(
-                      name: _nameController.text.trim(),
-                      password: _passwordController.text.trim(),
+                      name: name,
+                      password: finalPassword,
                     );
                   },
                 ),
@@ -129,6 +121,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required TextEditingController controller,
     required IconData icon,
     bool isPassword = false,
+    bool readOnly = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,10 +138,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         TextField(
           controller: controller,
           obscureText: isPassword,
+          readOnly: readOnly,
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: Colors.grey.shade400),
+            prefixIcon: Icon(icon, color: readOnly ? Colors.grey.shade600 : Colors.grey.shade400),
             filled: true,
-            fillColor: Theme.of(context).cardColor,
+            fillColor: readOnly 
+                ? (Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey.shade200)
+                : Theme.of(context).cardColor,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -159,8 +155,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+              borderSide: BorderSide(
+                color: readOnly ? Colors.transparent : Theme.of(context).colorScheme.primary, 
+                width: 1.5
+              ),
             ),
+          ),
+          style: TextStyle(
+            color: readOnly ? Colors.grey : null,
           ),
         ),
       ],
