@@ -165,7 +165,11 @@ class ChatScreen extends GetView<ChatController> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).cardColor,
+                        color: isMe 
+                            ? Theme.of(context).colorScheme.primary 
+                            : (Theme.of(context).brightness == Brightness.dark 
+                                ? Theme.of(context).cardColor 
+                                : Colors.black.withOpacity(0.05)),
                         borderRadius: BorderRadius.only(
                           topLeft: Radius.circular(!isMe ? (isFirstInGroup ? 20 : 4) : 20),
                           topRight: Radius.circular(isMe ? (isFirstInGroup ? 20 : 4) : 20),
