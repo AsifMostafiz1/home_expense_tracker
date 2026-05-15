@@ -23,9 +23,31 @@ class AuthController extends GetxController implements GetxService {
 
   bool isLoading = false;
   bool isPasswordVisible = false;
+  bool isRememberMe = false;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _loadRememberedCredentials();
+  }
+
+  Future<void> _loadRememberedCredentials() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    isRememberMe = prefs.getBool(AppConstant.keyRememberMe) ?? false;
+    if (isRememberMe) {
+      phoneController.text = prefs.getString(AppConstant.keySavedPhone) ?? '';
+      passwordController.text = prefs.getString(AppConstant.keySavedPassword) ?? '';
+    }
+    update();
+  }
 
   void togglePasswordVisibility() {
     isPasswordVisible = !isPasswordVisible;
+    update();
+  }
+
+  void toggleRememberMe(bool? value) {
+    isRememberMe = value ?? false;
     update();
   }
 
@@ -118,6 +140,16 @@ class AuthController extends GetxController implements GetxService {
           await prefs.setString(AppConstant.keyUserPhone, user.phone);
           await prefs.setString(AppConstant.keyUserName, user.name);
 
+          // Handle Remember Me
+          await prefs.setBool(AppConstant.keyRememberMe, isRememberMe);
+          if (isRememberMe) {
+            await prefs.setString(AppConstant.keySavedPhone, phone);
+            await prefs.setString(AppConstant.keySavedPassword, password);
+          } else {
+            await prefs.remove(AppConstant.keySavedPhone);
+            await prefs.remove(AppConstant.keySavedPassword);
+          }
+
           isLoading = false;
           update();
           CustomSnackbar.show(
@@ -145,7 +177,10 @@ class AuthController extends GetxController implements GetxService {
 
   Future<void> signOut() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.remove(AppConstant.keyIsLoggedIn);
+    await prefs.remove(AppConstant.keyUserPhone);
+    await prefs.remove(AppConstant.keyUserName);
+    await prefs.remove(AppConstant.keyUserProfileImage);
     await FirebaseAuth.instance.signOut();
     Get.deleteAll(force: true);
 

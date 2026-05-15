@@ -8,6 +8,9 @@ class AppConstant {
   static const String keyUserProfileImage = 'userProfileImage';
   static const String keyThemeMode = 'themeMode';
   static const String keyLanguage = 'language';
+  static const String keyRememberMe = 'rememberMe';
+  static const String keySavedPhone = 'savedPhone';
+  static const String keySavedPassword = 'savedPassword';
 
 
   // Firestore Collection Names

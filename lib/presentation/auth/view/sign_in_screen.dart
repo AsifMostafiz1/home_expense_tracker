@@ -52,6 +52,35 @@ class SignInScreen extends GetView<AuthController> {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              GetBuilder<AuthController>(
+                builder: (controller) => Row(
+                  children: [
+                    SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: Checkbox(
+                        value: controller.isRememberMe,
+                        onChanged: controller.toggleRememberMe,
+                        activeColor: Theme.of(context).colorScheme.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => controller.toggleRememberMe(!controller.isRememberMe),
+                      child: Text(
+                        'remember_me'.tr,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 40),
               GetBuilder<AuthController>(
                 builder: (controller) => CustomButton(

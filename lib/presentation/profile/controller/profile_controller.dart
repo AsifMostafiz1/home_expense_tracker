@@ -215,7 +215,10 @@ class ProfileController extends GetxController implements GetxService {
 
   Future<void> logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.remove(AppConstant.keyIsLoggedIn);
+    await prefs.remove(AppConstant.keyUserPhone);
+    await prefs.remove(AppConstant.keyUserName);
+    await prefs.remove(AppConstant.keyUserProfileImage);
     await FirebaseAuth.instance.signOut();
     Get.deleteAll(force: true);
     Get.offAll(() => const SignInScreen(), binding: AuthBinding());
