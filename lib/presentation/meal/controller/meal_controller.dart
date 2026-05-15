@@ -23,6 +23,7 @@ class MealController extends GetxController implements GetxService {
   bool isFetchingStats = true;
   Map<String, int> dailyMeals = {};
   Map<String, int> totalDailyMeals = {};
+  Map<String, List<Map<String, dynamic>>> userDailyMeals = {};
   int myMealCount = 0;
   List<Map<String, dynamic>> otherUsersMeals = [];
   int totalMealCount = 0;
@@ -114,6 +115,7 @@ class MealController extends GetxController implements GetxService {
       otherUsersMeals = stats.otherUsersMeals;
       dailyMeals.addAll(stats.dailyMeals);
       totalDailyMeals.addAll(stats.totalDailyMeals);
+      userDailyMeals.addAll(stats.userDailyMeals);
     } catch (e) {
       print('Error fetching monthly stats: $e');
     } finally {
@@ -161,7 +163,9 @@ class MealController extends GetxController implements GetxService {
   }
 
   int _defaultMealCountForDay(DateTime date) =>
-      date.weekday == DateTime.friday ? 2 : 1;
+      (date.weekday == DateTime.friday || date.weekday == DateTime.saturday)
+          ? 2
+          : 1;
 
   Future<void> addBulkMeal() async {
     try {

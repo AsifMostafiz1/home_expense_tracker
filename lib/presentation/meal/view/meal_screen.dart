@@ -48,6 +48,12 @@ class MealScreen extends GetView<MealController> {
                             count: controller.getTodayTotal(),
                             color: Colors.blue,
                             icon: Icons.today,
+                            onInfoPressed: () {
+                              final now = DateTime.now();
+                              String dateKey =
+                                  '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+                              _showMealBreakdownDialog(context, "Today's", dateKey);
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -58,6 +64,14 @@ class MealScreen extends GetView<MealController> {
                             count: controller.getTomorrowTotal(),
                             color: Colors.orange,
                             icon: Icons.event,
+                            onInfoPressed: () {
+                              final tomorrow =
+                                  DateTime.now().add(const Duration(days: 1));
+                              String dateKey =
+                                  '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
+                              _showMealBreakdownDialog(
+                                  context, "Tomorrow's", dateKey);
+                            },
                           ),
                         ),
                       ],
@@ -256,6 +270,8 @@ class MealScreen extends GetView<MealController> {
                               otherRate: controller.otherCostPerPerson,
                               color: color,
                               icon: Icons.person_outline,
+                              onCountPressed: () =>
+                                  _showUserCalendarBottomSheet(context, entry.value),
                             ),
                           );
                         }),
@@ -278,9 +294,10 @@ class MealScreen extends GetView<MealController> {
     required int count,
     required Color color,
     required IconData icon,
+    VoidCallback? onInfoPressed,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -303,7 +320,7 @@ class MealScreen extends GetView<MealController> {
             ),
             child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,7 +330,7 @@ class MealScreen extends GetView<MealController> {
                   title,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w500,
-                        fontSize: 10,
+                        fontSize: 9,
                       ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -321,7 +338,7 @@ class MealScreen extends GetView<MealController> {
                 Text(
                   '$count',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),
@@ -329,6 +346,15 @@ class MealScreen extends GetView<MealController> {
               ],
             ),
           ),
+          if (onInfoPressed != null)
+            GestureDetector(
+              onTap: onInfoPressed,
+              child: Icon(
+                Icons.info_outline,
+                size: 16,
+                color: color.withOpacity(0.6),
+              ),
+            ),
         ],
       ),
     );
@@ -417,6 +443,7 @@ class MealScreen extends GetView<MealController> {
     required MaterialColor color,
     required IconData icon,
     bool isTotal = false,
+    VoidCallback? onCountPressed,
   }) {
     double mealCost = count * rate;
     double totalCost = mealCost + otherRate;
@@ -490,19 +517,22 @@ class MealScreen extends GetView<MealController> {
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: color.shade600,
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: Text(
-                        '$count Meals',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                    GestureDetector(
+                      onTap: onCountPressed,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: color.shade600,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Text(
+                          '$count Meals',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
@@ -747,6 +777,176 @@ class MealScreen extends GetView<MealController> {
         ),
       ),
       isScrollControlled: true,
+    );
+  }
+
+  void _showUserCalendarBottomSheet(
+      BuildContext context, Map<String, dynamic> user) {
+    final Map<String, int> userDailyMeals =
+        Map<String, int>.from(user['daily_meals'] ?? {});
+    final String userName = user['name'] ?? 'User';
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "$userName's Meals",
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                "Total: ${user['count']} Meals",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            TableCalendar(
+              firstDay: controller.firstDay,
+              lastDay: controller.lastDay,
+              focusedDay: controller.focusedDay,
+              availableGestures: AvailableGestures.none,
+              headerStyle: HeaderStyle(
+                formatButtonVisible: false,
+                titleCentered: true,
+                titleTextStyle: Theme.of(context).textTheme.titleMedium!,
+              ),
+              calendarStyle: CalendarStyle(
+                todayDecoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                  shape: BoxShape.circle,
+                ),
+                defaultTextStyle: Theme.of(context).textTheme.bodyMedium!,
+              ),
+              calendarBuilders: CalendarBuilders(
+                markerBuilder: (context, date, events) {
+                  String dateKey =
+                      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+                  if (!userDailyMeals.containsKey(dateKey)) {
+                    return const SizedBox.shrink();
+                  }
+
+                  int count = userDailyMeals[dateKey]!;
+
+                  Color bgColor;
+                  Color textColor;
+
+                  if (count == 0) {
+                    bgColor = Colors.red.shade100;
+                    textColor = Colors.red.shade800;
+                  } else if (count == 1) {
+                    bgColor =
+                        Theme.of(context).colorScheme.primary.withOpacity(0.1);
+                    textColor = Theme.of(context).colorScheme.primary;
+                  } else {
+                    bgColor = Colors.amber.shade100;
+                    textColor = Colors.amber.shade900;
+                  }
+
+                  return Positioned(
+                    bottom: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$count',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: textColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  void _showMealBreakdownDialog(
+      BuildContext context, String title, String dateKey) {
+    // Get all members from controller stats to ensure we show those with 0 meals too
+    // Combine current user and other users
+    final List<Map<String, dynamic>> allMembers = [
+      {'name': 'Me (You)', 'count': controller.dailyMeals[dateKey] ?? 0},
+      ...controller.otherUsersMeals.map((u) {
+        // Find their count for this specific day in userDailyMeals
+        final dayMeals = controller.userDailyMeals[dateKey] ?? [];
+        final userMeal = dayMeals.firstWhere(
+            (m) => m['name'] == u['name'],
+            orElse: () => {'count': 0});
+        return {
+          'name': u['name'],
+          'count': userMeal['count'],
+        };
+      }),
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$title Breakdown'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: allMembers.length,
+            separatorBuilder: (context, index) => const Divider(),
+            itemBuilder: (context, index) {
+              final member = allMembers[index];
+              final count = member['count'] as int;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(member['name'] ?? 'Unknown',
+                    style: const TextStyle(fontSize: 14)),
+                trailing: Text(
+                  count > 0 ? '$count meals' : 'no meal',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: count > 0 ? Colors.teal : Colors.red,
+                    fontWeight: count > 0 ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 }

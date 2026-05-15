@@ -40,6 +40,7 @@ class MealRepositoryImpl implements MealRepository {
     final Map<String, Map<String, dynamic>> othersMap = {};
     final Map<String, int> dailyMeals = {};
     final Map<String, int> totalDailyMeals = {};
+    final Map<String, List<Map<String, dynamic>>> userDailyMeals = {};
 
     for (var doc in mealSnap.docs) {
       var data = doc.data() as Map<String, dynamic>;
@@ -53,6 +54,12 @@ class MealRepositoryImpl implements MealRepository {
       // Calculate total for all users per day
       totalDailyMeals[dateKey] = (totalDailyMeals[dateKey] ?? 0) + count;
       
+      // Calculate per user per day
+      if (!userDailyMeals.containsKey(dateKey)) {
+        userDailyMeals[dateKey] = [];
+      }
+      userDailyMeals[dateKey]!.add({'name': name, 'count': count});
+      
       totalCount += count;
       if (phone == userPhone) {
         myCount += count;
@@ -60,9 +67,16 @@ class MealRepositoryImpl implements MealRepository {
         dailyMeals[dateKey] = count;
       } else {
         if (othersMap.containsKey(phone)) {
-          othersMap[phone]!['count'] = (othersMap[phone]!['count'] as int) + count;
+          othersMap[phone]!['count'] =
+              (othersMap[phone]!['count'] as int) + count;
+          (othersMap[phone]!['daily_meals'] as Map<String, int>)[dateKey] = count;
         } else {
-          othersMap[phone] = {'name': name, 'count': count, 'phone': phone};
+          othersMap[phone] = {
+            'name': name,
+            'count': count,
+            'phone': phone,
+            'daily_meals': {dateKey: count}
+          };
         }
       }
     }
@@ -134,6 +148,7 @@ class MealRepositoryImpl implements MealRepository {
       otherUsersMeals: othersMap.values.toList(),
       dailyMeals: dailyMeals,
       totalDailyMeals: totalDailyMeals,
+      userDailyMeals: userDailyMeals,
     );
   }
 
@@ -143,7 +158,10 @@ class MealRepositoryImpl implements MealRepository {
     WriteBatch batch = FirebaseFirestore.instance.batch();
     for (int i = 1; i <= daysInMonth; i++) {
       DateTime currentDate = DateTime(date.year, date.month, i);
-      int count = currentDate.weekday == DateTime.friday ? 2 : 1;
+      int count = (currentDate.weekday == DateTime.friday ||
+              currentDate.weekday == DateTime.saturday)
+          ? 2
+          : 1;
       String docId = '${userPhone}_${currentDate.year}-${currentDate.month.toString().padLeft(2, '0')}-${currentDate.day.toString().padLeft(2, '0')}';
       DocumentReference docRef = FirebaseFirestore.instance.collection(AppConstant.collectionMeals).doc(docId);
       batch.set(docRef, {
