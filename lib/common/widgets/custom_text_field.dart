@@ -83,17 +83,17 @@ class CustomTextField extends StatelessWidget {
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1), width: 1),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1), width: 1),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
                 color: readOnly ? Colors.transparent : Theme.of(context).colorScheme.primary, 
-                width: 1.5
+                width: 1
               ),
             ),
             errorBorder: OutlineInputBorder(
