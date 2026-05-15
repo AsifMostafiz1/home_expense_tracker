@@ -248,6 +248,14 @@ class ChatController extends GetxController implements GetxService {
     }
   }
 
+  Future<void> reactToMessage(String messageId, String emoji) async {
+    try {
+      await repository.toggleReaction(messageId, userPhone, emoji);
+    } catch (e) {
+      print('Error reacting to message: $e');
+    }
+  }
+
   Future<void> _sendPushNotification(String text, String senderName, {ChatMessageModel? replyTo}) async {
     try {
       final String accessToken = await FcmV1Service().getAccessToken();

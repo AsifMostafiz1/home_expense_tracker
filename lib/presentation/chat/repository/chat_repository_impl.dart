@@ -41,4 +41,27 @@ class ChatRepositoryImpl implements ChatRepository {
     final snapshot = await _firestore.collection(AppConstant.collectionUsers).get();
     return snapshot.docs.map((doc) => doc.data()).toList();
   }
+
+  @override
+  Future<void> toggleReaction(String messageId, String userPhone, String emoji) async {
+    final docRef = _firestore.collection(AppConstant.collectionChats).doc(messageId);
+    
+    _firestore.runTransaction((transaction) async {
+      DocumentSnapshot snapshot = await transaction.get(docRef);
+      if (!snapshot.exists) return;
+
+      Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
+      Map<String, dynamic> reactions = data['reactions'] != null 
+          ? Map<String, dynamic>.from(data['reactions']) 
+          : {};
+
+      if (reactions[userPhone] == emoji) {
+        reactions.remove(userPhone);
+      } else {
+        reactions[userPhone] = emoji;
+      }
+
+      transaction.update(docRef, {'reactions': reactions});
+    });
+  }
 }

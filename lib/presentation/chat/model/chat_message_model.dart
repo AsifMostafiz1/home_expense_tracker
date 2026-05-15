@@ -10,6 +10,7 @@ class ChatMessageModel {
   final String? replyToMessageId;
   final String? replyToText;
   final String? replyToSenderName;
+  final Map<String, String>? reactions;
 
   ChatMessageModel({
     required this.id,
@@ -21,6 +22,7 @@ class ChatMessageModel {
     this.replyToMessageId,
     this.replyToText,
     this.replyToSenderName,
+    this.reactions,
   });
 
   factory ChatMessageModel.fromMap(String id, Map<String, dynamic> map) {
@@ -34,6 +36,7 @@ class ChatMessageModel {
       replyToMessageId: map['reply_to_id'],
       replyToText: map['reply_to_text'],
       replyToSenderName: map['reply_to_name'],
+      reactions: map['reactions'] != null ? Map<String, String>.from(map['reactions']) : null,
     );
   }
 
@@ -47,6 +50,7 @@ class ChatMessageModel {
       if (replyToMessageId != null) 'reply_to_id': replyToMessageId,
       if (replyToText != null) 'reply_to_text': replyToText,
       if (replyToSenderName != null) 'reply_to_name': replyToSenderName,
+      if (reactions != null) 'reactions': reactions,
     };
   }
 }

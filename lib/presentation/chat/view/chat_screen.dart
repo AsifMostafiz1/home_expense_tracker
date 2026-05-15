@@ -160,88 +160,98 @@ class ChatScreen extends GetView<ChatController> {
                   const SizedBox(width: 32),
   
                 Flexible(
-                  child: GestureDetector(
-                    onLongPress: () => controller.toggleTimeDisplay(message.id),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: isMe 
-                            ? Theme.of(context).colorScheme.primary 
-                            : (Theme.of(context).brightness == Brightness.dark 
-                                ? Theme.of(context).cardColor 
-                                : Colors.black.withOpacity(0.05)),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(!isMe ? (isFirstInGroup ? 20 : 4) : 20),
-                          topRight: Radius.circular(isMe ? (isFirstInGroup ? 20 : 4) : 20),
-                          bottomLeft: Radius.circular(!isMe ? (isLastInGroup ? 20 : 4) : 20),
-                          bottomRight: Radius.circular(isMe ? (isLastInGroup ? 20 : 4) : 20),
-                        ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (message.replyToText != null)
-                          GestureDetector(
-                            onTap: () {
-                              if (message.replyToMessageId != null) {
-                                controller.scrollToMessage(message.replyToMessageId!);
-                              }
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isMe ? Colors.white.withOpacity(0.2) : Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border(
-                                  left: BorderSide(
-                                    color: isMe ? Colors.white : Theme.of(context).colorScheme.primary, 
-                                    width: 3
+                  child: Column(
+                    crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                        onLongPress: () => _showReactionPicker(context, controller, message),
+                        onTap: () => controller.toggleTimeDisplay(message.id),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isMe 
+                                ? Theme.of(context).colorScheme.primary 
+                                : (Theme.of(context).brightness == Brightness.dark 
+                                    ? Theme.of(context).cardColor 
+                                    : Colors.black.withOpacity(0.05)),
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(!isMe ? (isFirstInGroup ? 20 : 4) : 20),
+                              topRight: Radius.circular(isMe ? (isFirstInGroup ? 20 : 4) : 20),
+                              bottomLeft: Radius.circular(!isMe ? (isLastInGroup ? 20 : 4) : 20),
+                              bottomRight: Radius.circular(isMe ? (isLastInGroup ? 20 : 4) : 20),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (message.replyToText != null)
+                                GestureDetector(
+                                  onTap: () {
+                                    if (message.replyToMessageId != null) {
+                                      controller.scrollToMessage(message.replyToMessageId!);
+                                    }
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: isMe ? Colors.white.withOpacity(0.2) : Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border(
+                                        left: BorderSide(
+                                          color: isMe ? Colors.white : Theme.of(context).colorScheme.primary, 
+                                          width: 3
+                                        ),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          message.replyToSenderName ?? 'unknown'.tr,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold, 
+                                            fontSize: 11, 
+                                            color: isMe ? Colors.white : Theme.of(context).colorScheme.primary
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          message.replyToText!,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12, 
+                                            color: isMe ? Colors.white.withOpacity(0.9) : Theme.of(context).textTheme.bodyMedium?.color
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              RichText(
+                                text: TextSpan(
+                                  children: _parseMentionText(message.text, context, isMe),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    height: 1.3,
+                                    color: isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
                                   ),
                                 ),
                               ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  message.replyToSenderName ?? 'unknown'.tr,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold, 
-                                    fontSize: 11, 
-                                    color: isMe ? Colors.white : Theme.of(context).colorScheme.primary
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  message.replyToText!,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 12, 
-                                    color: isMe ? Colors.white.withOpacity(0.9) : Theme.of(context).textTheme.bodyMedium?.color
-                                  ),
-                                ),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
-                        RichText(
-                          text: TextSpan(
-                            children: _parseMentionText(message.text, context, isMe),
-                            style: TextStyle(
-                              fontSize: 15,
-                              height: 1.3,
-                              color: isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      
+                      // Reactions Display
+                      if (message.reactions != null && message.reactions!.isNotEmpty)
+                        _buildReactions(context, message, isMe),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           if (showTime)
               Padding(
                 padding: EdgeInsets.only(
@@ -486,5 +496,92 @@ class ChatScreen extends GetView<ChatController> {
     }
 
     return spans;
+  void _showReactionPicker(BuildContext context, ChatController controller, ChatMessageModel message) {
+    final emojis = ['❤️', '👍', '👎', '😂', '😮', '😢', '😡'];
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: emojis.map((emoji) {
+              return GestureDetector(
+                onTap: () {
+                  controller.reactToMessage(message.id, emoji);
+                  Get.back();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReactions(BuildContext context, ChatMessageModel message, bool isMe) {
+    final Map<String, int> counts = {};
+    message.reactions!.forEach((user, emoji) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    });
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 4, 
+        left: isMe ? 0 : 4,
+        right: isMe ? 4 : 0
+      ),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        alignment: isMe ? WrapAlignment.end : WrapAlignment.start,
+        children: counts.entries.map((entry) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(entry.key, style: const TextStyle(fontSize: 12)),
+                if (entry.value > 1) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    entry.value.toString(), 
+                    style: TextStyle(
+                      fontSize: 11, 
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }
