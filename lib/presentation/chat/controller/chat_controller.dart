@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import '../../../services/fcm_v1_service.dart';
 import '../../../utils/app_constant.dart';
 import '../model/chat_message_model.dart';
 import '../repository/chat_repository.dart';
@@ -142,6 +145,17 @@ class ChatController extends GetxController implements GetxService {
     update();
   }
 
+  String? forceShowTimeMessageId;
+
+  void toggleTimeDisplay(String messageId) {
+    if (forceShowTimeMessageId == messageId) {
+      forceShowTimeMessageId = null;
+    } else {
+      forceShowTimeMessageId = messageId;
+    }
+    update();
+  }
+
   final Map<String, GlobalKey> messageKeys = {};
 
   GlobalKey getKeyForMessage(String id) {
@@ -215,6 +229,8 @@ class ChatController extends GetxController implements GetxService {
 
     try {
       await repository.sendMessage(text, userName, userPhone, replyTo: replyTo);
+      // Send FCM Notification to all other users
+      _sendPushNotification(text, userName, replyTo: replyTo);
     } catch (e) {
       print('Error sending message: $e');
       Get.snackbar(
@@ -224,6 +240,58 @@ class ChatController extends GetxController implements GetxService {
         backgroundColor: Colors.red.shade100,
         colorText: Colors.red.shade900,
       );
+    }
+  }
+
+  Future<void> _sendPushNotification(String text, String senderName, {ChatMessageModel? replyTo}) async {
+    try {
+      final String accessToken = await FcmV1Service().getAccessToken();
+      if (accessToken.isEmpty) {
+        print('Failed to get access token');
+        return;
+      }
+
+      final RegExp mentionRegExp = RegExp(r'@(\w+)');
+      final Iterable<RegExpMatch> matches = mentionRegExp.allMatches(text);
+      final String mentions = matches.map((m) => m.group(1) ?? '').join(',');
+
+      final String projectId = 'home-expense-tracker-54c89'; // from your service_account.json
+      final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
+      
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      };
+      
+      final body = {
+        'message': {
+          'topic': 'group_chat',
+          // Removed 'notification' to make it a data-only message.
+          // This allows the app to intercept it in the background and decide whether to show it.
+          'data': {
+            'title': 'New message from $senderName',
+            'body': text,
+            'senderName': senderName,
+            'senderPhone': userPhone,
+            'replyToSenderName': replyTo?.senderName ?? '',
+            'mentions': mentions,
+            'type': 'chat_message',
+            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+          },
+        }
+      };
+
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode(body),
+      );
+      
+      if (response.statusCode != 200) {
+        print('FCM Send Error: ${response.body}');
+      }
+    } catch (e) {
+      print('Error sending push notification: $e');
     }
   }
 }

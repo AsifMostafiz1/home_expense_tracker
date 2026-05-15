@@ -7,11 +7,13 @@ import 'package:demo_project/presentation/dashboard/view/dashboard_screen.dart';
 import 'package:demo_project/utils/app_constant.dart';
 import 'package:demo_project/utils/app_theme.dart';
 import 'package:demo_project/common/binding/initial_binding.dart';
+import 'package:demo_project/services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp();
+    await PushNotificationService().init();
   } catch (e) {
     debugPrint("Firebase initialization failed: $e");
   }

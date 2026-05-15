@@ -9,6 +9,9 @@ import '../../../utils/app_enums.dart';
 import '../repository/meal_repository.dart';
 import '../model/meal_stats.dart';
 import '../../expense/model/expense_model.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../../services/fcm_v1_service.dart';
 
 class MealController extends GetxController implements GetxService {
   // Dependencies
@@ -350,6 +353,11 @@ class MealController extends GetxController implements GetxService {
       String? userName = prefs.getString(AppConstant.keyUserName);
 
       await repository.updateAnnouncement(text, userName ?? 'Unknown');
+      
+      // Send Push Notification
+      String? userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
+      _sendAnnouncementNotification(text, userName ?? 'Unknown', userPhone);
+
       await fetchAnnouncement();
       announcementController.clear();
       Get.back();
@@ -363,5 +371,50 @@ class MealController extends GetxController implements GetxService {
     }
   }
 
+  Future<void> _sendAnnouncementNotification(String text, String senderName, String senderPhone) async {
+    try {
+      final String accessToken = await FcmV1Service().getAccessToken();
+      if (accessToken.isEmpty) {
+        print('Failed to get access token');
+        return;
+      }
+
+      final String projectId = 'home-expense-tracker-54c89'; // from your service_account.json
+      final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
+      
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      };
+      
+      final body = {
+        'message': {
+          'topic': 'group_chat',
+          'data': {
+            'title': 'New Announcement from $senderName',
+            'body': text,
+            'senderName': senderName,
+            'senderPhone': senderPhone,
+            'type': 'announcement',
+            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+          },
+        }
+      };
+
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        print('Announcement Push Notification sent successfully!');
+      } else {
+        print('Failed to send announcement push notification: ${response.body}');
+      }
+    } catch (e) {
+      print('Error sending announcement push notification: $e');
+    }
+  }
 
 }

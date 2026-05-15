@@ -59,13 +59,33 @@ class ChatScreen extends GetView<ChatController> {
                       isFirstInGroup = prevMessage.senderPhone != message.senderPhone;
                     }
 
+                    bool isLastInGroup = true;
+                    if (index > 0) {
+                      final nextMessage = controller.messages[index - 1];
+                      isLastInGroup = nextMessage.senderPhone != message.senderPhone;
+                    }
+
+                    // Check if we should show time (only show if time difference is > 5 minutes from the physically lower/newer message)
+                    bool showTime = true;
+                    if (index > 0) {
+                      final newerMessage = controller.messages[index - 1];
+                      final diff = message.createdAt.difference(newerMessage.createdAt).inMinutes.abs();
+                      if (newerMessage.senderPhone == message.senderPhone && diff < 5) {
+                        showTime = false;
+                      }
+                    }
+                    
+                    if (controller.forceShowTimeMessageId == message.id) {
+                      showTime = true;
+                    }
+
                     return AnimatedContainer(
                       key: controller.getKeyForMessage(message.id),
                       duration: const Duration(milliseconds: 800),
                       color: controller.highlightedMessageId == message.id 
                           ? Theme.of(context).colorScheme.primary.withOpacity(0.3) 
                           : Colors.transparent,
-                      child: _buildMessageBubble(context, message, isMe, isFirstInGroup),
+                      child: _buildMessageBubble(context, message, isMe, isFirstInGroup, isLastInGroup, showTime),
                     );
                   },
                 );
@@ -78,7 +98,7 @@ class ChatScreen extends GetView<ChatController> {
     );
   }
 
-  Widget _buildMessageBubble(BuildContext context, ChatMessageModel message, bool isMe, bool showName) {
+  Widget _buildMessageBubble(BuildContext context, ChatMessageModel message, bool isMe, bool isFirstInGroup, bool isLastInGroup, bool showTime) {
     return Dismissible(
       key: Key(message.id.isEmpty ? message.hashCode.toString() : message.id),
       direction: DismissDirection.startToEnd,
@@ -93,13 +113,13 @@ class ChatScreen extends GetView<ChatController> {
       ),
       child: Padding(
         padding: EdgeInsets.only(
-          bottom: 8,
-          top: showName ? 16 : 0,
+          bottom: isLastInGroup ? 8 : 2,
+          top: isFirstInGroup ? 16 : 0,
         ),
         child: Column(
           crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            if (showName && !isMe)
+            if (isFirstInGroup && !isMe)
               Padding(
                 padding: const EdgeInsets.only(left: 12, bottom: 4),
                 child: Text(
@@ -115,9 +135,9 @@ class ChatScreen extends GetView<ChatController> {
               mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                if (!isMe && showName)
+                if (!isMe && isLastInGroup)
                   Container(
-                    margin: const EdgeInsets.only(right: 8),
+                    margin: const EdgeInsets.only(right: 4),
                     child: CircleAvatar(
                       radius: 16,
                       backgroundColor: Colors.amber.shade100,
@@ -132,26 +152,21 @@ class ChatScreen extends GetView<ChatController> {
                     ),
                   )
                 else if (!isMe)
-                  const SizedBox(width: 40),
+                  const SizedBox(width: 36),
   
                 Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(20),
-                        topRight: const Radius.circular(20),
-                        bottomLeft: Radius.circular(isMe ? 20 : 4),
-                        bottomRight: Radius.circular(isMe ? 4 : 20),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 5,
-                          offset: const Offset(0, 2),
+                  child: GestureDetector(
+                    onLongPress: () => controller.toggleTimeDisplay(message.id),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isMe ? Theme.of(context).colorScheme.primary : Colors.black.withOpacity(0.05),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(!isMe ? (isFirstInGroup ? 20 : 4) : 20),
+                          topRight: Radius.circular(isMe ? (isFirstInGroup ? 20 : 4) : 20),
+                          bottomLeft: Radius.circular(!isMe ? (isLastInGroup ? 20 : 4) : 20),
+                          bottomRight: Radius.circular(isMe ? (isLastInGroup ? 20 : 4) : 20),
                         ),
-                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,10 +230,12 @@ class ChatScreen extends GetView<ChatController> {
                     ),
                   ),
                 ),
-              ],
-            ),
-            Padding(
-              padding: EdgeInsets.only(
+              ),
+            ],
+          ),
+          if (showTime)
+              Padding(
+                padding: EdgeInsets.only(
                 top: 4,
                 left: isMe ? 0 : 52,
                 right: isMe ? 8 : 0,
