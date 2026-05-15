@@ -87,7 +87,7 @@ class AuthController extends GetxController implements GetxService {
       CustomSnackbar.show(
           type: SnackbarType.success, message: 'account_created_success'.tr);
 
-      Get.offAll(() => const DashboardScreen());
+      Get.offAll(() => const DashboardScreen(), binding: InitialBinding());
     } catch (e) {
       isLoading = false;
       update();
@@ -123,7 +123,7 @@ class AuthController extends GetxController implements GetxService {
           update();
           CustomSnackbar.show(
               type: SnackbarType.success, message: 'login_successful'.tr);
-          Get.offAll(() => const DashboardScreen());
+          Get.offAll(() => const DashboardScreen(), binding: InitialBinding());
         } else {
           isLoading = false;
           update();

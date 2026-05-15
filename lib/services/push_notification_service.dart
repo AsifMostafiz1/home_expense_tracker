@@ -153,7 +153,7 @@ class PushNotificationService {
 
   void _handleNotificationClick(Map<String, dynamic> data) {
     if (data['type'] == 'chat_message') {
-      Get.offAll(() => const DashboardScreen(initialIndex: 2));
+      Get.offAll(() => const DashboardScreen(initialIndex: 2), binding: InitialBinding());
     }
   }
 }
