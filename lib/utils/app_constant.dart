@@ -1,4 +1,6 @@
 class AppConstant {
+  static const String appName = 'Meal Tracker';
+  
   // Shared Preferences Keys
   static const String keyIsLoggedIn = 'isLoggedIn';
   static const String keyUserPhone = 'userPhone';

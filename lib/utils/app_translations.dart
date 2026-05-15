@@ -4,7 +4,7 @@ class AppTranslations extends Translations {
   @override
   Map<String, Map<String, String>> get keys => {
         'en_US': {
-          'app_name': 'Home Expense Tracker',
+          'app_name': 'Meal Tracker',
           'meal': 'Meal',
           'expense': 'Expense',
           'chat': 'Chat',
@@ -142,7 +142,7 @@ class AppTranslations extends Translations {
           'dec': 'Dec',
         },
         'bn_BD': {
-          'app_name': 'হোম এক্সপেন্স ট্র্যাকার',
+          'app_name': 'মিল ট্র্যাকার',
           'meal': 'মিল',
           'expense': 'খরচ',
           'chat': 'চ্যাট',

@@ -55,7 +55,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'Home Expense Tracker',
+      title: AppConstant.appName,
       debugShowCheckedModeBanner: false,
       translations: AppTranslations(),
       locale: locale,
