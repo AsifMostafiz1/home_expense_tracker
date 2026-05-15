@@ -15,4 +15,7 @@ class AppConstant {
   static const String collectionConfig = 'config';
   static const String collectionAnnouncements = 'announcements';
   static const String collectionChats = 'chats';
+  
+  static const double appVersion = 1.0;
+  static const String docBusinessConfig = 'business_config';
 }

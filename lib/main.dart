@@ -12,6 +12,8 @@ import 'package:demo_project/common/binding/initial_binding.dart';
 import 'package:demo_project/services/push_notification_service.dart';
 import 'package:demo_project/utils/app_translations.dart';
 
+import 'package:demo_project/presentation/splash/view/splash_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -32,7 +34,6 @@ void main() async {
   }
   
   SharedPreferences prefs = await SharedPreferences.getInstance();
-  bool isLoggedIn = prefs.getBool(AppConstant.keyIsLoggedIn) ?? false;
   
   String themeStr = prefs.getString(AppConstant.keyThemeMode) ?? 'system';
   ThemeMode themeMode = ThemeMode.system;
@@ -42,15 +43,14 @@ void main() async {
   String lang = prefs.getString(AppConstant.keyLanguage) ?? 'en';
   Locale locale = lang == 'bn' ? const Locale('bn', 'BD') : const Locale('en', 'US');
 
-  runApp(MyApp(isLoggedIn: isLoggedIn, themeMode: themeMode, locale: locale));
+  runApp(MyApp(themeMode: themeMode, locale: locale));
 }
 
 class MyApp extends StatelessWidget {
-  final bool isLoggedIn;
   final ThemeMode themeMode;
   final Locale locale;
   
-  const MyApp({super.key, required this.isLoggedIn, required this.themeMode, required this.locale});
+  const MyApp({super.key, required this.themeMode, required this.locale});
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +64,7 @@ class MyApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       initialBinding: InitialBinding(),
-      home: isLoggedIn ? const DashboardScreen() : const SignInScreen(),
+      home: const SplashScreen(),
     );
   }
 }
