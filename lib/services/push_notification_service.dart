@@ -4,6 +4,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_constant.dart';
 
+import 'dart:convert';
+import 'package:get/get.dart';
+import '../presentation/dashboard/view/dashboard_screen.dart';
+
 Future<void> _showNotificationIfAppropriate(RemoteMessage message) async {
   final data = message.data;
   final title = data['title'];
@@ -63,6 +67,7 @@ Future<void> _showNotificationIfAppropriate(RemoteMessage message) async {
         icon: '@mipmap/ic_launcher',
       ),
     ),
+    payload: jsonEncode(message.data),
   );
 }
 
@@ -94,24 +99,26 @@ class PushNotificationService {
       provisional: false,
     );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted permission');
-    } else {
-      print('User declined or has not accepted permission');
-    }
-
     // Initialize local notifications for foreground display
     const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings iosSettings = DarwinInitializationSettings();
     const InitializationSettings initSettings = InitializationSettings(android: androidSettings, iOS: iosSettings);
     
-    await _localNotificationsPlugin.initialize(initSettings);
+    await _localNotificationsPlugin.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        if (response.payload != null) {
+          final data = jsonDecode(response.payload!);
+          _handleNotificationClick(data);
+        }
+      },
+    );
 
     // Create Android channel
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'high_importance_channel', // id
-      'High Importance Notifications', // title
-      description: 'This channel is used for important notifications.', // description
+      'high_importance_channel',
+      'High Importance Notifications',
+      description: 'This channel is used for important notifications.',
       importance: Importance.high,
     );
 
@@ -124,14 +131,29 @@ class PushNotificationService {
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      print('Got a message whilst in the foreground!');
       await _showNotificationIfAppropriate(message);
     });
 
+    // Handle app opening from notification (background state)
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      _handleNotificationClick(message.data);
+    });
+
+    // Handle app opening from notification (terminated state)
+    RemoteMessage? initialMessage = await _fcm.getInitialMessage();
+    if (initialMessage != null) {
+      _handleNotificationClick(initialMessage.data);
+    }
+
     // Subscribe to group chat topic
     await _fcm.subscribeToTopic('group_chat');
-    print('Subscribed to group_chat topic');
 
     _isInitialized = true;
+  }
+
+  void _handleNotificationClick(Map<String, dynamic> data) {
+    if (data['type'] == 'chat_message') {
+      Get.offAll(() => const DashboardScreen(initialIndex: 2));
+    }
   }
 }
