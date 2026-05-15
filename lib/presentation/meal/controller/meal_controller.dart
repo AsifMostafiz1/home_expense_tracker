@@ -8,6 +8,7 @@ import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
 import '../repository/meal_repository.dart';
 import '../model/meal_stats.dart';
+import '../../expense/model/expense_model.dart';
 
 class MealController extends GetxController implements GetxService {
   // Dependencies
@@ -33,6 +34,7 @@ class MealController extends GetxController implements GetxService {
   double myOtherExpense = 0.0;
   int userCount = 1;
   List<Map<String, dynamic>> announcements = [];
+  List<ExpenseModel> myExpenses = [];
   final announcementController = TextEditingController();
 
   double get avgMealRate {
@@ -116,6 +118,7 @@ class MealController extends GetxController implements GetxService {
       dailyMeals.addAll(stats.dailyMeals);
       totalDailyMeals.addAll(stats.totalDailyMeals);
       userDailyMeals.addAll(stats.userDailyMeals);
+      myExpenses = List<ExpenseModel>.from(stats.myExpenses);
     } catch (e) {
       print('Error fetching monthly stats: $e');
     } finally {

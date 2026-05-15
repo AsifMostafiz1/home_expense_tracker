@@ -10,6 +10,7 @@ class MealStats {
   final Map<String, int> dailyMeals;
   final Map<String, int> totalDailyMeals;
   final Map<String, List<Map<String, dynamic>>> userDailyMeals;
+  final List<dynamic> myExpenses;
 
   MealStats({
     required this.myCount,
@@ -23,5 +24,6 @@ class MealStats {
     required this.dailyMeals,
     required this.totalDailyMeals,
     required this.userDailyMeals,
+    required this.myExpenses,
   });
 }

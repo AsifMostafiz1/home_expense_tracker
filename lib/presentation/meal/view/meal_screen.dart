@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../expense/model/expense_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -244,6 +245,14 @@ class MealScreen extends GetView<MealController> {
                           otherRate: controller.otherCostPerPerson,
                           color: Colors.teal,
                           icon: Icons.person,
+                          onCountPressed: () => _showUserCalendarBottomSheet(context, {
+                            'name': 'Me (You)',
+                            'count': controller.myMealCount,
+                            'daily_meals': controller.dailyMeals,
+                            'expenses': controller.myExpenses,
+                            'expense': controller.myMonthlyExpense,
+                            'other_expense': controller.myOtherExpense,
+                          }),
                         ),
                         const SizedBox(height: 12),
                         ...controller.otherUsersMeals
@@ -454,21 +463,23 @@ class MealScreen extends GetView<MealController> {
     String balanceValue = '৳${balance.abs().toStringAsFixed(2)}';
     Color balanceColor = balance >= 0 ? Colors.teal : Colors.red;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          )
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
+    return GestureDetector(
+      onTap: onCountPressed,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            )
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
           Positioned(
             left: 0,
             top: 0,
@@ -517,22 +528,19 @@ class MealScreen extends GetView<MealController> {
                         ],
                       ),
                     ),
-                    GestureDetector(
-                      onTap: onCountPressed,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: color.shade600,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Text(
-                          '$count Meals',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: color.shade600,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        '$count Meals',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
@@ -604,7 +612,8 @@ class MealScreen extends GetView<MealController> {
           ),
         ],
       ),
-    );
+    ),
+   );
   }
 
   Widget _buildAnnouncement(BuildContext context) {
@@ -780,111 +789,272 @@ class MealScreen extends GetView<MealController> {
     );
   }
 
+  Widget _buildSheetBadge(BuildContext context, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
   void _showUserCalendarBottomSheet(
       BuildContext context, Map<String, dynamic> user) {
     final Map<String, int> userDailyMeals =
         Map<String, int>.from(user['daily_meals'] ?? {});
     final String userName = user['name'] ?? 'User';
+    final List<ExpenseModel> userExpenses =
+        List<ExpenseModel>.from(user['expenses'] ?? []);
 
     Get.bottomSheet(
       Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.only(top: 24),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.65,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              "$userName's Meals",
+              "$userName's Summary",
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
             ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                "Total: ${user['count']} Meals",
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildSheetBadge(
+                    context,
+                    "${user['count']} Meals",
+                    Colors.blue,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildSheetBadge(
+                    context,
+                    "Meal: ৳${(user['expense'] as num? ?? 0).toStringAsFixed(1)}",
+                    Colors.teal,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildSheetBadge(
+                    context,
+                    "Other: ৳${(user['other_expense'] as num? ?? 0).toStringAsFixed(1)}",
+                    Colors.orange,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
-            TableCalendar(
-              firstDay: controller.firstDay,
-              lastDay: controller.lastDay,
-              focusedDay: controller.focusedDay,
-              availableGestures: AvailableGestures.none,
-              headerStyle: HeaderStyle(
-                formatButtonVisible: false,
-                titleCentered: true,
-                titleTextStyle: Theme.of(context).textTheme.titleMedium!,
-              ),
-              calendarStyle: CalendarStyle(
-                todayDecoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                  shape: BoxShape.circle,
-                ),
-                defaultTextStyle: Theme.of(context).textTheme.bodyMedium!,
-              ),
-              calendarBuilders: CalendarBuilders(
-                markerBuilder: (context, date, events) {
-                  String dateKey =
-                      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-                  if (!userDailyMeals.containsKey(dateKey)) {
-                    return const SizedBox.shrink();
-                  }
-
-                  int count = userDailyMeals[dateKey]!;
-
-                  Color bgColor;
-                  Color textColor;
-
-                  if (count == 0) {
-                    bgColor = Colors.red.shade100;
-                    textColor = Colors.red.shade800;
-                  } else if (count == 1) {
-                    bgColor =
-                        Theme.of(context).colorScheme.primary.withOpacity(0.1);
-                    textColor = Theme.of(context).colorScheme.primary;
-                  } else {
-                    bgColor = Colors.amber.shade100;
-                    textColor = Colors.amber.shade900;
-                  }
-
-                  return Positioned(
-                    bottom: 2,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: bgColor,
-                        borderRadius: BorderRadius.circular(10),
+            const SizedBox(height: 16),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    TableCalendar(
+                      firstDay: controller.firstDay,
+                      lastDay: controller.lastDay,
+                      focusedDay: controller.focusedDay,
+                      availableGestures: AvailableGestures.none,
+                      headerStyle: HeaderStyle(
+                        formatButtonVisible: false,
+                        titleCentered: true,
+                        leftChevronVisible: false,
+                        rightChevronVisible: false,
+                        titleTextStyle:
+                            Theme.of(context).textTheme.titleMedium!,
                       ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
+                      calendarStyle: CalendarStyle(
+                        todayDecoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.3),
+                          shape: BoxShape.circle,
                         ),
+                        defaultTextStyle:
+                            Theme.of(context).textTheme.bodyMedium!,
+                      ),
+                      calendarBuilders: CalendarBuilders(
+                        markerBuilder: (context, date, events) {
+                          String dateKey =
+                              '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+                          if (!userDailyMeals.containsKey(dateKey)) {
+                            return const SizedBox.shrink();
+                          }
+
+                          int count = userDailyMeals[dateKey]!;
+
+                          Color bgColor;
+                          Color textColor;
+
+                          if (count == 0) {
+                            bgColor = Colors.red.shade100;
+                            textColor = Colors.red.shade800;
+                          } else if (count == 1) {
+                            bgColor = Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withOpacity(0.1);
+                            textColor = Theme.of(context).colorScheme.primary;
+                          } else {
+                            bgColor = Colors.amber.shade100;
+                            textColor = Colors.amber.shade900;
+                          }
+
+                          return Positioned(
+                            bottom: 2,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: bgColor,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$count',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: textColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  );
-                },
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(Icons.receipt_long_outlined,
+                              color: Colors.amber.shade900),
+                          const SizedBox(width: 12),
+                          Text(
+                            "Expenses Breakdown",
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (userExpenses.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Column(
+                          children: [
+                            Icon(Icons.money_off,
+                                size: 48, color: Colors.grey.shade300),
+                            const SizedBox(height: 8),
+                            Text(
+                              "No expenses recorded this month",
+                              style: TextStyle(color: Colors.grey.shade500),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: userExpenses.length,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final item = userExpenses[index];
+                          return Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: item.type == 'expense'
+                                        ? Colors.blue.shade50
+                                        : Colors.orange.shade50,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    item.type == 'expense'
+                                        ? Icons.shopping_cart_outlined
+                                        : Icons.miscellaneous_services_outlined,
+                                    color: item.type == 'expense'
+                                        ? Colors.blue.shade700
+                                        : Colors.orange.shade700,
+                                    size: 18,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.description,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      Text(
+                                        "${DateFormat('dd MMM').format(item.date)} • ${item.type.toUpperCase()}",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  "৳${item.amount.toStringAsFixed(1)}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
           ],
         ),
       ),

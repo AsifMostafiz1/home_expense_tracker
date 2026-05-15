@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../utils/app_constant.dart';
+import '../../expense/model/expense_model.dart';
 import '../model/meal_stats.dart';
 import 'meal_repository.dart';
 
@@ -98,6 +99,7 @@ class MealRepositoryImpl implements MealRepository {
     double myExpense = 0;
     double totalOtherExpense = 0;
     double myOtherExpense = 0;
+    final List<ExpenseModel> myExpenses = [];
 
     for (var doc in expenseSnap.docs) {
       var data = doc.data() as Map<String, dynamic>;
@@ -106,26 +108,52 @@ class MealRepositoryImpl implements MealRepository {
       String name = data['user_name'] ?? 'Unknown';
       String type = data['type'] ?? 'expense';
 
+      final expenseItem = ExpenseModel.fromMap(doc.id, data);
+
       if (type == 'expense') {
         totalExpense += amount;
         if (phone == userPhone) {
           myExpense += amount;
+          myExpenses.add(expenseItem);
         } else {
           if (!othersMap.containsKey(phone)) {
-            othersMap[phone] = {'name': name, 'count': 0, 'phone': phone, 'expense': amount, 'other_expense': 0.0};
+            othersMap[phone] = {
+              'name': name,
+              'count': 0,
+              'phone': phone,
+              'expense': amount,
+              'other_expense': 0.0,
+              'daily_meals': {},
+              'expenses': [expenseItem]
+            };
           } else {
-            othersMap[phone]!['expense'] = (othersMap[phone]!['expense'] as double? ?? 0) + amount;
+            othersMap[phone]!['expense'] =
+                (othersMap[phone]!['expense'] as double? ?? 0) + amount;
+            othersMap[phone]!.putIfAbsent('expenses', () => []);
+            (othersMap[phone]!['expenses'] as List).add(expenseItem);
           }
         }
       } else {
         totalOtherExpense += amount;
         if (phone == userPhone) {
           myOtherExpense += amount;
+          myExpenses.add(expenseItem);
         } else {
           if (!othersMap.containsKey(phone)) {
-            othersMap[phone] = {'name': name, 'count': 0, 'phone': phone, 'expense': 0.0, 'other_expense': amount};
+            othersMap[phone] = {
+              'name': name,
+              'count': 0,
+              'phone': phone,
+              'expense': 0.0,
+              'other_expense': amount,
+              'daily_meals': {},
+              'expenses': [expenseItem]
+            };
           } else {
-            othersMap[phone]!['other_expense'] = (othersMap[phone]!['other_expense'] as double? ?? 0) + amount;
+            othersMap[phone]!['other_expense'] =
+                (othersMap[phone]!['other_expense'] as double? ?? 0) + amount;
+            othersMap[phone]!.putIfAbsent('expenses', () => []);
+            (othersMap[phone]!['expenses'] as List).add(expenseItem);
           }
         }
       }
@@ -135,6 +163,8 @@ class MealRepositoryImpl implements MealRepository {
     for (var key in othersMap.keys) {
       othersMap[key]!.putIfAbsent('expense', () => 0.0);
       othersMap[key]!.putIfAbsent('other_expense', () => 0.0);
+      othersMap[key]!.putIfAbsent('daily_meals', () => <String, int>{});
+      othersMap[key]!.putIfAbsent('expenses', () => <ExpenseModel>[]);
     }
 
     return MealStats(
@@ -149,6 +179,7 @@ class MealRepositoryImpl implements MealRepository {
       dailyMeals: dailyMeals,
       totalDailyMeals: totalDailyMeals,
       userDailyMeals: userDailyMeals,
+      myExpenses: myExpenses,
     );
   }
 
