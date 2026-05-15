@@ -23,7 +23,7 @@ class AuthController extends GetxController implements GetxService {
 
   bool isLoading = false;
   bool isPasswordVisible = false;
-  bool isRememberMe = false;
+  bool isRememberMe = true;
 
   @override
   void onInit() {
@@ -33,7 +33,7 @@ class AuthController extends GetxController implements GetxService {
 
   Future<void> _loadRememberedCredentials() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    isRememberMe = prefs.getBool(AppConstant.keyRememberMe) ?? false;
+    isRememberMe = prefs.getBool(AppConstant.keyRememberMe) ?? true;
     if (isRememberMe) {
       phoneController.text = prefs.getString(AppConstant.keySavedPhone) ?? '';
       passwordController.text = prefs.getString(AppConstant.keySavedPassword) ?? '';
