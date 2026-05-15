@@ -10,6 +10,7 @@ import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
 import '../repository/auth_repository.dart';
 import '../binding/auth_binding.dart';
+import '../../../common/binding/initial_binding.dart';
 
 class AuthController extends GetxController implements GetxService {
   final AuthRepository repository;

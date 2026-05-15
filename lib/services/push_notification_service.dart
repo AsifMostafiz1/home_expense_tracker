@@ -7,6 +7,7 @@ import '../utils/app_constant.dart';
 import 'dart:convert';
 import 'package:get/get.dart';
 import '../presentation/dashboard/view/dashboard_screen.dart';
+import '../common/binding/initial_binding.dart';
 
 Future<void> _showNotificationIfAppropriate(RemoteMessage message) async {
   final data = message.data;
