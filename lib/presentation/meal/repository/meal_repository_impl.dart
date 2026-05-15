@@ -170,11 +170,10 @@ class MealRepositoryImpl implements MealRepository {
     }, SetOptions(merge: true));
   }
   @override
-  Future<void> updateShoppingList(String text, String userName) async {
+  Future<void> updateAnnouncement(String text, String userName) async {
     await FirebaseFirestore.instance
-        .collection(AppConstant.collectionConfig)
-        .doc('shopping_list')
-        .set({
+        .collection(AppConstant.collectionAnnouncements)
+        .add({
       'text': text,
       'user_name': userName,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -182,14 +181,16 @@ class MealRepositoryImpl implements MealRepository {
   }
 
   @override
-  Future<Map<String, dynamic>?> fetchShoppingList() async {
-    DocumentSnapshot doc = await FirebaseFirestore.instance
-        .collection(AppConstant.collectionConfig)
-        .doc('shopping_list')
+  Future<List<Map<String, dynamic>>> fetchAnnouncement() async {
+    QuerySnapshot snapshot = await FirebaseFirestore.instance
+        .collection(AppConstant.collectionAnnouncements)
+        .orderBy('updatedAt', descending: true)
         .get();
-    if (doc.exists) {
-      return doc.data() as Map<String, dynamic>?;
-    }
-    return null;
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      data['id'] = doc.id;
+      return data;
+    }).toList();
   }
 }

@@ -31,11 +31,8 @@ class MealController extends GetxController implements GetxService {
   double totalOtherExpense = 0.0;
   double myOtherExpense = 0.0;
   int userCount = 1;
-  String? shoppingListText;
-  String? shoppingListUserName;
-  DateTime? shoppingListUpdatedAt;
-  bool isShoppingListDismissed = false;
-  final shoppingListController = TextEditingController();
+  List<Map<String, dynamic>> announcements = [];
+  final announcementController = TextEditingController();
 
   double get avgMealRate {
     if (totalMealCount == 0) return 0.0;
@@ -58,8 +55,7 @@ class MealController extends GetxController implements GetxService {
     lastDay = DateTime(today.year, today.month + 2, 0);
     fetchMeals();
     fetchMonthlyStats();
-    fetchShoppingList();
-    _checkShoppingListStatus();
+    fetchAnnouncement();
   }
 
   void onDaySelected(DateTime selected, DateTime focused) {
@@ -320,34 +316,22 @@ class MealController extends GetxController implements GetxService {
     );
   }
 
-  Future<void> fetchShoppingList() async {
-    Map<String, dynamic>? data = await repository.fetchShoppingList();
-    if (data != null) {
-      shoppingListText = data['text'];
-      shoppingListUserName = data['user_name'];
-      if (data['updatedAt'] != null) {
-        if (data['updatedAt'] is Timestamp) {
-          shoppingListUpdatedAt = (data['updatedAt'] as Timestamp).toDate();
-        } else if (data['updatedAt'] is String) {
-          shoppingListUpdatedAt = DateTime.parse(data['updatedAt']);
-        }
-      }
+  Future<void> fetchAnnouncement() async {
+    try {
+      announcements = await repository.fetchAnnouncement();
+    } catch (e) {
+      print('Error fetching announcements: $e');
     }
     update();
   }
 
-  Future<void> _checkShoppingListStatus() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    isShoppingListDismissed =
-        prefs.getBool(AppConstant.keyHideShoppingList) ?? false;
-    update();
-  }
 
-  Future<void> submitShoppingList() async {
-    String text = shoppingListController.text.trim();
+
+  Future<void> submitAnnouncement() async {
+    String text = announcementController.text.trim();
     if (text.isEmpty) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Please enter items');
+          type: SnackbarType.error, message: 'Please enter announcement');
       return;
     }
 
@@ -358,31 +342,19 @@ class MealController extends GetxController implements GetxService {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userName = prefs.getString(AppConstant.keyUserName);
 
-      await repository.updateShoppingList(text, userName ?? 'Unknown');
-      shoppingListText = text;
-      shoppingListUserName = userName;
-      shoppingListUpdatedAt = DateTime.now();
-
-      // Reset dismissal when new list is added
-      isShoppingListDismissed = false;
-      await prefs.setBool(AppConstant.keyHideShoppingList, false);
-
-      shoppingListController.clear();
+      await repository.updateAnnouncement(text, userName ?? 'Unknown');
+      await fetchAnnouncement();
+      announcementController.clear();
       Get.back();
-      CustomSnackbar.show(type: SnackbarType.success, message: 'List updated!');
+      CustomSnackbar.show(type: SnackbarType.success, message: 'Announcement updated!');
     } catch (e) {
       CustomSnackbar.show(
-          type: SnackbarType.error, message: 'Failed to update list');
+          type: SnackbarType.error, message: 'Failed to update announcement');
     } finally {
       isLoading = false;
       update();
     }
   }
 
-  Future<void> dismissShoppingList() async {
-    isShoppingListDismissed = true;
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(AppConstant.keyHideShoppingList, true);
-    update();
-  }
+
 }

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -5,6 +6,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../controller/meal_controller.dart';
+import 'announcement_history_screen.dart';
 
 class MealScreen extends GetView<MealController> {
   const MealScreen({super.key});
@@ -19,9 +21,9 @@ class MealScreen extends GetView<MealController> {
       ),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showShoppingListBottomSheet(context),
+        onPressed: () => _showAnnouncementBottomSheet(context),
         backgroundColor: Theme.of(context).colorScheme.primary,
-        child: const Icon(Icons.shopping_cart, color: Colors.white),
+        child: const Icon(Icons.campaign, color: Colors.white),
       ),
       body: GetBuilder<MealController>(
         builder: (controller) {
@@ -576,9 +578,20 @@ class MealScreen extends GetView<MealController> {
   }
 
   Widget _buildAnnouncement(BuildContext context) {
-    if (controller.isShoppingListDismissed ||
-        controller.shoppingListText == null) {
+    if (controller.announcements.isEmpty) {
       return const SizedBox.shrink();
+    }
+
+    final latest = controller.announcements.first;
+    final text = latest['text'] ?? '';
+    final userName = latest['user_name'] ?? 'Unknown';
+    final updatedAt = latest['updatedAt'];
+
+    DateTime? date;
+    if (updatedAt is Timestamp) {
+      date = updatedAt.toDate();
+    } else if (updatedAt is String) {
+      date = DateTime.parse(updatedAt);
     }
 
     return Container(
@@ -596,71 +609,94 @@ class MealScreen extends GetView<MealController> {
           )
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.campaign, color: Colors.amber, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (controller.shoppingListUpdatedAt != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      children: [
-                        Text(
-                          '${controller.shoppingListUserName ?? 'Unknown'}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.amber.shade900,
-                            fontWeight: FontWeight.w900,
-                          ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.campaign, color: Colors.amber, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (date != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            Text(
+                              userName,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.amber.shade900,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              DateFormat('dd MMM, hh:mm a').format(date!),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.amber.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          DateFormat('dd MMM, hh:mm a').format(controller.shoppingListUpdatedAt!),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.amber.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                      ),
+                    Text(
+                      text,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                Text(
-                  controller.shoppingListText!,
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w500,
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (controller.announcements.length > 1) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Get.to(() => const AnnouncementHistoryScreen()),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'See more',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.amber.shade900,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-          IconButton(
-            onPressed: () => controller.dismissShoppingList(),
-            icon: Icon(Icons.close, color: Colors.grey.shade600, size: 18),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
+          ],
         ],
       ),
     );
   }
 
-  void _showShoppingListBottomSheet(BuildContext context) {
-    if (controller.shoppingListText != null) {
-      controller.shoppingListController.text = controller.shoppingListText!;
-    }
+  void _showAnnouncementBottomSheet(BuildContext context) {
+    // We don't need to populate the controller with existing text anymore 
+    // since every submission is a NEW announcement.
+    controller.announcementController.clear();
 
     Get.bottomSheet(
       Container(
@@ -674,15 +710,15 @@ class MealScreen extends GetView<MealController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'List of item to Buy',
+              'Announcement',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
             ),
             const SizedBox(height: 24),
             CustomTextField(
-              controller: controller.shoppingListController,
-              hintText: 'Enter items to buy...',
+              controller: controller.announcementController,
+              hintText: 'Enter announcement...',
               maxLines: 3,
             ),
             const SizedBox(height: 24),
@@ -690,7 +726,7 @@ class MealScreen extends GetView<MealController> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () => controller.submitShoppingList(),
+                onPressed: () => controller.submitAnnouncement(),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   shape: RoundedRectangleBorder(
