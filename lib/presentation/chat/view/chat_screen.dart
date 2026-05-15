@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import '../../../common/widgets/custom_text_field.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../controller/chat_controller.dart';
 import '../model/chat_message_model.dart';
@@ -294,10 +293,31 @@ class ChatScreen extends GetView<ChatController> {
               child: Row(
                 children: [
                   Expanded(
-                    child: CustomTextField(
-                      controller: controller.messageController,
-                      hintText: 'type_message'.tr,
-                      maxLines: 4,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Theme.of(context).dividerColor),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: controller.messageController,
+                              textCapitalization: TextCapitalization.sentences,
+                              minLines: 1,
+                              maxLines: 4,
+                                decoration: InputDecoration(
+                                  hintText: 'type_message'.tr,
+                                  hintStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
+                                  border: InputBorder.none,
+                                  filled: false,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
