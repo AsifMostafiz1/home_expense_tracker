@@ -31,6 +31,7 @@ class SignInScreen extends GetView<AuthController> {
               ),
               const SizedBox(height: 60),
               CustomTextField(
+                labelText: 'phone_number'.tr,
                 controller: controller.phoneController,
                 hintText: 'phone_number'.tr,
                 prefixIcon: Icons.phone_outlined,
@@ -39,6 +40,7 @@ class SignInScreen extends GetView<AuthController> {
               const SizedBox(height: 20),
               GetBuilder<AuthController>(
                 builder: (controller) => CustomTextField(
+                  labelText: 'password'.tr,
                   controller: controller.passwordController,
                   hintText: 'password'.tr,
                   prefixIcon: Icons.lock_outline,

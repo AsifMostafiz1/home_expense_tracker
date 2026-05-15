@@ -61,28 +61,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 20),
                 
                 // Phone Field (Read Only)
-                _buildTextField(
-                  label: 'phone_number'.tr,
+                CustomTextField(
+                  labelText: 'phone_number'.tr,
+                  hintText: '',
                   controller: _phoneController,
-                  icon: Icons.phone_outlined,
+                  prefixIcon: Icons.phone_outlined,
                   readOnly: true,
                 ),
                 const SizedBox(height: 24),
 
                 // Name Field
-                _buildTextField(
-                  label: 'full_name'.tr,
+                CustomTextField(
+                  labelText: 'full_name'.tr,
+                  hintText: 'full_name'.tr,
                   controller: _nameController,
-                  icon: Icons.person_outline,
+                  prefixIcon: Icons.person_outline,
                 ),
                 const SizedBox(height: 24),
 
                 // Password Field
-                _buildTextField(
-                  label: 'password'.tr,
+                CustomTextField(
+                  labelText: 'password'.tr,
+                  hintText: 'password'.tr,
                   controller: _passwordController,
-                  icon: Icons.lock_outline,
-                  isPassword: true,
+                  prefixIcon: Icons.lock_outline,
+                  obscureText: true,
                 ),
                 const SizedBox(height: 48),
 
@@ -118,56 +121,5 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildTextField({
-    required String label,
-    required TextEditingController controller,
-    required IconData icon,
-    bool isPassword = false,
-    bool readOnly = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).textTheme.titleSmall?.color?.withOpacity(0.8),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          obscureText: isPassword,
-          readOnly: readOnly,
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: readOnly ? Colors.grey.shade600 : Colors.grey.shade400),
-            filled: true,
-            fillColor: readOnly 
-                ? (Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey.shade200)
-                : Theme.of(context).cardColor,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: readOnly ? Colors.transparent : Theme.of(context).colorScheme.primary, 
-                width: 1.5
-              ),
-            ),
-          ),
-          style: TextStyle(
-            color: readOnly ? Colors.grey : null,
-          ),
-        ),
-      ],
-    );
   }
 }

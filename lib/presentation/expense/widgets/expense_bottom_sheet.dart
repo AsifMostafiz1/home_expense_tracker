@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../common/widgets/custom_text_field.dart';
+import '../../../common/widgets/custom_button.dart';
 import '../controller/expense_controller.dart';
 import '../model/expense_model.dart';
 
@@ -208,31 +209,10 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                   prefixIcon: Icons.receipt_long,
                 ),
                 const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: controller.isLoading
-                        ? null
-                        : () => controller.submitExpense(expenseId: item?.id),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: controller.isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : Text(item == null ? 'add'.tr : 'update'.tr,
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white)),
-                  ),
+                CustomButton(
+                  text: item == null ? 'add'.tr : 'update'.tr,
+                  isLoading: controller.isLoading,
+                  onPressed: () => controller.submitExpense(expenseId: item?.id),
                 ),
                 const SizedBox(height: 16),
               ],

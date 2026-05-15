@@ -31,12 +31,14 @@ class SignUpScreen extends GetView<AuthController> {
               ),
               const SizedBox(height: 48),
               CustomTextField(
+                labelText: 'full_name'.tr,
                 controller: controller.nameController,
                 hintText: 'full_name'.tr,
                 prefixIcon: Icons.person_outline,
               ),
               const SizedBox(height: 20),
               CustomTextField(
+                labelText: 'phone_number'.tr,
                 controller: controller.phoneController,
                 hintText: 'phone_number'.tr,
                 prefixIcon: Icons.phone_outlined,
@@ -49,6 +51,7 @@ class SignUpScreen extends GetView<AuthController> {
               const SizedBox(height: 20),
               GetBuilder<AuthController>(
                 builder: (controller) => CustomTextField(
+                  labelText: 'password'.tr,
                   controller: controller.passwordController,
                   hintText: 'password'.tr,
                   prefixIcon: Icons.lock_outline,

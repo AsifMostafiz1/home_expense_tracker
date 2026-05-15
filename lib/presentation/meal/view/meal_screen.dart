@@ -739,25 +739,10 @@ class MealScreen extends GetView<MealController> {
               maxLines: 3,
             ),
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () => controller.submitAnnouncement(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  'submit'.tr,
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white),
-                ),
-              ),
+            CustomButton(
+              text: 'submit'.tr,
+              isLoading: controller.isLoading,
+              onPressed: () => controller.submitAnnouncement(),
             ),
             const SizedBox(height: 16),
           ],
