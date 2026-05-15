@@ -496,6 +496,8 @@ class ChatScreen extends GetView<ChatController> {
     }
 
     return spans;
+  }
+
   void _showReactionPicker(BuildContext context, ChatController controller, ChatMessageModel message) {
     final emojis = ['❤️', '👍', '👎', '😂', '😮', '😢', '😡'];
     Get.dialog(
