@@ -139,7 +139,7 @@ class ChatScreen extends GetView<ChatController> {
                   Container(
                     margin: const EdgeInsets.only(right: 4),
                     child: CircleAvatar(
-                      radius: 16,
+                      radius: 14,
                       backgroundColor: Colors.amber.shade100,
                       backgroundImage: message.senderImage != null
                           ? NetworkImage(message.senderImage!)
@@ -150,14 +150,14 @@ class ChatScreen extends GetView<ChatController> {
                               style: const TextStyle(
                                 color: Colors.amber,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                fontSize: 12,
                               ),
                             )
                           : null,
                     ),
                   )
                 else if (!isMe)
-                  const SizedBox(width: 36),
+                  const SizedBox(width: 32),
   
                 Flexible(
                   child: GestureDetector(
@@ -242,7 +242,7 @@ class ChatScreen extends GetView<ChatController> {
               Padding(
                 padding: EdgeInsets.only(
                 top: 4,
-                left: isMe ? 0 : 52,
+                left: isMe ? 0 : 48,
                 right: isMe ? 8 : 0,
               ),
               child: Text(
