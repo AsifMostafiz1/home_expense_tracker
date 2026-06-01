@@ -5,4 +5,6 @@ abstract class ChatRepository {
   Future<void> sendMessage(String text, String senderName, String senderPhone, {String? senderImage, ChatMessageModel? replyTo});
   Future<List<Map<String, dynamic>>> fetchChatUsers();
   Future<void> toggleReaction(String messageId, String userPhone, String emoji);
+  Future<void> updateSeenStatus(String messageId, String userPhone, String userName, String? userImage);
+  Stream<List<Map<String, dynamic>>> getSeenStatusStream();
 }

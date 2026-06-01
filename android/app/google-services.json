@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:266523005752:android:0d8fe84d8de34c654ba7cd",
+        "android_client_info": {
+          "package_name": "com.example.note.tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvl33PZVTjgdgwomRs8ORP4qFXPDCrktA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:266523005752:android:bd6f639a7fafe29e4ba7cd",
         "android_client_info": {
           "package_name": "com.mostafizur.expense.tracker"

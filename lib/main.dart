@@ -18,16 +18,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp();
+    print('FCM: Activating Firebase App Check...');
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.debug,
       appleProvider: AppleProvider.debug,
     );
+    print('FCM: Firebase App Check activated.');
     
     // Anonymous sign-in to provide auth token for Firebase Storage/Firestore
     if (FirebaseAuth.instance.currentUser == null) {
       await FirebaseAuth.instance.signInAnonymously();
     }
     
+    print('FCM: Starting PushNotificationService initialization...');
     await PushNotificationService().init();
   } catch (e) {
     debugPrint("Firebase initialization failed: $e");

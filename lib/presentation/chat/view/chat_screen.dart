@@ -406,7 +406,12 @@ class _MessageBubble extends StatelessWidget {
                                 },
                                 onTap: () => controller.toggleTimeDisplay(message.id),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  padding: EdgeInsets.only(
+                                    left: 16, 
+                                    right: 16, 
+                                    top: 12, 
+                                    bottom: (message.reactions != null && message.reactions!.isNotEmpty) ? 20 : 12,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: isMe 
                                         ? Theme.of(context).colorScheme.primary 
@@ -443,8 +448,9 @@ class _MessageBubble extends StatelessWidget {
                             
                             if (message.reactions != null && message.reactions!.isNotEmpty)
                               Positioned(
-                                bottom: -10,
-                                right: 0,
+                                bottom: -12,
+                                right: isMe ? 0 : null,
+                                left: !isMe ? 0 : null,
                                 child: _buildReactions(context, message, isMe),
                               ),
                           ],
@@ -452,6 +458,8 @@ class _MessageBubble extends StatelessWidget {
                         
                         if (message.reactions != null && message.reactions!.isNotEmpty)
                           const SizedBox(height: 12),
+                        
+                        _buildSeenAvatars(context),
                       ],
                     ),
                   ),
@@ -477,6 +485,70 @@ class _MessageBubble extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  Widget _buildSeenAvatars(BuildContext context) {
+    final seenBy = controller.messageSeenBy[message.id] ?? [];
+    if (seenBy.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Wrap(
+            spacing: -4, // Overlap avatars slightly
+            children: seenBy.map((status) {
+              final imageUrl = status['userImage'];
+              final name = status['userName'] ?? '';
+              
+              return Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
+                ),
+                child: CircleAvatar(
+                  radius: 7,
+                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                  backgroundImage: imageUrl != null && imageUrl.toString().isNotEmpty 
+                      ? NetworkImage(imageUrl) 
+                      : null,
+                  child: (imageUrl == null || imageUrl.toString().isEmpty)
+                      ? Text(
+                          _getInitials(name),
+                          style: TextStyle(
+                            fontSize: 5, 
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary
+                          ),
+                        )
+                      : null,
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'seen'.tr,
+            style: TextStyle(
+              fontSize: 9,
+              color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    List<String> parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length > 1) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
   }
 
   Widget _buildReplyContent(BuildContext context) {
@@ -539,7 +611,9 @@ class _MessageBubble extends StatelessWidget {
           CompositedTransformFollower(
             link: link,
             showWhenUnlinked: false,
-            offset: Offset(isMe ? -150 : 0, -60), // Positioned above the bubble
+            targetAnchor: isMe ? Alignment.topRight : Alignment.topLeft,
+            followerAnchor: isMe ? Alignment.bottomRight : Alignment.bottomLeft,
+            offset: const Offset(0, -5), // Positioned 5px above the bubble
             child: Material(
               color: Colors.transparent,
               child: _ReactionPickerWidget(
@@ -563,45 +637,233 @@ class _MessageBubble extends StatelessWidget {
       counts[emoji] = (counts[emoji] ?? 0) + 1;
     });
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: counts.entries.map((entry) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(entry.key, style: const TextStyle(fontSize: 12)),
-                if (entry.value > 1) ...[
-                  const SizedBox(width: 2),
-                  Text(
-                    entry.value.toString(), 
-                    style: TextStyle(
-                      fontSize: 10, 
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).textTheme.bodySmall?.color,
-                    ),
-                  ),
-                ],
-              ],
+    return GestureDetector(
+      onTap: () => _showReactionDetails(context, message),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor.withOpacity(1.0),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.5), width: 0.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
-          );
-        }).toList(),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: counts.entries.map((entry) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    entry.key, 
+                    style: const TextStyle(
+                      fontSize: 12, // Reduced for compactness
+                      color: Colors.black, // Force full color depth
+                    )
+                  ),
+                  if (entry.value > 1) ...[
+                    const SizedBox(width: 2),
+                    Text(
+                      entry.value.toString(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }).toList(),
+        ),
       ),
+    );
+  }
+
+  void _showReactionDetails(BuildContext context, ChatMessageModel message) {
+    if (message.reactions == null || message.reactions!.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.5,
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Reactions',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).dividerColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close, size: 20),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // List
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: message.reactions!.length,
+                  itemBuilder: (context, index) {
+                    final entry = message.reactions!.entries.elementAt(index);
+                    final userPhone = entry.key;
+                    final emoji = entry.value;
+                    
+                    // Lookup user details
+                    final user = controller.allUsers.firstWhere(
+                      (u) => u['phone'] == userPhone, 
+                      orElse: () => <String, dynamic>{},
+                    );
+                    final name = user['name'] ?? 'Unknown';
+                    final imageUrl = user['image'];
+                    
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            backgroundImage: imageUrl != null && imageUrl.toString().isNotEmpty 
+                                ? NetworkImage(imageUrl) 
+                                : null,
+                            child: (imageUrl == null || imageUrl.toString().isEmpty) 
+                                ? Text(
+                                    _getInitials(name),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).colorScheme.primary
+                                    ),
+                                  ) 
+                                : null,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            emoji,
+                            style: const TextStyle(
+                              fontSize: 32, // Large for bottom sheet clarity
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Bottom Summary (as seen in screenshot)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1))),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).dividerColor.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'ALL',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    ...(() {
+                      final Map<String, int> counts = {};
+                      message.reactions!.forEach((_, emoji) {
+                        counts[emoji] = (counts[emoji] ?? 0) + 1;
+                      });
+                      return counts.entries.map((e) => Padding(
+                        padding: const EdgeInsets.only(right: 15),
+                        child: Row(
+                          children: [
+                            Text(
+                              e.key, 
+                              style: const TextStyle(
+                                fontSize: 22, // Increased for summary
+                                color: Colors.black,
+                              )
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              e.value.toString(),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).textTheme.bodySmall?.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ));
+                    })(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -682,28 +944,25 @@ class _ReactionPickerWidgetState extends State<_ReactionPickerWidget> with Singl
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _controller,
-      child: ScaleTransition(
-        scale: CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
-            border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: _emojis.map((emoji) => _buildEmojiItem(emoji)).toList(),
-          ),
+    return ScaleTransition(
+      scale: CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor.withOpacity(1.0), // Ensure fully opaque
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+          border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: _emojis.map((emoji) => _buildEmojiItem(emoji)).toList(),
         ),
       ),
     );
@@ -713,7 +972,7 @@ class _ReactionPickerWidgetState extends State<_ReactionPickerWidget> with Singl
     return GestureDetector(
       onTap: () => widget.onEmojiSelected(emoji),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: 1),
           duration: Duration(milliseconds: 300 + (_emojis.indexOf(emoji) * 50)),
@@ -726,7 +985,10 @@ class _ReactionPickerWidgetState extends State<_ReactionPickerWidget> with Singl
           },
           child: Text(
             emoji,
-            style: const TextStyle(fontSize: 24),
+            style: const TextStyle(
+              fontSize: 22, // Reduced for a more balanced look
+              color: Colors.black, // Force full color rendering
+            ),
           ),
         ),
       ),

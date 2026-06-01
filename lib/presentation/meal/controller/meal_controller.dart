@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../services/push_notification_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
@@ -356,7 +357,15 @@ class MealController extends GetxController implements GetxService {
       
       // Send Push Notification
       String? userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
-      _sendAnnouncementNotification(text, userName ?? 'unknown'.tr, userPhone);
+      await PushNotificationService().sendPushNotification(
+        title: 'new_announcement_from'.trParams({'name': userName ?? 'unknown'.tr}),
+        body: text,
+        data: {
+          'senderName': userName ?? 'unknown'.tr,
+          'senderPhone': userPhone,
+          'type': 'announcement',
+        },
+      );
 
       await fetchAnnouncement();
       announcementController.clear();
@@ -370,51 +379,4 @@ class MealController extends GetxController implements GetxService {
       update();
     }
   }
-
-  Future<void> _sendAnnouncementNotification(String text, String senderName, String senderPhone) async {
-    try {
-      final String accessToken = await FcmV1Service().getAccessToken();
-      if (accessToken.isEmpty) {
-        print('Failed to get access token');
-        return;
-      }
-
-      final String projectId = 'home-expense-tracker-54c89'; // from your service_account.json
-      final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
-      
-      final headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      };
-      
-      final body = {
-        'message': {
-          'topic': 'group_chat',
-          'data': {
-            'title': 'new_announcement_from'.trParams({'name': senderName}),
-            'body': text,
-            'senderName': senderName,
-            'senderPhone': senderPhone,
-            'type': 'announcement',
-            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-          },
-        }
-      };
-
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: jsonEncode(body),
-      );
-
-      if (response.statusCode == 200) {
-        print('Announcement Push Notification sent successfully!');
-      } else {
-        print('Failed to send announcement push notification: ${response.body}');
-      }
-    } catch (e) {
-      print('Error sending announcement push notification: $e');
-    }
-  }
-
 }

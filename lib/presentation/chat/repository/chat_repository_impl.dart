@@ -64,4 +64,26 @@ class ChatRepositoryImpl implements ChatRepository {
       transaction.update(docRef, {'reactions': reactions});
     });
   }
+
+  @override
+  Future<void> updateSeenStatus(String messageId, String userPhone, String userName, String? userImage) async {
+    await _firestore
+        .collection(AppConstant.collectionSeenStatus)
+        .doc(userPhone)
+        .set({
+      'lastSeenMessageId': messageId,
+      'userPhone': userPhone,
+      'userName': userName,
+      'userImage': userImage,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Stream<List<Map<String, dynamic>>> getSeenStatusStream() {
+    return _firestore
+        .collection(AppConstant.collectionSeenStatus)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
 }

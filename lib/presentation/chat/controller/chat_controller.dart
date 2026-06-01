@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import '../../../services/push_notification_service.dart';
 import '../../../services/fcm_v1_service.dart';
 import '../../../utils/app_constant.dart';
 import '../model/chat_message_model.dart';
@@ -11,7 +12,7 @@ import '../repository/chat_repository.dart';
 
 class ChatController extends GetxController implements GetxService {
   final ChatRepository repository;
-  
+
   ChatController({required this.repository});
 
   final TextEditingController messageController = TextEditingController();
@@ -29,22 +30,43 @@ class ChatController extends GetxController implements GetxService {
   List<Map<String, dynamic>> filteredMentionUsers = [];
   bool isMentioning = false;
   int _currentMentionStartIndex = -1;
-  
+
   int unseenCount = 0;
   bool isChatScreenVisible = false;
+
+  Map<String, List<Map<String, dynamic>>> messageSeenBy = {};
+  StreamSubscription? _seenStatusSubscription;
 
   @override
   void onInit() {
     super.onInit();
     _loadUserConfig();
     _initChatStream();
+    _initSeenStatusStream();
     _fetchAllUsers();
+
+    // Ensure subscribed to personal topic for notifications
+    _subscribeToTopic();
+
     messageController.addListener(_onTextChanged);
+  }
+
+  void _subscribeToTopic() async {
+    // Always ensure subscribed to group chat
+    PushNotificationService().subscribeToGroupTopic();
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String phone = prefs.getString(AppConstant.keyUserPhone) ?? '';
+    if (phone.isNotEmpty) {
+      print('FCM: ChatController initiating personal subscription for phone: $phone');
+      PushNotificationService().subscribeToUserTopic(phone);
+    }
   }
 
   @override
   void onClose() {
     _messagesSubscription?.cancel();
+    _seenStatusSubscription?.cancel();
     messageController.removeListener(_onTextChanged);
     messageController.dispose();
     scrollController.dispose();
@@ -62,7 +84,7 @@ class ChatController extends GetxController implements GetxService {
   void _onTextChanged() {
     final text = messageController.text;
     final cursorPosition = messageController.selection.baseOffset;
-    
+
     if (cursorPosition <= 0) {
       if (isMentioning) {
         isMentioning = false;
@@ -85,7 +107,7 @@ class ChatController extends GetxController implements GetxService {
 
     if (atIndex != -1) {
       String query = text.substring(atIndex + 1, cursorPosition).toLowerCase();
-      
+
       // Filter real users
       List<Map<String, dynamic>> users = allUsers.where((user) {
         String name = (user['name'] ?? '').toString().toLowerCase();
@@ -114,19 +136,21 @@ class ChatController extends GetxController implements GetxService {
   void insertMention(String name) {
     final text = messageController.text;
     final cursorPosition = messageController.selection.baseOffset;
-    
-    if (_currentMentionStartIndex != -1 && cursorPosition >= _currentMentionStartIndex) {
+
+    if (_currentMentionStartIndex != -1 &&
+        cursorPosition >= _currentMentionStartIndex) {
       String before = text.substring(0, _currentMentionStartIndex);
       String after = text.substring(cursorPosition);
       String formattedName = name.replaceAll(' ', '');
       String mention = '@$formattedName ';
-      
+
       messageController.value = TextEditingValue(
         text: before + mention + after,
-        selection: TextSelection.collapsed(offset: before.length + mention.length),
+        selection:
+            TextSelection.collapsed(offset: before.length + mention.length),
       );
     }
-    
+
     isMentioning = false;
     update();
   }
@@ -140,7 +164,8 @@ class ChatController extends GetxController implements GetxService {
   }
 
   void _initChatStream() {
-    _messagesSubscription = repository.getMessagesStream().listen((newMessages) {
+    _messagesSubscription =
+        repository.getMessagesStream().listen((newMessages) {
       if (!isChatScreenVisible && messages.isNotEmpty) {
         final existingIds = messages.map((m) => m.id).toSet();
         for (var msg in newMessages) {
@@ -150,6 +175,9 @@ class ChatController extends GetxController implements GetxService {
         }
       }
       messages = newMessages;
+      if (isChatScreenVisible && messages.isNotEmpty) {
+        _updateMySeenStatus();
+      }
       update();
     }, onError: (error) {
       print('Error listening to chat stream: $error');
@@ -160,7 +188,42 @@ class ChatController extends GetxController implements GetxService {
     isChatScreenVisible = visible;
     if (visible) {
       unseenCount = 0;
+      if (messages.isNotEmpty) {
+        _updateMySeenStatus();
+      }
       update();
+    }
+  }
+
+  void _initSeenStatusStream() {
+    _seenStatusSubscription =
+        repository.getSeenStatusStream().listen((statuses) {
+      Map<String, List<Map<String, dynamic>>> newSeenMap = {};
+
+      for (var status in statuses) {
+        String? messageId = status['lastSeenMessageId'];
+        String? phone = status['userPhone'];
+
+        // Don't show my own seen status to myself, or if data is invalid
+        if (messageId != null && phone != null && phone != userPhone) {
+          newSeenMap[messageId] ??= [];
+          newSeenMap[messageId]!.add(status);
+        }
+      }
+
+      messageSeenBy = newSeenMap;
+      update();
+    });
+  }
+
+  void _updateMySeenStatus() {
+    if (messages.isEmpty || userPhone.isEmpty) return;
+
+    // The first message in the list is the latest one (descending order)
+    final latestMessageId = messages.first.id;
+    if (latestMessageId.isNotEmpty) {
+      repository.updateSeenStatus(
+          latestMessageId, userPhone, userName, userProfileImage);
     }
   }
 
@@ -208,11 +271,13 @@ class ChatController extends GetxController implements GetxService {
       );
       _highlightMessage(messageId);
     } else {
-      scrollController.animateTo(
+      scrollController
+          .animateTo(
         index * 80.0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
-      ).then((_) {
+      )
+          .then((_) {
         Future.delayed(const Duration(milliseconds: 50), () {
           if (key != null && key.currentContext != null) {
             Scrollable.ensureVisible(
@@ -246,10 +311,10 @@ class ChatController extends GetxController implements GetxService {
     messageController.clear();
     final replyTo = replyingToMessage;
     cancelReply();
-    
+
     // Refresh user config to get latest profile image
     await _loadUserConfig();
-    
+
     // Scroll to bottom optimistically (messages are reversed, so scroll to 0)
     if (scrollController.hasClients) {
       scrollController.animateTo(
@@ -260,20 +325,23 @@ class ChatController extends GetxController implements GetxService {
     }
 
     try {
-      await repository.sendMessage(text, userName, userPhone, senderImage: userProfileImage, replyTo: replyTo);
-      
+      await repository.sendMessage(text, userName, userPhone,
+          senderImage: userProfileImage, replyTo: replyTo);
+
       // Determine notification targets
       final RegExp mentionRegExp = RegExp(r'@(\w+)');
       final Iterable<RegExpMatch> matches = mentionRegExp.allMatches(text);
-      final List<String> mentionList = matches.map((m) => m.group(1) ?? '').toList();
+      final List<String> mentionList =
+          matches.map((m) => m.group(1) ?? '').toList();
       final bool hasEveryone = mentionList.contains('everyone');
-      
+
       List<String>? targetPhones;
       if (mentionList.isNotEmpty && !hasEveryone) {
         // Targeted mentions
         targetPhones = [];
         for (final mention in mentionList) {
-          final user = allUsers.firstWhereOrNull((u) => (u['name'] ?? '').toString().replaceAll(' ', '') == mention);
+          final user = allUsers.firstWhereOrNull((u) =>
+              (u['name'] ?? '').toString().replaceAll(' ', '') == mention);
           if (user != null && user['phone'] != null) {
             targetPhones.add(user['phone']);
           }
@@ -290,7 +358,8 @@ class ChatController extends GetxController implements GetxService {
       // If mentions is empty AND replyTo is null, targetPhones stays null (sends to group_chat)
       // If mentions has everyone, targetPhones stays null (sends to group_chat)
 
-      _sendPushNotification(text, userName, replyTo: replyTo, targetPhones: targetPhones);
+      _sendPushNotification(text, userName,
+          replyTo: replyTo, targetPhones: targetPhones);
     } catch (e) {
       print('Error sending message: $e');
       Get.snackbar(
@@ -306,12 +375,12 @@ class ChatController extends GetxController implements GetxService {
   Future<void> reactToMessage(ChatMessageModel message, String emoji) async {
     try {
       await repository.toggleReaction(message.id, userPhone, emoji);
-      
+
       // Notify the message sender about the reaction
       if (message.senderPhone != userPhone) {
         _sendPushNotification(
-          '$userName reacted $emoji to your message', 
-          userName, 
+          '$userName reacted $emoji to your message',
+          userName,
           targetPhones: [message.senderPhone],
           isReaction: true,
         );
@@ -321,68 +390,41 @@ class ChatController extends GetxController implements GetxService {
     }
   }
 
-  Future<void> _sendPushNotification(String text, String senderName, {ChatMessageModel? replyTo, List<String>? targetPhones, bool isReaction = false}) async {
-    try {
-      final String accessToken = await FcmV1Service().getAccessToken();
-      if (accessToken.isEmpty) return;
+  Future<void> _sendPushNotification(String text, String senderName,
+      {ChatMessageModel? replyTo,
+      List<String>? targetPhones,
+      bool isReaction = false}) async {
+    String notificationTitle = 'New message from $senderName';
 
-      final RegExp mentionRegExp = RegExp(r'@(\w+)');
-      final Iterable<RegExpMatch> matches = mentionRegExp.allMatches(text);
-      final List<String> mentionList = matches.map((m) => m.group(1) ?? '').toList();
-      final bool hasEveryone = mentionList.contains('everyone');
-      final String mentions = mentionList.join(',');
+    final RegExp mentionRegExp = RegExp(r'@(\w+)');
+    final Iterable<RegExpMatch> matches = mentionRegExp.allMatches(text);
+    final List<String> mentionList =
+        matches.map((m) => m.group(1) ?? '').toList();
+    final bool hasEveryone = mentionList.contains('everyone');
+    final String mentions = mentionList.join(',');
 
-      final String projectId = 'home-expense-tracker-54c89'; 
-      final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
-      
-      final headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      };
-
-      String notificationTitle = 'New message from $senderName';
-      if (isReaction) {
-        notificationTitle = 'Reaction from $senderName';
-      } else if (hasEveryone) {
-        notificationTitle = '📢 @everyone: New message from $senderName';
-      } else if (mentionList.isNotEmpty) {
-        notificationTitle = '👋 You were mentioned by $senderName';
-      } else if (replyTo != null) {
-        notificationTitle = '💬 $senderName replied to you';
-      }
-
-      final List<String> topics = [];
-      if (targetPhones != null && targetPhones.isNotEmpty) {
-        for (final phone in targetPhones) {
-          String safePhone = phone.replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '');
-          topics.add('user_$safePhone');
-        }
-      } else {
-        topics.add('group_chat');
-      }
-      
-      for (final topic in topics) {
-        final body = {
-          'message': {
-            'topic': topic,
-            'data': {
-              'title': notificationTitle,
-              'body': text,
-              'senderName': senderName,
-              'senderPhone': userPhone,
-              'replyToSenderName': replyTo?.senderName ?? '',
-              'mentions': mentions,
-              'isEveryone': hasEveryone.toString(),
-              'type': 'chat_message',
-              'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-            },
-          }
-        };
-
-        await http.post(url, headers: headers, body: jsonEncode(body));
-      }
-    } catch (e) {
-      print('Error sending push notification: $e');
+    if (isReaction) {
+      notificationTitle = 'Reaction from $senderName';
+    } else if (hasEveryone) {
+      notificationTitle = '📢 @everyone: New message from $senderName';
+    } else if (mentionList.isNotEmpty) {
+      notificationTitle = '👋 You were mentioned by $senderName';
+    } else if (replyTo != null) {
+      notificationTitle = '💬 $senderName replied to you';
     }
+
+    await PushNotificationService().sendPushNotification(
+      title: notificationTitle,
+      body: text,
+      targetPhones: targetPhones,
+      data: {
+        'senderName': senderName,
+        'senderPhone': userPhone,
+        'replyToSenderName': replyTo?.senderName ?? '',
+        'mentions': mentions,
+        'isEveryone': hasEveryone.toString(),
+        'type': 'chat_message',
+      },
+    );
   }
 }
