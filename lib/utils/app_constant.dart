@@ -11,6 +11,7 @@ class AppConstant {
   static const String keyRememberMe = 'rememberMe';
   static const String keySavedPhone = 'savedPhone';
   static const String keySavedPassword = 'savedPassword';
+  static const String keyIsAdmin = 'isAdmin';
 
 
   // Firestore Collection Names
@@ -21,6 +22,7 @@ class AppConstant {
   static const String collectionAnnouncements = 'announcements';
   static const String collectionChats = 'chats';
   static const String collectionSeenStatus = 'seen_status';
+  static const String collectionEditLogs = 'edit_logs';
   
   static const double appVersion = 1.0;
   static const String docBusinessConfig = 'business_config';

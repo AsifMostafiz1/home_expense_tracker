@@ -212,7 +212,7 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                 CustomButton(
                   text: item == null ? 'add'.tr : 'update'.tr,
                   isLoading: controller.isLoading,
-                  onPressed: () => controller.submitExpense(expenseId: item?.id),
+                  onPressed: () => controller.submitExpense(existingExpense: item),
                 ),
                 const SizedBox(height: 16),
               ],

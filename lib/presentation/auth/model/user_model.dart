@@ -3,12 +3,14 @@ class UserModel {
   final String phone;
   final String password;
   final String? profileImage;
+  final String isAdmin;
 
   UserModel({
     required this.name,
     required this.phone,
     required this.password,
     this.profileImage,
+    this.isAdmin = '0',
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
@@ -17,6 +19,7 @@ class UserModel {
       phone: map['phone'] ?? '',
       password: map['password'] ?? '',
       profileImage: map['profileImage'],
+      isAdmin: map['isAdmin'] ?? '0',
     );
   }
 
@@ -26,6 +29,7 @@ class UserModel {
       'phone': phone,
       'password': password,
       'profileImage': profileImage,
+      'isAdmin': isAdmin,
     };
   }
 }

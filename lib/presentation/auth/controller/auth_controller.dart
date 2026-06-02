@@ -102,6 +102,7 @@ class AuthController extends GetxController implements GetxService {
       await prefs.setBool(AppConstant.keyIsLoggedIn, true);
       await prefs.setString(AppConstant.keyUserPhone, phone);
       await prefs.setString(AppConstant.keyUserName, name);
+      await prefs.setString(AppConstant.keyIsAdmin, newUser.isAdmin);
 
       isLoading = false;
       update();
@@ -139,6 +140,7 @@ class AuthController extends GetxController implements GetxService {
           await prefs.setBool(AppConstant.keyIsLoggedIn, true);
           await prefs.setString(AppConstant.keyUserPhone, user.phone);
           await prefs.setString(AppConstant.keyUserName, user.name);
+          await prefs.setString(AppConstant.keyIsAdmin, user.isAdmin);
 
           // Handle Remember Me
           await prefs.setBool(AppConstant.keyRememberMe, isRememberMe);
@@ -181,6 +183,7 @@ class AuthController extends GetxController implements GetxService {
     await prefs.remove(AppConstant.keyUserPhone);
     await prefs.remove(AppConstant.keyUserName);
     await prefs.remove(AppConstant.keyUserProfileImage);
+    await prefs.remove(AppConstant.keyIsAdmin);
     await FirebaseAuth.instance.signOut();
     Get.deleteAll(force: true);
 

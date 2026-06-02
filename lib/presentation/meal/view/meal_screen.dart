@@ -9,6 +9,8 @@ import '../../../common/widgets/custom_text_field.dart';
 import '../controller/meal_controller.dart';
 import '../../../common/widgets/custom_button.dart';
 import 'announcement_history_screen.dart';
+import '../../expense/controller/expense_controller.dart';
+import '../../expense/widgets/expense_bottom_sheet.dart';
 
 class MealScreen extends GetView<MealController> {
   const MealScreen({super.key});
@@ -771,6 +773,26 @@ class MealScreen extends GetView<MealController> {
     );
   }
 
+  void _showExpenseBottomSheet(BuildContext context, {ExpenseModel? item}) {
+    if (Get.isRegistered<ExpenseController>()) {
+      final expController = Get.find<ExpenseController>();
+      if (item != null) {
+        expController.amountController.text = item.amount.toString();
+        expController.descriptionController.text = item.description;
+        expController.selectedDate = item.date;
+        expController.selectedTime = item.time;
+        expController.selectedType = item.type;
+        expController.update(); // Manual update to reflect changes in UI
+      } else {
+        expController.clearForm();
+      }
+      Get.bottomSheet(
+        ExpenseBottomSheet(item: item),
+        isScrollControlled: true,
+      );
+    }
+  }
+
   void _showUserCalendarBottomSheet(
       BuildContext context, Map<String, dynamic> user) {
     final Map<String, int> userDailyMeals =
@@ -834,7 +856,10 @@ class MealScreen extends GetView<MealController> {
                       firstDay: controller.firstDay,
                       lastDay: controller.lastDay,
                       focusedDay: controller.focusedDay,
-                      availableGestures: AvailableGestures.none,
+                      availableGestures: controller.isAdminUser && userName != 'me_you'.tr ? AvailableGestures.all : AvailableGestures.none,
+                      onDaySelected: controller.isAdminUser && userName != 'me_you'.tr ? (selected, focused) {
+                        controller.showAdminUpdateMealBottomSheet(selected, userName, user['phone']);
+                      } : null,
                       headerStyle: HeaderStyle(
                         formatButtonVisible: false,
                         titleCentered: true,
@@ -1008,6 +1033,38 @@ class MealScreen extends GetView<MealController> {
                                     color: Colors.red,
                                   ),
                                 ),
+                                if (controller.isAdminUser && userName != 'me_you'.tr)
+                                  PopupMenuButton<String>(
+                                    icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade600),
+                                    onSelected: (value) {
+                                      if (value == 'update') {
+                                        _showExpenseBottomSheet(context, item: item);
+                                      } else if (value == 'delete') {
+                                        Get.dialog(
+                                          AlertDialog(
+                                            title: Text('delete'.tr),
+                                            content: Text('Are you sure you want to delete this expense for $userName?'),
+                                            actions: [
+                                              TextButton(onPressed: () => Get.back(), child: Text('cancel'.tr)),
+                                              ElevatedButton(
+                                                onPressed: () {
+                                                  Get.back();
+                                                  if (Get.isRegistered<ExpenseController>()) {
+                                                    Get.find<ExpenseController>().deleteExpense(item);
+                                                  }
+                                                },
+                                                child: Text('delete'.tr),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      PopupMenuItem(value: 'update', child: Text('update'.tr)),
+                                      PopupMenuItem(value: 'delete', child: Text('delete'.tr)),
+                                    ],
+                                  ),
                               ],
                             ),
                           );

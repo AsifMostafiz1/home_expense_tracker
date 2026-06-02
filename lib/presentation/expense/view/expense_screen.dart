@@ -360,7 +360,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
           TextButton(
             onPressed: () {
               Get.back();
-              controller.deleteExpense(item.id);
+              controller.deleteExpense(item);
             },
             child: Text('delete'.tr, style: const TextStyle(color: Colors.red)),
           ),

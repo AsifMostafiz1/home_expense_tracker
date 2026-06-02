@@ -26,6 +26,7 @@ class MealController extends GetxController implements GetxService {
   bool isLoading = false;
   bool isFetchingMeals = true;
   bool isFetchingStats = true;
+  bool isAdminUser = false;
   Map<String, int> dailyMeals = {};
   Map<String, int> totalDailyMeals = {};
   Map<String, List<Map<String, dynamic>>> userDailyMeals = {};
@@ -60,9 +61,16 @@ class MealController extends GetxController implements GetxService {
     final DateTime today = DateTime.now();
     firstDay = DateTime(today.year, today.month - 2, 1);
     lastDay = DateTime(today.year, today.month + 2, 0);
+    _loadAdminStatus();
     fetchMeals();
     fetchMonthlyStats();
     fetchAnnouncement();
+  }
+
+  Future<void> _loadAdminStatus() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    isAdminUser = prefs.getString(AppConstant.keyIsAdmin) == '1';
+    update();
   }
 
   void onDaySelected(DateTime selected, DateTime focused) {
@@ -325,6 +333,162 @@ class MealController extends GetxController implements GetxService {
       ),
       isScrollControlled: true,
     );
+  }
+
+  void showAdminUpdateMealBottomSheet(DateTime date, String otherUserName, String otherUserPhone) {
+    String dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    int currentCount = 0;
+    if (userDailyMeals.containsKey(dateKey)) {
+      final list = userDailyMeals[dateKey]!;
+      for (var user in list) {
+        if (user['name'] == otherUserName) {
+          currentCount = user['count'];
+          break;
+        }
+      }
+    }
+    
+    RxInt selectedCount = currentCount.obs;
+    List<String> months = ['jan'.tr, 'feb'.tr, 'mar'.tr, 'apr'.tr, 'may'.tr, 'jun'.tr, 'jul'.tr, 'aug'.tr, 'sep'.tr, 'oct'.tr, 'nov'.tr, 'dec'.tr];
+    String formattedDate = '${date.day} ${months[date.month - 1]}, ${date.year}';
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Theme.of(Get.context!).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('update_user_meal'.trParams({'name': otherUserName}),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+            const SizedBox(height: 8),
+            Text(formattedDate,
+                style: TextStyle(fontSize: 14, color: Theme.of(Get.context!).textTheme.bodySmall?.color)),
+            const SizedBox(height: 24),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 6,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1,
+              ),
+              itemCount: 12,
+              itemBuilder: (context, index) {
+                return Obx(() {
+                  bool isSelected = selectedCount.value == index;
+                  return InkWell(
+                    onTap: () => selectedCount.value = index,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.blue.shade600 : Theme.of(context).dividerColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: isSelected ? Colors.blue.shade600 : Theme.of(context).dividerColor),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text('$index',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: isSelected ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color)),
+                    ),
+                  );
+                });
+              },
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () {
+                  Get.back(); // close bottom sheet
+                  Get.dialog(
+                    AlertDialog(
+                      title: Text('confirm_edit'.tr),
+                      content: Text('confirm_edit_meal'.trParams({
+                        'name': otherUserName,
+                        'old': currentCount.toString(),
+                        'new': selectedCount.value.toString(),
+                        'date': formattedDate,
+                      })),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Get.back(), // close dialog
+                          child: Text('cancel'.tr),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            Get.back(); // close dialog
+                            _updateOtherUserMeal(date, selectedCount.value, currentCount, otherUserName, otherUserPhone);
+                          },
+                          child: Text('confirm'.tr),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade600,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text('submit'.tr, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  Future<void> _updateOtherUserMeal(DateTime date, int newCount, int oldCount, String otherUserName, String otherUserPhone) async {
+    try {
+      isLoading = true;
+      update();
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? adminName = prefs.getString(AppConstant.keyUserName);
+      String? adminPhone = prefs.getString(AppConstant.keyUserPhone);
+      
+      if (adminName == null || adminPhone == null) return;
+
+      await repository.updateMeal(otherUserName, otherUserPhone, date, newCount);
+
+      // Log the edit
+      List<String> months = ['jan'.tr, 'feb'.tr, 'mar'.tr, 'apr'.tr, 'may'.tr, 'jun'.tr, 'jul'.tr, 'aug'.tr, 'sep'.tr, 'oct'.tr, 'nov'.tr, 'dec'.tr];
+      String formattedDate = '${date.day} ${months[date.month - 1]}, ${date.year}';
+      
+      await FirebaseFirestore.instance.collection(AppConstant.collectionEditLogs).add({
+        'adminName': adminName,
+        'adminPhone': adminPhone,
+        'targetUserName': otherUserName,
+        'targetUserPhone': otherUserPhone,
+        'type': 'meal',
+        'description': 'Meal count changed from $oldCount to $newCount on $formattedDate',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await PushNotificationService().sendPushNotification(
+        title: 'Admin Updated Your Meal',
+        body: '$adminName has changed your meal count from $oldCount to $newCount on $formattedDate.',
+        targetPhones: [otherUserPhone],
+      );
+
+      await fetchMeals();
+      await fetchMonthlyStats();
+      CustomSnackbar.show(type: SnackbarType.success, message: 'Meal updated for $otherUserName');
+    } catch (e) {
+      CustomSnackbar.show(type: SnackbarType.error, message: 'Failed to update user meal');
+    } finally {
+      isLoading = false;
+      update();
+    }
   }
 
   Future<void> fetchAnnouncement() async {

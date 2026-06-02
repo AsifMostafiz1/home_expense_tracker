@@ -8,6 +8,8 @@ import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
 import '../model/expense_model.dart';
 import '../repository/expense_repository.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../services/push_notification_service.dart';
 
 class ExpenseController extends GetxController implements GetxService {
   final ExpenseRepository repository;
@@ -147,7 +149,7 @@ class ExpenseController extends GetxController implements GetxService {
     groupedExpenses = map;
   }
 
-  Future<void> submitExpense({String? expenseId}) async {
+  Future<void> submitExpense({ExpenseModel? existingExpense}) async {
     String amountStr = amountController.text.trim();
     String desc = descriptionController.text.trim();
 
@@ -175,10 +177,13 @@ class ExpenseController extends GetxController implements GetxService {
       update();
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? userName = prefs.getString(AppConstant.keyUserName);
-      String? userPhone = prefs.getString(AppConstant.keyUserPhone);
+      String? currentUserName = prefs.getString(AppConstant.keyUserName);
+      String? currentUserPhone = prefs.getString(AppConstant.keyUserPhone);
 
-      if (userName == null || userPhone == null) return;
+      if (currentUserName == null || currentUserPhone == null) return;
+
+      String finalUserName = existingExpense != null ? existingExpense.userName : currentUserName;
+      String finalUserPhone = existingExpense != null ? existingExpense.userPhone : currentUserPhone;
 
       Map<String, dynamic> data = {
         'description': desc.isEmpty ? 'expense'.tr : desc,
@@ -186,17 +191,36 @@ class ExpenseController extends GetxController implements GetxService {
         'date': selectedDate.toIso8601String(),
         'time_hour': selectedTime.hour,
         'time_minute': selectedTime.minute,
-        'user_name': userName,
-        'user_phone': userPhone,
+        'user_name': finalUserName,
+        'user_phone': finalUserPhone,
         'type': selectedType,
         'updatedAt': DateTime.now().toIso8601String(), // Or use FieldValue.serverTimestamp() in repository
       };
 
-      if (expenseId == null) {
+      if (existingExpense == null) {
         data['createdAt'] = DateTime.now().toIso8601String();
         await repository.addExpense(data);
       } else {
-        await repository.updateExpense(expenseId, data);
+        await repository.updateExpense(existingExpense.id, data);
+        
+        if (finalUserPhone != currentUserPhone) {
+          String logDesc = 'Expense "${existingExpense.description}" edited: amount ${existingExpense.amount} -> $amount';
+          await FirebaseFirestore.instance.collection(AppConstant.collectionEditLogs).add({
+            'adminName': currentUserName,
+            'adminPhone': currentUserPhone,
+            'targetUserName': finalUserName,
+            'targetUserPhone': finalUserPhone,
+            'type': 'expense',
+            'description': logDesc,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          
+          await PushNotificationService().sendPushNotification(
+            title: 'Admin Updated Your Expense',
+            body: '$currentUserName has updated your expense "${existingExpense.description}".',
+            targetPhones: [finalUserPhone],
+          );
+        }
       }
 
       await fetchExpenses();
@@ -205,7 +229,7 @@ class ExpenseController extends GetxController implements GetxService {
       }
       CustomSnackbar.show(
           type: SnackbarType.success,
-          message: expenseId == null ? 'expense_added'.tr : 'expense_updated'.tr);
+          message: existingExpense == null ? 'expense_added'.tr : 'expense_updated'.tr);
     } catch (e) {
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_save_expense'.tr);
@@ -215,11 +239,34 @@ class ExpenseController extends GetxController implements GetxService {
     }
   }
 
-  Future<void> deleteExpense(String id) async {
+  Future<void> deleteExpense(ExpenseModel expense) async {
     try {
       isLoading = true;
       update();
-      await repository.deleteExpense(id);
+      await repository.deleteExpense(expense.id);
+
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? currentUserPhone = prefs.getString(AppConstant.keyUserPhone);
+      String? currentUserName = prefs.getString(AppConstant.keyUserName);
+
+      if (currentUserPhone != null && currentUserName != null && expense.userPhone != currentUserPhone) {
+         String logDesc = 'Expense "${expense.description}" of ৳${expense.amount} deleted';
+         await FirebaseFirestore.instance.collection(AppConstant.collectionEditLogs).add({
+            'adminName': currentUserName,
+            'adminPhone': currentUserPhone,
+            'targetUserName': expense.userName,
+            'targetUserPhone': expense.userPhone,
+            'type': 'expense',
+            'description': logDesc,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+          await PushNotificationService().sendPushNotification(
+            title: 'Admin Deleted Your Expense',
+            body: '$currentUserName has deleted your expense "${expense.description}".',
+            targetPhones: [expense.userPhone],
+          );
+      }
       await fetchExpenses();
       if (Get.isRegistered<MealController>()) {
         Get.find<MealController>().fetchMonthlyStats();

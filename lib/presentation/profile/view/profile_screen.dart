@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
 import '../../member/view/member_screen.dart';
 import 'edit_profile_screen.dart';
+import 'edit_history_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -66,14 +67,43 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Name
-                      Text(
-                        controller.userName.isNotEmpty ? controller.userName : 'unknown_user'.tr,
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).textTheme.titleLarge?.color ?? Colors.black87,
-                        ),
+                      // Name with Admin Badge
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            controller.userName.isNotEmpty ? controller.userName : 'unknown_user'.tr,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).textTheme.titleLarge?.color ?? Colors.black87,
+                            ),
+                          ),
+                          if (controller.isAdminUser) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.verified_user, size: 14, color: Colors.blue.shade700),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'admin'.tr,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       // Phone
@@ -141,6 +171,13 @@ class ProfileScreen extends StatelessWidget {
                             _buildDivider(context),
                             _buildListTile(
                               context,
+                              icon: Icons.history,
+                              title: 'edit_history'.tr,
+                              onTap: () => Get.to(() => const EditHistoryScreen()),
+                            ),
+                            _buildDivider(context),
+                            _buildListTile(
+                              context,
                               icon: Icons.person_outline,
                               title: 'edit_profile'.tr,
                               onTap: () => Get.to(() => const EditProfileScreen()),
@@ -198,7 +235,7 @@ class ProfileScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 40), // Bottom padding for scrolling
+                      const SizedBox(height: 40),
                     ],
                   ),
                 ),

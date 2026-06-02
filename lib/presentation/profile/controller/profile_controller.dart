@@ -9,11 +9,20 @@ import '../../auth/binding/auth_binding.dart';
 import '../../auth/model/user_model.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
+import '../model/edit_log_model.dart';
 
 class ProfileController extends GetxController implements GetxService {
   String userName = '';
   String userPhone = '';
   UserModel? userModel;
+  bool isAdminUser = false;
+  List<EditLogModel> allEditLogs = [];
+  List<EditLogModel> editLogs = [];
+
+  DateTime? filterStartDate;
+  DateTime? filterEndDate;
+  UserModel? filterTargetUser;
+  List<UserModel> availableUsers = [];
 
   int totalMealsEaten = 0;
   double totalMealExpense = 0.0;
@@ -28,6 +37,12 @@ class ProfileController extends GetxController implements GetxService {
   @override
   void onInit() {
     super.onInit();
+    
+    // Set default filter to current month
+    DateTime now = DateTime.now();
+    filterStartDate = DateTime(now.year, now.month, 1);
+    filterEndDate = DateTime(now.year, now.month + 1, 0); // Last day of current month
+
     _loadThemeMode();
     _loadLanguage();
     _loadUserData();
@@ -91,11 +106,15 @@ class ProfileController extends GetxController implements GetxService {
         if (doc.exists) {
           userModel = UserModel.fromMap(doc.data() as Map<String, dynamic>);
           userName = userModel!.name;
+          isAdminUser = userModel!.isAdmin == '1';
           // Sync with prefs
           await prefs.setString(AppConstant.keyUserName, userName);
+          await prefs.setString(AppConstant.keyIsAdmin, userModel!.isAdmin);
         }
         
         await _fetchLifetimeStats();
+        await fetchUsersForFilter();
+        await _fetchEditLogs();
       }
     } catch (e) {
       print('Error loading user data: $e');
@@ -144,6 +163,65 @@ class ProfileController extends GetxController implements GetxService {
 
     } catch (e) {
       print('Error fetching lifetime stats: $e');
+    }
+  }
+
+  Future<void> _fetchEditLogs() async {
+    try {
+      Query query = FirebaseFirestore.instance
+          .collection(AppConstant.collectionEditLogs)
+          .orderBy('createdAt', descending: true);
+
+      QuerySnapshot snapshot = await query.get();
+      allEditLogs = snapshot.docs.map((doc) => EditLogModel.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+      applyFilters();
+    } catch (e) {
+      print('Error fetching edit logs: $e');
+    }
+  }
+
+  void applyFilters() {
+    editLogs = allEditLogs.where((log) {
+      if (filterStartDate != null) {
+        if (log.createdAt.isBefore(filterStartDate!)) return false;
+      }
+      if (filterEndDate != null) {
+        DateTime end = filterEndDate!.add(const Duration(days: 1));
+        if (log.createdAt.isAfter(end) || log.createdAt.isAtSameMomentAs(end)) return false;
+      }
+      if (filterTargetUser != null) {
+        if (log.targetUserPhone != filterTargetUser!.phone) return false;
+      }
+      return true;
+    }).toList();
+    update();
+  }
+
+  void setDateFilter(DateTime? start, DateTime? end) {
+    filterStartDate = start;
+    filterEndDate = end;
+    applyFilters();
+  }
+
+  void setUserFilter(UserModel? user) {
+    filterTargetUser = user;
+    applyFilters();
+  }
+
+  void clearFilters() {
+    filterStartDate = null;
+    filterEndDate = null;
+    filterTargetUser = null;
+    applyFilters();
+  }
+
+  Future<void> fetchUsersForFilter() async {
+    try {
+      QuerySnapshot snapshot = await FirebaseFirestore.instance.collection(AppConstant.collectionUsers).get();
+      availableUsers = snapshot.docs.map((doc) => UserModel.fromMap(doc.data() as Map<String, dynamic>)).toList();
+      update();
+    } catch(e) {
+      print('Error fetching users for filter: $e');
     }
   }
 
