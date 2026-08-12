@@ -2,8 +2,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'dart:io';
 import '../utils/app_constant.dart';
 
 import 'dart:convert';
@@ -147,34 +145,13 @@ class PushNotificationService {
 
     print('FCM: Local notifications initialized and channel created.');
 
-    // 3. Request permissions using permission_handler (More reliable for Android 13+)
-    if (Platform.isAndroid) {
-      print('FCM: Requesting Android permission via permission_handler...');
-      PermissionStatus status = await Permission.notification.status;
-      print('FCM: Initial permission status: $status');
-
-      if (status.isDenied || status.isRestricted) {
-        status = await Permission.notification.request();
-        print('FCM: Permission requested, new status: $status');
-      }
-
-      if (status.isPermanentlyDenied || status.isDenied) {
-        print('FCM: Permission blocked or denied. Opening app settings...');
-        await openAppSettings();
-      }
-    }
-
-    // 4. Also call FCM requestPermission (especially for iOS)
-    print('FCM: Requesting permissions via Firebase Messaging...');
-    NotificationSettings settings = await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    print(
-        'FCM: Firebase Messaging authorizationStatus: ${settings.authorizationStatus}');
-
-    // 5. Setup Listeners
+    // 3. Setup Listeners
+    //
+    // The permission itself is deliberately NOT requested here. This runs from
+    // main(), before runApp(), where no resumed Activity exists to host the
+    // Android 13+ system dialog — the request would resolve to `denied`
+    // without ever showing a popup. NotificationPermissionService asks once the
+    // UI is up, driven from SplashController.
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {

@@ -8,9 +8,11 @@ import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_button.dart';
 import '../../../common/widgets/custom_text_field.dart';
+import '../../../common/widgets/hiding_fab.dart';
 import '../../expense/controller/expense_controller.dart';
 import '../../expense/model/expense_model.dart';
 import '../../expense/widgets/expense_bottom_sheet.dart';
+import '../../../utils/app_ui.dart';
 import '../controller/meal_controller.dart';
 import 'announcement_history_screen.dart';
 
@@ -110,59 +112,54 @@ class MealScreen extends GetView<MealController> {
   Widget build(BuildContext context) {
     // Controller is provided via MealBinding
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: CustomAppBar(
-        title: 'meal'.tr,
-        actions: [
-          IconButton(
-            tooltip: 'announcement_history'.tr,
-            icon: const Icon(Icons.history_rounded, size: 22),
-            onPressed: () => Get.to(() => const AnnouncementHistoryScreen()),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAnnouncementBottomSheet(context),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        icon: const Icon(Icons.campaign_rounded),
-        label: Text(
-          'announcement'.tr,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: GetBuilder<MealController>(
-        builder: (controller) {
-          final bool isFirstLoad = controller.isFetchingStats &&
-              controller.totalMealCount == 0 &&
-              controller.otherUsersMeals.isEmpty;
-
-          return RefreshIndicator(
-            color: Theme.of(context).colorScheme.primary,
-            onRefresh: () async {
-              await controller.fetchMeals();
-              await controller.fetchMonthlyStats();
-              await controller.fetchAnnouncement();
-            },
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
-                children: [
-                  _buildAnnouncement(context),
-                  _buildQuickStats(context),
-                  _buildCalendarCard(context),
-                  _buildBulkMealCard(context),
-                  _buildSummarySection(context, isLoading: isFirstLoad),
-                  // Breathing room so the FAB never covers the last card.
-                  const SizedBox(height: 96),
-                ],
-              ),
+    return HidingFab(
+      icon: Icons.campaign_rounded,
+      tooltip: 'announcement'.tr,
+      onPressed: () => _showAnnouncementBottomSheet(context),
+      builder: (context, fab) => Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: CustomAppBar(
+          title: 'meal'.tr,
+          actions: [
+            IconButton(
+              tooltip: 'announcement_history'.tr,
+              icon: const Icon(Icons.history_rounded, size: 22),
+              onPressed: () => Get.to(() => const AnnouncementHistoryScreen()),
             ),
-          );
-        },
+            const SizedBox(width: 8),
+          ],
+        ),
+        floatingActionButton: fab,
+        body: GetBuilder<MealController>(
+          builder: (controller) {
+            final bool isFirstLoad = controller.isFetchingStats &&
+                controller.totalMealCount == 0 &&
+                controller.otherUsersMeals.isEmpty;
+
+            return RefreshIndicator(
+              color: Theme.of(context).colorScheme.primary,
+              onRefresh: () async {
+                await controller.fetchMeals(background: true);
+                await controller.fetchMonthlyStats(background: true);
+                await controller.fetchAnnouncement();
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    _buildAnnouncement(context),
+                    _buildQuickStats(context),
+                    _buildCalendarCard(context),
+                    _buildBulkMealCard(context),
+                    _buildSummarySection(context, isLoading: isFirstLoad),
+                    // Breathing room so the FAB never covers the last card.
+                    const SizedBox(height: 96),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -431,15 +428,24 @@ class MealScreen extends GetView<MealController> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                // Until the month has been filled in, a tap is refused — so
+                // the line says that instead of inviting one.
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.touch_app_outlined,
-                        size: 14, color: _mutedColor(context)),
+                    Icon(
+                      controller.canEditDays
+                          ? Icons.touch_app_outlined
+                          : Icons.lock_outline_rounded,
+                      size: 14,
+                      color: _mutedColor(context),
+                    ),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        'tap_day_to_update'.tr,
+                        controller.canEditDays
+                            ? 'tap_day_to_update'.tr
+                            : 'add_bulk_meal_first'.tr,
                         style: TextStyle(
                           fontSize: 11,
                           color: _mutedColor(context),
@@ -815,132 +821,143 @@ class MealScreen extends GetView<MealController> {
     final bool willGet = balance >= 0;
     final MaterialColor balanceColor = willGet ? Colors.teal : Colors.red;
 
-    return Material(
-      color: Theme.of(context).cardColor,
-      borderRadius: BorderRadius.circular(22),
-      child: InkWell(
-        onTap: onTap,
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(22),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: _hairline(context)),
-            boxShadow: _softShadow(context),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
+        border: Border.all(color: _hairline(context)),
+        boxShadow: _softShadow(context),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
             children: [
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(width: 5, color: color),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
-                child: Column(
+              // ------------------------------------------------------- who
+              //
+              // The member's color washes the whole band. That reads as a
+              // deliberate header, where the old 5px slab down the left edge
+              // read as a stray bar fighting the rounded corner.
+              Container(
+                color: _tint(context, color),
+                padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        _avatar(context, title, color, isMe: isMe),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: -0.2,
-                                    ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'member_stats'.tr,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: _mutedColor(context),
-                                ),
-                              ),
-                            ],
-                          ),
+                    _avatar(context, title, color,
+                        isMe: isMe,
+                        size: 38,
+                        background: Theme.of(context).cardColor),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.2,
+                          color: _bodyColor(context),
                         ),
-                        _countChip(context, count, color),
-                        if (onTap != null) ...[
-                          const SizedBox(width: 2),
-                          Icon(Icons.chevron_right_rounded,
-                              size: 20, color: _mutedColor(context)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _countChip(context, count, color, onTinted: true),
+                    if (onTap != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: Icon(Icons.chevron_right_rounded,
+                            size: 20, color: _mutedColor(context)),
+                      ),
+                  ],
+                ),
+              ),
+
+              // ------------------------------------------------ the answer
+              //
+              // The balance is the only figure anyone opens this card for, so
+              // it gets the size. Previously it sat last, in the same weight
+              // as the four numbers it is derived from.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            willGet ? 'will_get'.tr : 'to_give'.tr,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.1,
+                              color: _mutedColor(context),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              AppUi.amount(balance.abs()),
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -1.2,
+                                height: 1.05,
+                                color: _accentOn(context, balanceColor),
+                              ),
+                            ),
+                          ),
                         ],
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        _statTile(context,
-                            label: 'meal_paid'.tr,
-                            value: '৳${expense.toStringAsFixed(1)}'),
-                        _statTile(context,
-                            label: 'other_paid'.tr,
-                            value: '৳${otherExpense.toStringAsFixed(1)}'),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _statTile(context,
-                            label: 'meal_cost'.tr,
-                            value: '৳${mealCost.toStringAsFixed(1)}'),
-                        _statTile(context,
-                            label: 'other_cost'.tr,
-                            value: '৳${otherRate.toStringAsFixed(1)}'),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
+                    const SizedBox(width: 12),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                      width: 38,
+                      height: 38,
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: _tint(context, balanceColor),
-                        borderRadius: BorderRadius.circular(14),
+                        shape: BoxShape.circle,
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            willGet
-                                ? Icons.trending_up_rounded
-                                : Icons.trending_down_rounded,
-                            size: 16,
-                            color: _accentOn(context, balanceColor),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              willGet ? 'will_get'.tr : 'to_give'.tr,
-                              style: TextStyle(
-                                color: _accentOn(context, balanceColor),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            '৳${balance.abs().toStringAsFixed(2)}',
-                            style: TextStyle(
-                              color: _accentOn(context, balanceColor),
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                      child: Icon(
+                        willGet
+                            ? Icons.trending_up_rounded
+                            : Icons.trending_down_rounded,
+                        size: 19,
+                        color: _accentOn(context, balanceColor),
                       ),
                     ),
+                  ],
+                ),
+              ),
+
+              // ----------------------------------------------- the working
+              //
+              // Four supporting figures on one line, so the card no longer
+              // spends a 2x2 grid's worth of height on secondary detail.
+              Container(
+                decoration: BoxDecoration(
+                  color: _neutralSurface(context),
+                  border: Border(top: BorderSide(color: _hairline(context))),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+                child: Row(
+                  children: [
+                    _ledgerStat(context, 'meal_paid'.tr, expense),
+                    _ledgerDivider(context),
+                    _ledgerStat(context, 'other_paid'.tr, otherExpense),
+                    _ledgerDivider(context),
+                    _ledgerStat(context, 'meal_cost'.tr, mealCost),
+                    _ledgerDivider(context),
+                    _ledgerStat(context, 'other_cost'.tr, otherRate),
                   ],
                 ),
               ),
@@ -950,6 +967,54 @@ class MealScreen extends GetView<MealController> {
       ),
     );
   }
+
+  /// One figure in the member card's bottom strip.
+  Widget _ledgerStat(BuildContext context, String label, double value) {
+    final bool isZero = value.abs() < 0.005;
+
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                AppUi.amount(value),
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.3,
+                  // A zero is not news. Letting it sit back keeps the eye on
+                  // the figures in the row that actually moved.
+                  color: isZero ? _mutedColor(context) : _bodyColor(context),
+                ),
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                color: _mutedColor(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ledgerDivider(BuildContext context) => Container(
+        width: 1,
+        height: 26,
+        color: _hairline(context),
+      );
 
   Widget _statTile(
     BuildContext context, {
@@ -987,20 +1052,42 @@ class MealScreen extends GetView<MealController> {
     );
   }
 
-  Widget _countChip(BuildContext context, int count, MaterialColor color) {
+  /// The meal count.
+  ///
+  /// [onTinted] is for chips sitting on a band already washed in [color] — a
+  /// solid fill would disappear into it, so the chip inverts instead.
+  Widget _countChip(
+    BuildContext context,
+    int count,
+    MaterialColor color, {
+    bool onTinted = false,
+  }) {
+    final Color foreground =
+        onTinted ? _accentOn(context, color) : Colors.white;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+          horizontal: onTinted ? 10 : 12, vertical: onTinted ? 5 : 6),
       decoration: BoxDecoration(
-        color: color,
+        color: onTinted ? Theme.of(context).cardColor : color,
         borderRadius: BorderRadius.circular(30),
       ),
-      child: Text(
-        'meals_count'.trParams({'count': count.toString()}),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onTinted) ...[
+            Icon(Icons.restaurant_rounded, size: 11, color: foreground),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            'meals_count'.trParams({'count': count.toString()}),
+            style: TextStyle(
+              color: foreground,
+              fontSize: onTinted ? 11 : 12,
+              fontWeight: onTinted ? FontWeight.w800 : FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1011,13 +1098,14 @@ class MealScreen extends GetView<MealController> {
     MaterialColor color, {
     bool isMe = false,
     double size = 42,
+    Color? background,
   }) {
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: _tint(context, color),
+        color: background ?? _tint(context, color),
         shape: BoxShape.circle,
         border: Border.all(color: color.withOpacity(0.35), width: 1.5),
       ),

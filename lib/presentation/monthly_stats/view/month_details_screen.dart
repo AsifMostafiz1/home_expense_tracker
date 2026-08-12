@@ -7,6 +7,7 @@ import '../controller/month_details_controller.dart';
 import '../controller/monthly_stats_controller.dart';
 import '../model/month_cost_summary.dart';
 import '../widgets/member_cost_ledger.dart';
+import '../widgets/my_month_card.dart';
 import '../widgets/monthly_stats_skeletons.dart';
 import 'monthly_bill_screen.dart';
 
@@ -75,11 +76,21 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
               final MonthCostSummary summary = c.summary!;
 
               return RefreshIndicator(
-                onRefresh: c.load,
+                onRefresh: c.refreshDetails,
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
                   children: [
-                    _buildHeaderCard(context, summary),
+                    // A member opens this screen to check their own figure,
+                    // so it leads — the house's totals are the admin's view.
+                    if (!c.isAdminUser && c.myCost != null)
+                      MyMonthCard(
+                        member: c.myCost!,
+                        summary: summary,
+                        onMoreInfo: () => showMyBreakdownSheet(
+                            context, c.myCost!, summary),
+                      )
+                    else
+                      _buildHeaderCard(context, summary),
                     const SizedBox(height: 14),
                     if (!summary.hasMealData) ...[
                       _buildNoMealNote(context, summary),

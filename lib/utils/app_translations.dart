@@ -162,6 +162,8 @@ class AppTranslations extends Translations {
           'one_meal': '1 meal',
           'two_plus_meals': '2+ meals',
           'tap_day_to_update': 'Tap any upcoming day to update your meals',
+          'add_bulk_meal_first':
+              'Add this month\'s meals first — then you can change any day',
           'bulk_meal_hint': 'Fill the whole month in one tap — 1 meal on weekdays, 2 on Friday & Saturday. You can fine-tune any day afterwards.',
           'admin_edit_hint': 'Admin: tap a day to edit @name\'s meals',
           'confirm_delete_expense_for': 'Are you sure you want to delete this expense for @name?',
@@ -215,6 +217,33 @@ class AppTranslations extends Translations {
           'admin_revoked_body': '@name removed your admin access.',
           'role_takes_effect_hint': 'Changes apply on their device the next time they open the app.',
           // ---------------------------------------------------- house bills
+          // ---------------------------------------------------- app settings
+          'settings': 'Settings',
+          'settings_subtitle': 'App version and download link',
+          'app_update': 'App update',
+          'app_update_hint':
+              'Anyone running an older version is sent to the update screen when they open the app, with this download link.',
+          'latest_version': 'Latest version',
+          'download_link': 'Download link',
+          'installed_version': 'This build',
+          'live_version': 'Required version',
+          'up_to_date': 'Up to date',
+          'update_required': 'Update required',
+          'invalid_version': 'Enter a version number like 1.2',
+          'invalid_link': 'Enter a valid link starting with https://',
+          'open_link': 'Open link',
+          'could_not_open_link': 'Could not open the link',
+          'locks_out_this_build':
+              'This is higher than the version you are running, so you will be asked to update as well.',
+          'force_update_title': 'Update this build too?',
+          'confirm_force_update':
+              'Version @version is above this build (@current). Everyone on an older version — including you — is sent to the update screen on the next launch.',
+          'force_update_note':
+              'Make sure the download link points at the new build before saving.',
+          'config_saved': 'App settings saved',
+          'failed_save_config': 'Could not save the app settings',
+          'failed_load_config': 'Could not load the app settings',
+          'last_updated_by': 'Last updated by @name',
           'monthly_statistics': 'Monthly Statistics',
           'monthly_statistics_subtitle': 'Bills, meal costs and what each member pays',
           'HOUSE': 'HOUSE',
@@ -232,6 +261,9 @@ class AppTranslations extends Translations {
           'month_not_set_up_yet': '@month has not been set up yet',
           'your_share': 'Your share',
           'you_need_to_pay': 'You need to pay',
+          'you_paid': 'You paid',
+          'status_paid': 'Paid',
+          'status_unpaid': 'Not paid',
           'you_will_get': 'You will get',
           'not_paid_yet': 'You have not paid yet',
           'you_have_paid': 'You have paid @amount',
@@ -327,6 +359,8 @@ class AppTranslations extends Translations {
           'to_collect': 'To collect',
           'subtotal': 'Subtotal',
           'rent_plus_shared': 'Rent @rent + shared @shared',
+          'shared_bills_include':
+              'Shared bills include wifi, electricity, water and cleaning.',
           'meals_times_rate': '@count meals × @rate',
           'mark_collected': 'Mark as collected',
           'collected_amount': '@amount collected',
@@ -355,6 +389,11 @@ class AppTranslations extends Translations {
           'month_oct': 'October',
           'month_nov': 'November',
           'month_dec': 'December',
+          'notifications_off_title': 'Turn on notifications',
+          'notifications_off_message':
+              'Notifications are turned off, so you will miss new messages, announcements and meal updates. Enable them in Settings > Notifications.',
+          'open_settings': 'Open Settings',
+          'not_now': 'Not Now',
         },
         'bn_BD': {
           'app_name': 'মিল ট্র্যাকার',
@@ -515,6 +554,8 @@ class AppTranslations extends Translations {
           'one_meal': '১ মিল',
           'two_plus_meals': '২+ মিল',
           'tap_day_to_update': 'মিল আপডেট করতে আসন্ন যেকোনো দিনে ট্যাপ করুন',
+          'add_bulk_meal_first':
+              'আগে এই মাসের মিল যোগ করুন — তারপর যেকোনো দিন বদলাতে পারবেন',
           'bulk_meal_hint': 'এক ট্যাপে পুরো মাসের মিল যোগ করুন — সাধারণ দিনে ১টি, শুক্র ও শনিবারে ২টি। পরে যেকোনো দিন আলাদাভাবে পরিবর্তন করা যাবে।',
           'admin_edit_hint': 'অ্যাডমিন: @name এর মিল সম্পাদনা করতে যেকোনো দিনে ট্যাপ করুন',
           'confirm_delete_expense_for': 'আপনি কি নিশ্চিত যে আপনি @name এর এই খরচটি মুছে ফেলতে চান?',
@@ -568,6 +609,33 @@ class AppTranslations extends Translations {
           'admin_revoked_body': '@name আপনার অ্যাডমিন অ্যাক্সেস সরিয়ে দিয়েছেন।',
           'role_takes_effect_hint': 'সদস্যের ডিভাইসে পরিবর্তনটি পরেরবার অ্যাপ খুললে কার্যকর হবে।',
           // ---------------------------------------------------- house bills
+          // ---------------------------------------------------- app settings
+          'settings': 'সেটিংস',
+          'settings_subtitle': 'অ্যাপ ভার্সন ও ডাউনলোড লিংক',
+          'app_update': 'অ্যাপ আপডেট',
+          'app_update_hint':
+              'পুরোনো ভার্সন চালানো যে কেউ অ্যাপ খুললেই আপডেট স্ক্রিনে যাবে, এই ডাউনলোড লিংকসহ।',
+          'latest_version': 'সর্বশেষ ভার্সন',
+          'download_link': 'ডাউনলোড লিংক',
+          'installed_version': 'এই বিল্ড',
+          'live_version': 'প্রয়োজনীয় ভার্সন',
+          'up_to_date': 'হালনাগাদ আছে',
+          'update_required': 'আপডেট প্রয়োজন',
+          'invalid_version': '১.২ এর মতো ভার্সন নম্বর দিন',
+          'invalid_link': 'https:// দিয়ে শুরু হওয়া সঠিক লিংক দিন',
+          'open_link': 'লিংক খুলুন',
+          'could_not_open_link': 'লিংকটি খোলা যায়নি',
+          'locks_out_this_build':
+              'এটি আপনার চলমান ভার্সনের চেয়ে বেশি, তাই আপনাকেও আপডেট করতে বলা হবে।',
+          'force_update_title': 'আপনার বিল্ডও আপডেট করবেন?',
+          'confirm_force_update':
+              'ভার্সন @version এই বিল্ডের (@current) চেয়ে বেশি। পুরোনো ভার্সনের সবাই — আপনিসহ — পরেরবার অ্যাপ খুললে আপডেট স্ক্রিনে যাবে।',
+          'force_update_note':
+              'সংরক্ষণের আগে নিশ্চিত করুন ডাউনলোড লিংকটি নতুন বিল্ডের।',
+          'config_saved': 'অ্যাপ সেটিংস সংরক্ষণ করা হয়েছে',
+          'failed_save_config': 'অ্যাপ সেটিংস সংরক্ষণ করা যায়নি',
+          'failed_load_config': 'অ্যাপ সেটিংস লোড করা যায়নি',
+          'last_updated_by': 'সর্বশেষ আপডেট করেছেন @name',
           'monthly_statistics': 'মাসিক পরিসংখ্যান',
           'monthly_statistics_subtitle': 'বিল, মিলের খরচ ও কে কত দেবেন',
           'HOUSE': 'বাসা',
@@ -584,6 +652,9 @@ class AppTranslations extends Translations {
           'month_not_set_up_yet': '@month এখনো সেট করা হয়নি',
           'your_share': 'আপনার ভাগ',
           'you_need_to_pay': 'আপনাকে দিতে হবে',
+          'you_paid': 'আপনি দিয়েছেন',
+          'status_paid': 'পরিশোধিত',
+          'status_unpaid': 'বাকি',
           'you_will_get': 'আপনি পাবেন',
           'not_paid_yet': 'আপনি এখনো পরিশোধ করেননি',
           'you_have_paid': 'আপনি @amount পরিশোধ করেছেন',
@@ -678,6 +749,8 @@ class AppTranslations extends Translations {
           'to_collect': 'মোট সংগ্রহ',
           'subtotal': 'উপমোট',
           'rent_plus_shared': 'ভাড়া @rent + ভাগ @shared',
+          'shared_bills_include':
+              'ভাগের বিলে ওয়াইফাই, বিদ্যুৎ, পানি ও ক্লিনিং ধরা আছে।',
           'meals_times_rate': '@count মিল × @rate',
           'mark_collected': 'সংগ্রহ হয়েছে',
           'collected_amount': '@amount সংগ্রহ হয়েছে',
@@ -706,6 +779,11 @@ class AppTranslations extends Translations {
           'month_oct': 'অক্টোবর',
           'month_nov': 'নভেম্বর',
           'month_dec': 'ডিসেম্বর',
+          'notifications_off_title': 'নোটিফিকেশন চালু করুন',
+          'notifications_off_message':
+              'নোটিফিকেশন বন্ধ আছে, তাই নতুন মেসেজ, ঘোষণা ও মিল আপডেট আপনি পাবেন না। সেটিংস > নোটিফিকেশন থেকে চালু করুন।',
+          'open_settings': 'সেটিংস খুলুন',
+          'not_now': 'এখন নয়',
         },
       };
 }

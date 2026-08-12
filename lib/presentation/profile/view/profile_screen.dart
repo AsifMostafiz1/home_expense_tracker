@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
 import '../../member/view/member_screen.dart';
 import '../../monthly_stats/view/monthly_stats_screen.dart';
+import '../../settings/view/settings_screen.dart';
+import '../widgets/profile_skeleton.dart';
 import 'edit_profile_screen.dart';
 import 'edit_history_screen.dart';
 
@@ -42,7 +44,7 @@ class ProfileScreen extends StatelessWidget {
             centerTitle: false,
           ),
           body: controller.isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? const ProfileSkeleton()
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -163,6 +165,30 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 24),
+
+                      // Admin Section — app-wide settings, not house data, so
+                      // it stands apart and only for the people who own it.
+                      if (controller.isAdminUser) ...[
+                        _buildSectionLabel(context, 'ADMIN'.tr),
+                        const SizedBox(height: 12),
+                        Material(
+                          color: Theme.of(context).cardColor,
+                          clipBehavior: Clip.antiAlias,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                                color: Theme.of(context).dividerColor),
+                          ),
+                          child: _buildListTile(
+                            context,
+                            icon: Icons.settings_outlined,
+                            title: 'settings'.tr,
+                            subtitle: 'settings_subtitle'.tr,
+                            onTap: () => Get.to(() => const SettingsScreen()),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
 
                       // Account Section
                       _buildSectionLabel(context, 'ACCOUNT'.tr),

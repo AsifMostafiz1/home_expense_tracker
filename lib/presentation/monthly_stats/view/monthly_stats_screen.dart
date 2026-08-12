@@ -10,7 +10,7 @@ import '../controller/month_details_controller.dart';
 import '../controller/monthly_stats_controller.dart';
 import '../model/month_cost_summary.dart';
 import '../model/monthly_bill_model.dart';
-import '../widgets/member_cost_ledger.dart';
+import '../widgets/my_month_card.dart';
 import '../widgets/month_picker_sheet.dart';
 import '../widgets/monthly_stats_skeletons.dart';
 import 'month_details_screen.dart';
@@ -55,7 +55,7 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
           if (c.errorMessage.isNotEmpty) return _buildErrorState(context, c);
 
           return RefreshIndicator(
-            onRefresh: c.loadStats,
+            onRefresh: c.refreshStats,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
               children: [
@@ -299,11 +299,30 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
   /// are not their business at a glance. Everything behind the number lives
   /// one tap away in the breakdown sheet.
   Widget _buildMyMonthCard(BuildContext context, MonthlyStatsController c) {
-    final Color primary = Theme.of(context).colorScheme.primary;
-    final DateTime month = c.thisMonth;
     final MonthlyBillModel? bill = c.currentMonthBill;
     final bool isSetUp = bill != null && !bill.isEmpty;
     final MemberCostSummary? mine = c.myCost;
+    final MonthCostSummary? summary = c.myMonthSummary;
+
+    if (!isSetUp || mine == null || summary == null) {
+      return _buildMyMonthPlaceholder(context, c, isSetUp);
+    }
+
+    return MyMonthCard(
+      member: mine,
+      summary: summary,
+      onMoreInfo: () => showMyBreakdownSheet(context, mine, summary),
+    );
+  }
+
+  /// The same frame, with the reason there is no number in it yet.
+  Widget _buildMyMonthPlaceholder(
+    BuildContext context,
+    MonthlyStatsController c,
+    bool isSetUp,
+  ) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+    final bool waiting = isSetUp && c.isMyCostLoading;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
@@ -312,300 +331,55 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: primary.withOpacity(0.25)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(Icons.account_balance_wallet_outlined,
-                    color: primary, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'this_month'.tr.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
-                        color: AppUi.muted(context),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      AppUi.monthLabel(month),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.3,
-                        color: AppUi.body(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          if (!isSetUp)
-            Text(
-              'this_month_not_set_hint'.tr,
-              style: TextStyle(
-                fontSize: 12.5,
-                height: 1.45,
-                color: AppUi.muted(context),
-              ),
-            )
-          else if (c.isMyCostLoading && mine == null)
-            const SizedBox(
-              height: 44,
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
-            )
-          else if (mine == null)
-            Text(
-              'you_not_in_month'.tr,
-              style: TextStyle(
-                fontSize: 12.5,
-                height: 1.45,
-                color: AppUi.muted(context),
-              ),
-            )
-          else ...[
-            Text(
-              (mine.willGet ? 'you_will_get' : 'you_need_to_pay')
-                  .tr
-                  .toUpperCase(),
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1,
-                color: AppUi.muted(context),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              AppUi.amount(mine.grandTotal.abs()),
-              style: TextStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -1.2,
-                color: AppUi.body(context),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'your_share_hint'.trParams({
-                'meals': '${mine.mealCount}',
-                'month': AppUi.monthLabel(
-                    c.myMonthSummary?.mealMonth ?? c.thisMonth),
-              }),
-              style: TextStyle(
-                fontSize: 11.5,
-                height: 1.4,
-                color: AppUi.muted(context),
-              ),
-            ),
-            const SizedBox(height: 14),
-            _myPaymentStatus(context, mine),
-            const SizedBox(height: 14),
-            CustomButton(
-              text: 'more_info'.tr,
-              height: 48,
-              borderRadius: 14,
-              fontSize: 15,
-              onPressed: () => _showMyBreakdown(context, c, mine),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// Said in the member's own words, full width, because "have I paid this?"
-  /// is the second thing they came here to find out.
-  Widget _myPaymentStatus(BuildContext context, MemberCostSummary mine) {
-    final MaterialColor color = mine.settled ? Colors.green : Colors.orange;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppUi.tint(context, color),
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: Row(
         children: [
-          Icon(
-            mine.settled ? Icons.verified_rounded : Icons.pending_outlined,
-            size: 15,
-            color: AppUi.accent(context, color),
+          Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: waiting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                : Icon(Icons.event_note_rounded, color: primary, size: 22),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              mine.settled
-                  ? 'you_have_paid'
-                      .trParams({'amount': AppUi.amount(mine.settledAmount)})
-                  : 'not_paid_yet'.tr,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppUi.accent(context, color),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppUi.monthLabel(c.thisMonth),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppUi.body(context),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  waiting
+                      ? 'loading_members'.tr
+                      : (isSetUp
+                          ? 'you_not_in_month'.tr
+                          : 'this_month_not_set_hint'.tr),
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: AppUi.muted(context),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _collectedPill(BuildContext context, bool settled) {
-    final MaterialColor color = settled ? Colors.green : Colors.orange;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppUi.tint(context, color),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            settled ? Icons.verified_rounded : Icons.pending_outlined,
-            size: 12,
-            color: AppUi.accent(context, color),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            (settled ? 'collected' : 'not_collected_yet').tr.toUpperCase(),
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
-              color: AppUi.accent(context, color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// The whole receipt, on request — the same ledger the admin reads, so a
-  /// member can check the arithmetic rather than take the number on trust.
-  void _showMyBreakdown(
-    BuildContext context,
-    MonthlyStatsController c,
-    MemberCostSummary mine,
-  ) {
-    final MonthCostSummary? summary = c.myMonthSummary;
-    if (summary == null) return;
-
-    Get.bottomSheet(
-      Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppUi.muted(context).withOpacity(0.35),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'your_breakdown'.tr,
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: AppUi.body(context),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'bills_of_month'.trParams(
-                                {'month': AppUi.monthLabel(summary.month)}),
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: AppUi.muted(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _collectedPill(context, mine.settled),
-                  ],
-                ),
-              ),
-              Divider(height: 1, color: AppUi.hairline(context)),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-                  child: Column(
-                    children: [
-                      MemberCostLedger(
-                        member: mine,
-                        mealRate: summary.mealRate,
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.info_outline_rounded,
-                              size: 13, color: AppUi.muted(context)),
-                          const SizedBox(width: 7),
-                          Expanded(
-                            child: Text(
-                              'meal_month_note'.trParams({
-                                'month': AppUi.monthLabel(summary.mealMonth)
-                              }),
-                              style: TextStyle(
-                                fontSize: 11,
-                                height: 1.4,
-                                color: AppUi.muted(context),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-      isScrollControlled: true,
     );
   }
 

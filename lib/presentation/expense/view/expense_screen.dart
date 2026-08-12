@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
+import '../../../common/widgets/hiding_fab.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/expense_controller.dart';
 import '../model/expense_model.dart';
@@ -32,63 +33,58 @@ class ExpenseScreen extends GetView<ExpenseController> {
   Widget build(BuildContext context) {
     // Controller is provided via ExpenseBinding
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: CustomAppBar(
-        title: 'expense'.tr,
-        bottom: const _MonthSwitcher(),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showExpenseBottomSheet(context),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        icon: const Icon(Icons.add_rounded),
-        label: Text(
-          'add_expense'.tr,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+    return HidingFab(
+      icon: Icons.add_rounded,
+      tooltip: 'add_expense'.tr,
+      onPressed: () => _showExpenseBottomSheet(context),
+      builder: (context, fab) => Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: CustomAppBar(
+          title: 'expense'.tr,
+          bottom: const _MonthSwitcher(),
         ),
-      ),
-      body: GetBuilder<ExpenseController>(
-        builder: (controller) {
-          final bool isFirstLoad =
-              controller.isLoading && controller.expenses.isEmpty;
-          final List<String> dateKeys =
-              controller.groupedExpenses.keys.toList();
+        floatingActionButton: fab,
+        body: GetBuilder<ExpenseController>(
+          builder: (controller) {
+            final bool isFirstLoad =
+                controller.isLoading && controller.expenses.isEmpty;
+            final List<String> dateKeys =
+                controller.groupedExpenses.keys.toList();
 
-          return RefreshIndicator(
-            color: Theme.of(context).colorScheme.primary,
-            onRefresh: () => controller.fetchExpenses(),
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: _buildSummaryCard(context, isLoading: isFirstLoad),
-                ),
-                if (isFirstLoad)
-                  const SliverToBoxAdapter(child: _ListSkeleton())
-                else if (dateKeys.isEmpty)
-                  SliverToBoxAdapter(child: _buildEmptyState(context))
-                else
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final String dateKey = dateKeys[index];
-                        return _buildDayGroup(
-                          context,
-                          dateKey,
-                          controller.groupedExpenses[dateKey]!,
-                        );
-                      },
-                      childCount: dateKeys.length,
-                    ),
+            return RefreshIndicator(
+              color: Theme.of(context).colorScheme.primary,
+              onRefresh: () => controller.fetchExpenses(background: true),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _buildSummaryCard(context, isLoading: isFirstLoad),
                   ),
-                // Breathing room so the FAB never covers the last card.
-                const SliverToBoxAdapter(child: SizedBox(height: 96)),
-              ],
-            ),
-          );
-        },
+                  if (isFirstLoad)
+                    const SliverToBoxAdapter(child: _ListSkeleton())
+                  else if (dateKeys.isEmpty)
+                    SliverToBoxAdapter(child: _buildEmptyState(context))
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final String dateKey = dateKeys[index];
+                          return _buildDayGroup(
+                            context,
+                            dateKey,
+                            controller.groupedExpenses[dateKey]!,
+                          );
+                        },
+                        childCount: dateKeys.length,
+                      ),
+                    ),
+                  // Breathing room so the FAB never covers the last card.
+                  const SliverToBoxAdapter(child: SizedBox(height: 96)),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

@@ -135,21 +135,32 @@ class MonthlyStatsController extends GetxController implements GetxService {
 
   /// ------------------------------------------------------------- loading
 
-  Future<void> loadStats() async {
-    isLoading = true;
-    errorMessage = '';
-    update();
+  /// [background] is the pull-to-refresh path: the screen already has data and
+  /// the indicator is its own progress, so the skeleton must not come back and
+  /// throw everything away for a second.
+  Future<void> loadStats({bool background = false}) async {
+    if (!background) {
+      isLoading = true;
+      errorMessage = '';
+      update();
+    }
 
     // Fetched side by side but caught separately: a failure on one must not
     // leave the other empty, which is how the member split ends up blank with
     // nothing on screen explaining why.
-    await Future.wait([_fetchBills(), refreshMembers()]);
+    await Future.wait([
+      _fetchBills(background: background),
+      refreshMembers(background: background),
+    ]);
 
     isLoading = false;
     update();
 
-    if (!isAdminUser) loadMyCost();
+    if (!isAdminUser) loadMyCost(background: background);
   }
+
+  /// Pull-to-refresh: swap the data in underneath, quietly.
+  Future<void> refreshStats() => loadStats(background: true);
 
   /// Works out what the signed-in member owes — this month in full, and one
   /// figure for every other month in the list.
@@ -158,11 +169,11 @@ class MonthlyStatsController extends GetxController implements GetxService {
   /// the settlement record holds the amount that changed hands. Only the
   /// unsettled ones are computed, and the meal statistics behind them are
   /// fetched once per meal-month rather than once per row.
-  Future<void> loadMyCost() async {
+  Future<void> loadMyCost({bool background = false}) async {
     if (userPhone.isEmpty) return;
 
     try {
-      isMyCostLoading = true;
+      isMyCostLoading = !background || myMonthSummary == null;
       update();
 
       // Bounded: the list is a house's history, not an archive to trawl.
@@ -226,7 +237,8 @@ class MonthlyStatsController extends GetxController implements GetxService {
       myMonthSummary = current == null ? null : summaryFor(current);
     } catch (e) {
       debugPrint('Error loading my month costs: $e');
-      myMonthSummary = null;
+      // Keep the figures already on screen rather than blanking them.
+      if (!background) myMonthSummary = null;
     } finally {
       isMyCostLoading = false;
       update();
@@ -240,13 +252,19 @@ class MonthlyStatsController extends GetxController implements GetxService {
   bool hasPaid(MonthlyBillModel bill) =>
       bill.settlements.containsKey(userPhone);
 
-  Future<void> _fetchBills() async {
+  Future<void> _fetchBills({bool background = false}) async {
     try {
       bills = await repository.fetchMonthlyBills();
       errorMessage = '';
     } catch (e) {
-      errorMessage = e.toString();
       debugPrint('Error loading monthly bills: $e');
+      // A failed refresh must not wipe a screen that is already readable.
+      if (background && bills.isNotEmpty) {
+        CustomSnackbar.show(
+            type: SnackbarType.error, message: 'failed_load_bills'.tr);
+      } else {
+        errorMessage = e.toString();
+      }
     }
   }
 
@@ -292,9 +310,12 @@ class MonthlyStatsController extends GetxController implements GetxService {
   ///
   /// With [syncForm] the open form's roster is rebuilt around the new list,
   /// keeping every amount already typed.
-  Future<void> refreshMembers({bool syncForm = false}) async {
+  Future<void> refreshMembers({
+    bool syncForm = false,
+    bool background = false,
+  }) async {
     try {
-      isMembersLoading = true;
+      isMembersLoading = !background && members.isEmpty;
       membersError = '';
       update();
 

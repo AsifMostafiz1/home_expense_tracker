@@ -51,6 +51,16 @@ class MonthDetailsController extends GetxController implements GetxService {
 
   DateTime get mealMonth => MonthCostSummary.mealMonthOf(month);
 
+  /// This month's row for whoever is looking, when they have one.
+  MemberCostSummary? get myCost {
+    final MonthCostSummary? current = summary;
+    if (current == null) return null;
+    for (final MemberCostSummary member in current.members) {
+      if (member.phone == userPhone) return member;
+    }
+    return null;
+  }
+
   /// Seeds the screen before it is pushed — the navigation convention used
   /// everywhere in this app, since no route here takes arguments.
   void open(DateTime month, MonthlyBillModel? bill) {
@@ -68,14 +78,21 @@ class MonthDetailsController extends GetxController implements GetxService {
   /// or deleted, so the bill is taken again from the months list.
   Future<void> refreshBill(MonthlyBillModel? bill) async {
     this.bill = bill;
-    await load();
+    await load(background: true);
   }
 
-  Future<void> load() async {
+  /// Pull-to-refresh. Not named `refresh` — GetX already has one.
+  Future<void> refreshDetails() => load(background: true);
+
+  /// Pull-to-refresh and post-edit reloads pass [background]: the content is
+  /// already on screen, so it stays there until the new figures arrive.
+  Future<void> load({bool background = false}) async {
     try {
-      isLoading = true;
-      errorMessage = '';
-      update();
+      if (!background || summary == null) {
+        isLoading = true;
+        errorMessage = '';
+        update();
+      }
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
       userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
@@ -90,8 +107,13 @@ class MonthDetailsController extends GetxController implements GetxService {
 
       _rebuild();
     } catch (e) {
-      errorMessage = e.toString();
       debugPrint('Error loading month details: $e');
+      if (background && summary != null) {
+        CustomSnackbar.show(
+            type: SnackbarType.error, message: 'failed_load_details'.tr);
+      } else {
+        errorMessage = e.toString();
+      }
     } finally {
       isLoading = false;
       update();

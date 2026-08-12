@@ -14,6 +14,11 @@ class AppConstant {
   static const String keyIsAdmin = 'isAdmin';
   static const String keyDismissedAnnouncementId = 'dismissedAnnouncementId';
 
+  /// Set once the OS notification prompt has been shown at least once, so a
+  /// later refusal can be told apart from a first launch.
+  static const String keyNotificationPermissionAsked =
+      'notificationPermissionAsked';
+
 
   // Firestore Collection Names
   static const String collectionUsers = 'users';

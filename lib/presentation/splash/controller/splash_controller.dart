@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../common/widgets/custom_snackbar.dart';
+import '../../../services/notification_permission_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../../dashboard/view/dashboard_screen.dart';
@@ -37,11 +38,25 @@ class SplashController extends GetxController {
         }
       }
 
-      _navigateToNext();
+      await _navigateToNext();
     } catch (e) {
       print("Error checking app version: $e");
-      _navigateToNext();
+      await _navigateToNext();
     }
+
+    await _promptForNotificationPermission();
+  }
+
+  /// Asks for the notification permission on every launch that gets past the
+  /// splash, so someone who declined — or who never saw the prompt at all —
+  /// gets another chance without digging through system settings.
+  ///
+  /// Deliberately after navigation: `Get.offAll` tears down every route above
+  /// it, so a dialog raised any earlier would be swept away with the splash.
+  Future<void> _promptForNotificationPermission() async {
+    // Let the route transition finish before anything is layered on top.
+    await Future.delayed(const Duration(milliseconds: 600));
+    await NotificationPermissionService().ensurePermission();
   }
 
   Future<void> _navigateToNext() async {

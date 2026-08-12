@@ -88,9 +88,12 @@ class ExpenseController extends GetxController implements GetxService {
     update();
   }
 
-  Future<void> fetchExpenses() async {
+  /// [background] is the pull-to-refresh path: the list stays on screen and
+  /// is swapped once the response lands, instead of collapsing to a skeleton
+  /// the user has already seen.
+  Future<void> fetchExpenses({bool background = false}) async {
     try {
-      isLoading = true;
+      isLoading = !background;
       update();
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);

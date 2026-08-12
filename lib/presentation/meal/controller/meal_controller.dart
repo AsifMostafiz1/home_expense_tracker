@@ -163,12 +163,34 @@ class MealController extends GetxController implements GetxService {
     }
   }
 
+  /// Whether this user already has meals recorded in the month [date] falls
+  /// in — which, in practice, means the bulk add has been run for it.
+  bool hasMealsForMonth(DateTime date) {
+    final String prefix =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}';
+    return dailyMeals.keys.any((key) => key.startsWith(prefix));
+  }
+
+  /// Day-by-day editing is a correction to a month that has been filled in.
+  /// Before that, the month has no rows to correct.
+  bool get canEditDays => hasMealsForMonth(focusedDay);
+
   void onDaySelected(DateTime selected, DateTime focused) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
     // Block previous days
     if (selected.isBefore(today)) {
+      return;
+    }
+
+    // The bulk add is what creates the month; editing a single day before
+    // that would leave one lone entry and no month behind it.
+    if (!hasMealsForMonth(selected)) {
+      CustomSnackbar.show(
+        type: SnackbarType.info,
+        message: 'add_bulk_meal_first'.tr,
+      );
       return;
     }
 
@@ -184,9 +206,10 @@ class MealController extends GetxController implements GetxService {
     update();
   }
 
-  Future<void> fetchMeals() async {
+  /// [background] keeps what is on screen while a pull-to-refresh runs.
+  Future<void> fetchMeals({bool background = false}) async {
     try {
-      isFetchingMeals = true;
+      isFetchingMeals = !background;
       update();
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);
@@ -200,9 +223,9 @@ class MealController extends GetxController implements GetxService {
     }
   }
 
-  Future<void> fetchMonthlyStats() async {
+  Future<void> fetchMonthlyStats({bool background = false}) async {
     try {
-      isFetchingStats = true;
+      isFetchingStats = !background;
       update();
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);

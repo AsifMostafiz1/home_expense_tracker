@@ -18,16 +18,24 @@ class MemberCostLedger extends StatelessWidget {
   /// costs. A member's own rent is theirs to see; another member's is not.
   final bool showRentSplit;
 
+  /// Whether to say in words what the shared half covers. Worth a line where
+  /// the ledger is read on its own; noise in a list of many members.
+  final bool showSharedHint;
+
   const MemberCostLedger({
     super.key,
     required this.member,
     required this.mealRate,
     this.showRentSplit = true,
+    this.showSharedHint = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      // The rows fill the width on their own; anything narrower — the hint —
+      // would otherwise be centred by the column's default.
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Charged --------------------------------------------------------
         _row(
@@ -42,6 +50,7 @@ class MemberCostLedger extends StatelessWidget {
               : null,
           value: member.houseBills,
         ),
+        if (showSharedHint) _sharedHint(context),
         _row(
           context,
           sign: '+',
@@ -166,6 +175,20 @@ class MemberCostLedger extends StatelessWidget {
       ),
     );
   }
+
+  /// Names what the shared half covers, so the figure is not a bare number
+  /// someone has to ask about.
+  Widget _sharedHint(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(left: 16, right: 8, bottom: 4),
+        child: Text(
+          'shared_bills_include'.tr,
+          style: TextStyle(
+            fontSize: 10.5,
+            height: 1.35,
+            color: AppUi.muted(context),
+          ),
+        ),
+      );
 
   /// Ruled under the charges, the way a bill is added up on paper — indented
   /// past the sign column so it lines up with the numbers it totals.

@@ -10,6 +10,7 @@ import 'package:demo_project/utils/app_constant.dart';
 import 'package:demo_project/utils/app_theme.dart';
 import 'package:demo_project/common/binding/initial_binding.dart';
 import 'package:demo_project/services/push_notification_service.dart';
+import 'package:demo_project/services/notification_permission_service.dart';
 import 'package:demo_project/utils/app_translations.dart';
 
 import 'package:demo_project/presentation/splash/view/splash_screen.dart';
@@ -49,11 +50,38 @@ void main() async {
   runApp(MyApp(themeMode: themeMode, locale: locale));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final ThemeMode themeMode;
   final Locale locale;
-  
+
   const MyApp({super.key, required this.themeMode, required this.locale});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Only the trip back from system settings is worth re-checking. Prompting
+    // on every resume would fire the dialog after any incidental app switch.
+    if (state == AppLifecycleState.resumed &&
+        NotificationPermissionService().awaitingSettingsReturn) {
+      NotificationPermissionService().refreshAfterSettingsReturn();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,11 +89,11 @@ class MyApp extends StatelessWidget {
       title: AppConstant.appName,
       debugShowCheckedModeBanner: false,
       translations: AppTranslations(),
-      locale: locale,
+      locale: widget.locale,
       fallbackLocale: const Locale('en', 'US'),
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: themeMode,
+      themeMode: widget.themeMode,
       initialBinding: InitialBinding(),
       home: const SplashScreen(),
     );
