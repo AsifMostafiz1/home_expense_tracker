@@ -4,9 +4,12 @@ import 'package:get/get.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_button.dart';
 import '../../../utils/app_ui.dart';
+import '../controller/month_details_controller.dart';
 import '../controller/settings_controller.dart';
 import '../model/monthly_bill_model.dart';
 import '../widgets/month_picker_sheet.dart';
+import '../widgets/settings_skeletons.dart';
+import 'month_details_screen.dart';
 import 'monthly_bill_screen.dart';
 
 /// Admin-only house settings.
@@ -44,7 +47,7 @@ class SettingsScreen extends GetView<SettingsController> {
           // Loading first: the role is read from preferences on init, so a
           // check before that lands would flash the locked state at an admin.
           if (c.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const SettingsListSkeleton();
           }
 
           // The tile that leads here is admin-only; this is the second lock,
@@ -222,6 +225,8 @@ class SettingsScreen extends GetView<SettingsController> {
             ),
             const SizedBox(height: 16),
           ],
+          // Straight to the form: this card is where the month gets set up and
+          // corrected. Reading the breakdown is the row below it.
           CustomButton(
             text: isSetUp
                 ? 'edit_month'.trParams({'month': AppUi.monthLabel(month)})
@@ -326,7 +331,7 @@ class SettingsScreen extends GetView<SettingsController> {
         side: BorderSide(color: AppUi.hairline(context)),
       ),
       child: InkWell(
-        onTap: () => _openBill(context, c, bill.monthDate),
+        onTap: () => _openDetails(context, bill.monthDate, bill),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Row(
@@ -534,6 +539,27 @@ class SettingsScreen extends GetView<SettingsController> {
 
   /// ---------------------------------------------------------------- actions
 
+  /// A month that already has bills opens on its breakdown; a month with
+  /// nothing in it has nothing to break down, so it opens on the form.
+  /// Editing an existing month is reached from the details app bar.
+  void _openMonth(BuildContext context, SettingsController c, DateTime month) {
+    final MonthlyBillModel? bill = c.billForMonth(month);
+    if (bill == null || bill.isEmpty) {
+      _openBill(context, c, month);
+      return;
+    }
+    _openDetails(context, month, bill);
+  }
+
+  void _openDetails(
+    BuildContext context,
+    DateTime month,
+    MonthlyBillModel bill,
+  ) {
+    Get.find<MonthDetailsController>().open(month, bill);
+    Get.to(() => const MonthDetailsScreen());
+  }
+
   void _openBill(BuildContext context, SettingsController c, DateTime month) {
     c.startBill(month);
     Get.to(() => const MonthlyBillScreen());
@@ -545,7 +571,7 @@ class SettingsScreen extends GetView<SettingsController> {
     showMonthPickerSheet(
       context,
       c,
-      onSelected: (month) => _openBill(context, c, month),
+      onSelected: (month) => _openMonth(context, c, month),
     );
   }
 }

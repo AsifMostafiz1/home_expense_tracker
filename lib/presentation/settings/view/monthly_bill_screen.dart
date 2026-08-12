@@ -10,6 +10,7 @@ import '../controller/settings_controller.dart';
 import '../model/monthly_bill_model.dart';
 import '../widgets/bill_amount_field.dart';
 import '../widgets/month_picker_sheet.dart';
+import '../widgets/settings_skeletons.dart';
 
 /// Stable per-member accent, matching the members screen so the same person
 /// keeps the same color everywhere.
@@ -390,25 +391,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
   /// What stands in for the split list when there is nobody in it — a state
   /// that always says which of the three it is, and offers the way out.
   Widget _buildEmptySplit(BuildContext context, SettingsController c) {
-    if (c.isMembersLoading) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Row(
-          children: [
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'loading_members'.tr,
-              style: TextStyle(fontSize: 12.5, color: AppUi.muted(context)),
-            ),
-          ],
-        ),
-      );
-    }
+    if (c.isMembersLoading) return const MemberSplitSkeleton();
 
     final bool failed = c.membersError.isNotEmpty;
 
