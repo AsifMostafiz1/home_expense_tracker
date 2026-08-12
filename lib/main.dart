@@ -25,12 +25,21 @@ void main() async {
       appleProvider: AppleProvider.debug,
     );
     print('FCM: Firebase App Check activated.');
-    
-    // Anonymous sign-in to provide auth token for Firebase Storage/Firestore
+
+    // Anonymous sign-in to provide auth token for Firebase Storage/Firestore.
+    //
+    // Caught on its own: with anonymous auth switched off in the console this
+    // throws `admin-restricted-operation`, and sharing a catch with the push
+    // setup below meant one disabled toggle silently took notifications down
+    // with it — no listeners, no topic subscriptions, no messages.
     if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
+      try {
+        await FirebaseAuth.instance.signInAnonymously();
+      } catch (e) {
+        debugPrint('Anonymous sign-in failed: $e');
+      }
     }
-    
+
     print('FCM: Starting PushNotificationService initialization...');
     await PushNotificationService().init();
   } catch (e) {

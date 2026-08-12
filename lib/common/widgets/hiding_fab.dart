@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
 
 /// A floating action button that retracts while the page is scrolled down and
 /// comes back the moment the user scrolls up.
@@ -20,8 +19,8 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 /// ```
 class HidingFab extends StatefulWidget {
   /// Builds the page. [fab] is the button to hand to
-  /// `Scaffold.floatingActionButton`.
-  final Widget Function(BuildContext context, Widget fab) builder;
+  /// `Scaffold.floatingActionButton`; it is null while retracted.
+  final Widget Function(BuildContext context, Widget? fab) builder;
 
   final IconData icon;
 
@@ -44,38 +43,54 @@ class HidingFab extends StatefulWidget {
 }
 
 class _HidingFabState extends State<HidingFab> {
+  /// How far the page has travelled in the current direction. Reacting to
+  /// `userScrollDirection` directly is too twitchy: the tail of a fling
+  /// regularly reports one frame in the opposite direction, which flicked the
+  /// button straight back on again the instant it hid.
+  double _travelled = 0;
+
+  /// Enough movement to read as intent rather than a stray frame.
+  static const double _threshold = 30;
+
   bool _visible = true;
 
-  bool _onScroll(UserScrollNotification notification) {
+  bool _onScroll(ScrollUpdateNotification notification) {
     // Horizontal strips inside the page — a month switcher, a chip row — must
     // not drag the button off screen with them.
     if (notification.metrics.axis != Axis.vertical) return false;
 
-    final bool next;
-    if (notification.direction == ScrollDirection.reverse) {
-      next = false;
-    } else if (notification.direction == ScrollDirection.forward) {
-      next = true;
-    } else {
-      // Idle: a scroll came to rest. Leave the button as the gesture left it.
+    final double delta = notification.scrollDelta ?? 0;
+    if (delta == 0) return false;
+
+    // Back at the top there is nothing to get out of the way of.
+    if (notification.metrics.pixels <= 0) {
+      _travelled = 0;
+      if (!_visible) setState(() => _visible = true);
       return false;
     }
 
-    debugPrint('HFAB scroll dir=${notification.direction} next=$next was=$_visible');
-    if (next != _visible) setState(() => _visible = next);
+    // A turn starts the count over, so the threshold measures one continuous
+    // movement rather than the net of a whole gesture.
+    if (delta.isNegative != _travelled.isNegative) _travelled = 0;
+    _travelled += delta;
+
+    if (_travelled > _threshold && _visible) {
+      setState(() => _visible = false);
+    } else if (_travelled < -_threshold && !_visible) {
+      setState(() => _visible = true);
+    }
+
     return false; // Keep bubbling — RefreshIndicator and friends want these.
   }
 
   @override
   Widget build(BuildContext context) {
-    // Handing [Scaffold] a null button — rather than wrapping one in a fade or
-    // a slide — lets its own entrance and exit transition do the work, which is
-    // both the Material behaviour and the one path that reliably re-runs when
-    // the button comes back.
-    debugPrint('HFAB build visible=$_visible tooltip=${widget.tooltip}');
-    final Widget fab = _visible
+    // Handing [Scaffold] a null button — rather than a faded or translated one
+    // — lets its own entrance and exit transition do the work, which is both
+    // the Material behaviour and the one path that reliably replays when the
+    // button comes back.
+    final Widget? fab = _visible
         ? FloatingActionButton(
-            key: const ValueKey('hiding-fab'),
             onPressed: widget.onPressed,
             tooltip: widget.tooltip,
             backgroundColor: Theme.of(context).colorScheme.primary,
@@ -83,9 +98,9 @@ class _HidingFabState extends State<HidingFab> {
             elevation: 4,
             child: Icon(widget.icon),
           )
-        : const SizedBox.shrink(key: ValueKey('hiding-fab-gone'));
+        : null;
 
-    return NotificationListener<UserScrollNotification>(
+    return NotificationListener<ScrollUpdateNotification>(
       onNotification: _onScroll,
       child: widget.builder(context, fab),
     );
