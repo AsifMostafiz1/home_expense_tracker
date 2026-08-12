@@ -18,7 +18,12 @@ class MonthlyStatsBinding extends Bindings {
     Get.lazyPut<MonthlyStatsRepository>(() => MonthlyStatsRepositoryImpl(),
         fenix: true);
     Get.lazyPut<MonthlyStatsController>(
-        () => MonthlyStatsController(repository: Get.find<MonthlyStatsRepository>()));
+      () => MonthlyStatsController(
+        repository: Get.find<MonthlyStatsRepository>(),
+        mealRepository: _mealRepository(),
+      ),
+      fenix: true,
+    );
 
     Get.lazyPut<MonthDetailsController>(
       () => MonthDetailsController(

@@ -53,13 +53,27 @@ class MonthlyBillScreen extends GetView<MonthlyStatsController> {
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: CustomAppBar(
             title: AppUi.monthLabel(c.formMonth),
-            actions: [_buildMenu(context, c)],
+            actions: [
+              if (c.isAdminUser)
+                _buildMenu(context, c)
+              else
+                const SizedBox(width: 16),
+            ],
           ),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
             children: [
+              // Nobody without rights should get here — the entry points are
+              // gated — but a screen that silently ignores your typing is
+              // worse than one that says why.
+              if (!c.isAdminUser) ...[
+                _buildReadOnlyNote(context),
+                const SizedBox(height: 12),
+              ],
               _buildMonthBanner(context, c),
-              if (c.editingBill == null && c.templateBill != null) ...[
+              if (c.isAdminUser &&
+                  c.editingBill == null &&
+                  c.templateBill != null) ...[
                 const SizedBox(height: 12),
                 _buildTemplateCard(context, c),
               ],
@@ -73,7 +87,8 @@ class MonthlyBillScreen extends GetView<MonthlyStatsController> {
               _buildOthersSection(context, c),
             ],
           ),
-          bottomNavigationBar: _buildSaveBar(context, c),
+          bottomNavigationBar:
+              c.isAdminUser ? _buildSaveBar(context, c) : null,
         );
       },
     );
@@ -142,6 +157,34 @@ class MonthlyBillScreen extends GetView<MonthlyStatsController> {
           Navigator.of(context).maybePop();
         }
       },
+    );
+  }
+
+  Widget _buildReadOnlyNote(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: AppUi.tint(context, Colors.blueGrey),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline_rounded,
+              size: 17, color: AppUi.accent(context, Colors.blueGrey)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'read_only_bills'.tr,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w500,
+                color: AppUi.accent(context, Colors.blueGrey),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -290,6 +333,7 @@ class MonthlyBillScreen extends GetView<MonthlyStatsController> {
         BillAmountField(
           controller: c.homeRentController,
           hero: true,
+          enabled: c.isAdminUser,
           errorText: c.homeRentError,
           onChanged: c.onAmountChanged,
         ),
@@ -299,7 +343,9 @@ class MonthlyBillScreen extends GetView<MonthlyStatsController> {
             Expanded(child: _buildRentBalance(context, c)),
             const SizedBox(width: 8),
             TextButton.icon(
-              onPressed: c.formShares.isEmpty ? null : c.splitRentEqually,
+              onPressed: (c.formShares.isEmpty || !c.isAdminUser)
+                  ? null
+                  : c.splitRentEqually,
               icon: const Icon(Icons.calculate_outlined, size: 17),
               label: Text(
                 'split_equally'.tr,
@@ -493,6 +539,7 @@ class MonthlyBillScreen extends GetView<MonthlyStatsController> {
           const SizedBox(width: 8),
           BillAmountField(
             controller: field,
+            enabled: c.isAdminUser,
             onChanged: c.onAmountChanged,
             width: 112,
           ),
@@ -576,6 +623,7 @@ class MonthlyBillScreen extends GetView<MonthlyStatsController> {
           controller: c.otherNoteController,
           hintText: 'note_optional'.tr,
           prefixIcon: Icons.edit_note_rounded,
+          readOnly: !c.isAdminUser,
         ),
       ],
     );
@@ -742,6 +790,7 @@ class MonthlyBillScreen extends GetView<MonthlyStatsController> {
           const SizedBox(width: 8),
           BillAmountField(
             controller: controller,
+            enabled: c.isAdminUser,
             onChanged: c.onAmountChanged,
             width: 120,
           ),

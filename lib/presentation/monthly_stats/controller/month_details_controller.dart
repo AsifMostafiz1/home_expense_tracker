@@ -41,6 +41,9 @@ class MonthDetailsController extends GetxController implements GetxService {
   String userName = '';
   String userPhone = '';
 
+  /// Everyone can read a month; only an admin can mark it collected.
+  bool isAdminUser = false;
+
   // Kept so marking a collection can rebuild the summary from what is already
   // in hand — the meals of a closed month do not change because someone paid.
   MealStats? _stats;
@@ -77,6 +80,7 @@ class MonthDetailsController extends GetxController implements GetxService {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
       userName = prefs.getString(AppConstant.keyUserName) ?? '';
+      isAdminUser = prefs.getString(AppConstant.keyIsAdmin) == '1';
 
       // The month's own statistics, read straight from the meal repository:
       // it is a pure function of the month, unlike the meal controller, whose
@@ -116,6 +120,11 @@ class MonthDetailsController extends GetxController implements GetxService {
   Future<void> toggleSettled(MemberCostSummary member) async {
     final MonthlyBillModel? current = bill;
     if (current == null || settlingPhone != null) return;
+    if (!isAdminUser) {
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'admin_only_action'.tr);
+      return;
+    }
 
     final bool settle = !member.settled;
 

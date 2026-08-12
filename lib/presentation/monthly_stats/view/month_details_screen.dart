@@ -6,6 +6,7 @@ import '../../../utils/app_ui.dart';
 import '../controller/month_details_controller.dart';
 import '../controller/monthly_stats_controller.dart';
 import '../model/month_cost_summary.dart';
+import '../widgets/member_cost_ledger.dart';
 import '../widgets/monthly_stats_skeletons.dart';
 import 'monthly_bill_screen.dart';
 
@@ -50,12 +51,14 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
           appBar: CustomAppBar(
             title: AppUi.monthLabel(c.month),
             actions: [
-              // The one way into the bill form for a month that already exists.
-              IconButton(
-                tooltip: 'edit_bills'.tr,
-                icon: const Icon(Icons.edit_outlined, size: 21),
-                onPressed: () => _openBillForm(c),
-              ),
+              // The one way into the bill form for a month that already
+              // exists — and only for someone who may change it.
+              if (c.isAdminUser)
+                IconButton(
+                  tooltip: 'edit_bills'.tr,
+                  icon: const Icon(Icons.edit_outlined, size: 21),
+                  onPressed: () => _openBillForm(c),
+                ),
               const SizedBox(width: 4),
             ],
           ),
@@ -468,63 +471,13 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
           const SizedBox(height: 12),
           Divider(height: 1, color: AppUi.hairline(context)),
           const SizedBox(height: 6),
-
-          // Charged ------------------------------------------------------
-          _ledgerRow(
-            context,
-            sign: '+',
-            label: 'house_bills'.tr,
-            note: 'rent_plus_shared'.trParams({
-              'rent': AppUi.amount(member.rent),
-              'shared': AppUi.amount(member.sharedBills),
-            }),
-            value: member.houseBills,
+          MemberCostLedger(
+            member: member,
+            mealRate: summary.mealRate,
+            // How the rent is divided is the admin's business, and each
+            // member's own. It is not everyone's.
+            showRentSplit: c.isAdminUser || member.isMe,
           ),
-          _ledgerRow(
-            context,
-            sign: '+',
-            label: 'meal_cost'.tr,
-            note: member.mealCount == 0
-                ? null
-                : 'meals_times_rate'.trParams({
-                    'count': '${member.mealCount}',
-                    'rate': AppUi.amount(summary.mealRate),
-                  }),
-            value: member.mealCost,
-          ),
-          _ledgerRow(
-            context,
-            sign: '+',
-            label: 'other_cost'.tr,
-            value: member.otherCost,
-          ),
-
-          _ledgerRule(context),
-          _ledgerRow(
-            context,
-            label: 'subtotal'.tr,
-            value: member.subtotal,
-            emphasis: true,
-          ),
-
-          // Paid ---------------------------------------------------------
-          const SizedBox(height: 4),
-          _ledgerRow(
-            context,
-            sign: '−',
-            label: 'meal_paid'.tr,
-            value: member.mealPaid,
-            credit: true,
-          ),
-          _ledgerRow(
-            context,
-            sign: '−',
-            label: 'other_paid'.tr,
-            value: member.otherPaid,
-            credit: true,
-          ),
-          const SizedBox(height: 10),
-          _grandTotalStrip(context, member),
           const SizedBox(height: 10),
           _buildCollectAction(context, c, member),
         ],
@@ -540,8 +493,41 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
     MemberCostSummary member,
   ) {
     final bool busy = c.settlingPhone == member.phone;
-    final VoidCallback? onTap =
-        c.settlingPhone == null ? () => c.toggleSettled(member) : null;
+    final VoidCallback? onTap = c.settlingPhone == null
+        ? () => c.toggleSettled(member)
+        : null;
+
+    // A member reads the state; they do not get to change it. Pending is
+    // still worth saying out loud — it is what they owe.
+    if (!c.isAdminUser) {
+      final MaterialColor color = member.settled ? Colors.green : Colors.orange;
+
+      return Row(
+        children: [
+          Icon(
+            member.settled
+                ? Icons.verified_rounded
+                : Icons.pending_outlined,
+            size: 16,
+            color: AppUi.accent(context, color),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              member.settled
+                  ? 'collected_amount'
+                      .trParams({'amount': AppUi.amount(member.settledAmount)})
+                  : 'not_collected_yet'.tr,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppUi.accent(context, color),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     if (member.settled) {
       return Row(
@@ -623,135 +609,6 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
         ),
-      ),
-    );
-  }
-
-  /// One line of the receipt. The sign lives in its own column so the labels
-  /// and the amounts each stay on a straight edge.
-  Widget _ledgerRow(
-    BuildContext context, {
-    String? sign,
-    required String label,
-    required double value,
-    String? note,
-    bool credit = false,
-    bool emphasis = false,
-  }) {
-    final Color valueColor =
-        credit ? AppUi.accent(context, Colors.teal) : AppUi.body(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 16,
-            child: Text(
-              sign ?? '',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: credit
-                    ? AppUi.accent(context, Colors.teal)
-                    : AppUi.muted(context),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: emphasis ? 13.5 : 13,
-                    fontWeight: emphasis ? FontWeight.bold : FontWeight.w500,
-                    color: AppUi.body(context),
-                  ),
-                ),
-                if (note != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    note,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      color: AppUi.muted(context),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            AppUi.amount(value),
-            style: TextStyle(
-              fontSize: emphasis ? 15 : 13.5,
-              fontWeight: emphasis ? FontWeight.bold : FontWeight.w600,
-              letterSpacing: -0.3,
-              color: valueColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Ruled under the charges, the way a bill is added up on paper — indented
-  /// past the sign column so it lines up with the numbers it totals.
-  Widget _ledgerRule(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(left: 16, top: 4, bottom: 2),
-        child: Divider(height: 1, color: AppUi.hairline(context)),
-      );
-
-  Widget _grandTotalStrip(BuildContext context, MemberCostSummary member) {
-    // Someone who covered more than their share is owed money back; the strip
-    // says which way it goes instead of printing a minus sign.
-    final MaterialColor color = member.willGet ? Colors.teal : Colors.indigo;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppUi.tint(context, color),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            member.willGet
-                ? Icons.trending_up_rounded
-                : Icons.account_balance_wallet_outlined,
-            size: 16,
-            color: AppUi.accent(context, color),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              member.willGet ? 'will_get'.tr : 'grand_total'.tr,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.6,
-                color: AppUi.accent(context, color),
-              ),
-            ),
-          ),
-          Text(
-            AppUi.amount(member.grandTotal.abs()),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.5,
-              color: AppUi.accent(context, color),
-            ),
-          ),
-        ],
       ),
     );
   }

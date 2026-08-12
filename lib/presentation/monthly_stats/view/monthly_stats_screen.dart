@@ -3,10 +3,14 @@ import 'package:get/get.dart';
 
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_button.dart';
+import '../../../common/widgets/custom_snackbar.dart';
+import '../../../utils/app_enums.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/month_details_controller.dart';
 import '../controller/monthly_stats_controller.dart';
+import '../model/month_cost_summary.dart';
 import '../model/monthly_bill_model.dart';
+import '../widgets/member_cost_ledger.dart';
 import '../widgets/month_picker_sheet.dart';
 import '../widgets/monthly_stats_skeletons.dart';
 import 'month_details_screen.dart';
@@ -29,11 +33,11 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
         actions: [
           GetBuilder<MonthlyStatsController>(
             builder: (c) {
-              if (!c.isAdminUser || c.isLoading) return const SizedBox(width: 16);
+              if (c.isLoading) return const SizedBox(width: 16);
               return Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: IconButton(
-                  tooltip: 'add_month'.tr,
+                  tooltip: c.isAdminUser ? 'add_month'.tr : 'select_month'.tr,
                   icon: const Icon(Icons.calendar_month_rounded, size: 22),
                   onPressed: () => _showMonthPicker(context, c),
                 ),
@@ -44,15 +48,9 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
       ),
       body: GetBuilder<MonthlyStatsController>(
         builder: (c) {
-          // Loading first: the role is read from preferences on init, so a
-          // check before that lands would flash the locked state at an admin.
           if (c.isLoading) {
             return const MonthlyStatsSkeleton();
           }
-
-          // The tile that leads here is admin-only; this is the second lock,
-          // for a session whose role was revoked while it was open.
-          if (!c.isAdminUser) return _buildLockedState(context);
 
           if (c.errorMessage.isNotEmpty) return _buildErrorState(context, c);
 
@@ -142,7 +140,13 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
   /// ------------------------------------------------------- this month card
 
   /// The month everyone is living in right now, with its one obvious action.
+  ///
+  /// An admin is running the house, so the card carries the house's figures.
+  /// A member is only ever asking one thing — what do I owe — so theirs
+  /// carries that instead, with the working folded into a sheet.
   Widget _buildCurrentMonthCard(BuildContext context, MonthlyStatsController c) {
+    if (!c.isAdminUser) return _buildMyMonthCard(context, c);
+
     final Color primary = Theme.of(context).colorScheme.primary;
     final DateTime month = c.thisMonth;
     final MonthlyBillModel? bill = c.currentMonthBill;
@@ -225,17 +229,28 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
             ),
             const SizedBox(height: 16),
           ],
-          // Straight to the form: this card is where the month gets set up and
-          // corrected. Reading the breakdown is the row below it.
-          CustomButton(
-            text: isSetUp
-                ? 'edit_month'.trParams({'month': AppUi.monthLabel(month)})
-                : 'set_up_month'.trParams({'month': AppUi.monthLabel(month)}),
-            height: 48,
-            borderRadius: 14,
-            fontSize: 15,
-            onPressed: () => _openBill(context, c, month),
-          ),
+          // For an admin this card is where the month gets set up and
+          // corrected; everyone else gets the way in to read it. A member
+          // looking at a month nobody has set up yet gets no button at all,
+          // because there is nothing behind it for them.
+          if (c.isAdminUser)
+            CustomButton(
+              text: isSetUp
+                  ? 'edit_month'.trParams({'month': AppUi.monthLabel(month)})
+                  : 'set_up_month'.trParams({'month': AppUi.monthLabel(month)}),
+              height: 48,
+              borderRadius: 14,
+              fontSize: 15,
+              onPressed: () => _openBill(context, c, month),
+            )
+          else if (isSetUp)
+            CustomButton(
+              text: 'view_month'.trParams({'month': AppUi.monthLabel(month)}),
+              height: 48,
+              borderRadius: 14,
+              fontSize: 15,
+              onPressed: () => _openDetails(context, month, bill),
+            ),
         ],
       ),
     );
@@ -275,6 +290,322 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
           ),
         ],
       ),
+    );
+  }
+
+  /// ------------------------------------------------------- my month card
+
+  /// What the member owes this month, and nothing else — the house's totals
+  /// are not their business at a glance. Everything behind the number lives
+  /// one tap away in the breakdown sheet.
+  Widget _buildMyMonthCard(BuildContext context, MonthlyStatsController c) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+    final DateTime month = c.thisMonth;
+    final MonthlyBillModel? bill = c.currentMonthBill;
+    final bool isSetUp = bill != null && !bill.isEmpty;
+    final MemberCostSummary? mine = c.myCost;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      decoration: BoxDecoration(
+        color: AppUi.tint(context, primary),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: primary.withOpacity(0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(Icons.account_balance_wallet_outlined,
+                    color: primary, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'this_month'.tr.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                        color: AppUi.muted(context),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      AppUi.monthLabel(month),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.3,
+                        color: AppUi.body(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (!isSetUp)
+            Text(
+              'this_month_not_set_hint'.tr,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.45,
+                color: AppUi.muted(context),
+              ),
+            )
+          else if (c.isMyCostLoading && mine == null)
+            const SizedBox(
+              height: 44,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+            )
+          else if (mine == null)
+            Text(
+              'you_not_in_month'.tr,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.45,
+                color: AppUi.muted(context),
+              ),
+            )
+          else ...[
+            Text(
+              (mine.willGet ? 'you_will_get' : 'you_need_to_pay')
+                  .tr
+                  .toUpperCase(),
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+                color: AppUi.muted(context),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              AppUi.amount(mine.grandTotal.abs()),
+              style: TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -1.2,
+                color: AppUi.body(context),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'your_share_hint'.trParams({
+                'meals': '${mine.mealCount}',
+                'month': AppUi.monthLabel(
+                    c.myMonthSummary?.mealMonth ?? c.thisMonth),
+              }),
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.4,
+                color: AppUi.muted(context),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _myPaymentStatus(context, mine),
+            const SizedBox(height: 14),
+            CustomButton(
+              text: 'more_info'.tr,
+              height: 48,
+              borderRadius: 14,
+              fontSize: 15,
+              onPressed: () => _showMyBreakdown(context, c, mine),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Said in the member's own words, full width, because "have I paid this?"
+  /// is the second thing they came here to find out.
+  Widget _myPaymentStatus(BuildContext context, MemberCostSummary mine) {
+    final MaterialColor color = mine.settled ? Colors.green : Colors.orange;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppUi.tint(context, color),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            mine.settled ? Icons.verified_rounded : Icons.pending_outlined,
+            size: 15,
+            color: AppUi.accent(context, color),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              mine.settled
+                  ? 'you_have_paid'
+                      .trParams({'amount': AppUi.amount(mine.settledAmount)})
+                  : 'not_paid_yet'.tr,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppUi.accent(context, color),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _collectedPill(BuildContext context, bool settled) {
+    final MaterialColor color = settled ? Colors.green : Colors.orange;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppUi.tint(context, color),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            settled ? Icons.verified_rounded : Icons.pending_outlined,
+            size: 12,
+            color: AppUi.accent(context, color),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            (settled ? 'collected' : 'not_collected_yet').tr.toUpperCase(),
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+              color: AppUi.accent(context, color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The whole receipt, on request — the same ledger the admin reads, so a
+  /// member can check the arithmetic rather than take the number on trust.
+  void _showMyBreakdown(
+    BuildContext context,
+    MonthlyStatsController c,
+    MemberCostSummary mine,
+  ) {
+    final MonthCostSummary? summary = c.myMonthSummary;
+    if (summary == null) return;
+
+    Get.bottomSheet(
+      Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppUi.muted(context).withOpacity(0.35),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'your_breakdown'.tr,
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: AppUi.body(context),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'bills_of_month'.trParams(
+                                {'month': AppUi.monthLabel(summary.month)}),
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppUi.muted(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _collectedPill(context, mine.settled),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: AppUi.hairline(context)),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                  child: Column(
+                    children: [
+                      MemberCostLedger(
+                        member: mine,
+                        mealRate: summary.mealRate,
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline_rounded,
+                              size: 13, color: AppUi.muted(context)),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              'meal_month_note'.trParams({
+                                'month': AppUi.monthLabel(summary.mealMonth)
+                              }),
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.4,
+                                color: AppUi.muted(context),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+      isScrollControlled: true,
     );
   }
 
@@ -440,28 +771,88 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        _collectionPill(context, bill),
+                        if (c.isAdminUser) ...[
+                          const SizedBox(width: 6),
+                          _collectionPill(context, bill),
+                        ],
                       ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                AppUi.amount(bill.grandTotal),
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.3,
-                  color: AppUi.body(context),
+              // An admin reads the house's total for the month; a member reads
+              // their own — what they owe, or what they already handed over.
+              if (!c.isAdminUser)
+                _myMonthAmount(context, c, bill)
+              else
+                Text(
+                  AppUi.amount(bill.grandTotal),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.3,
+                    color: AppUi.body(context),
+                  ),
                 ),
-              ),
               Icon(Icons.chevron_right_rounded,
                   size: 20, color: AppUi.muted(context)),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// A member's own line on a saved month: `Pay ৳2,254` until it is collected,
+  /// then `Paid ৳2,254` — the amount that actually changed hands.
+  Widget _myMonthAmount(
+    BuildContext context,
+    MonthlyStatsController c,
+    MonthlyBillModel bill,
+  ) {
+    final double? amount = c.myAmountFor(bill);
+
+    if (amount == null) {
+      return Text(
+        c.isMyCostLoading ? '…' : '—',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+          color: AppUi.muted(context),
+        ),
+      );
+    }
+
+    final bool paid = c.hasPaid(bill);
+    final MaterialColor color = paid ? Colors.green : Colors.orange;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppUi.tint(context, color),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            paid ? Icons.check_circle_rounded : Icons.schedule_rounded,
+            size: 13,
+            color: AppUi.accent(context, color),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            (paid ? 'paid_amount' : 'pay_amount')
+                .trParams({'amount': AppUi.amount(amount.abs())}),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.2,
+              color: AppUi.accent(context, color),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -503,16 +894,6 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildLockedState(BuildContext context) {
-    return _centeredState(
-      context,
-      icon: Icons.lock_outline_rounded,
-      color: Colors.orange,
-      title: 'admin_only'.tr,
-      hint: 'admin_only_hint'.tr,
     );
   }
 
@@ -586,14 +967,24 @@ class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
   /// ---------------------------------------------------------------- actions
 
   /// A month that already has bills opens on its breakdown; a month with
-  /// nothing in it has nothing to break down, so it opens on the form.
-  /// Editing an existing month is reached from the details app bar.
+  /// nothing in it has nothing to break down, so an admin gets the form and
+  /// everyone else is told there is nothing there yet.
   void _openMonth(BuildContext context, MonthlyStatsController c, DateTime month) {
     final MonthlyBillModel? bill = c.billForMonth(month);
+
     if (bill == null || bill.isEmpty) {
-      _openBill(context, c, month);
+      if (c.isAdminUser) {
+        _openBill(context, c, month);
+      } else {
+        CustomSnackbar.show(
+          type: SnackbarType.info,
+          message: 'month_not_set_up_yet'
+              .trParams({'month': AppUi.monthLabel(month)}),
+        );
+      }
       return;
     }
+
     _openDetails(context, month, bill);
   }
 

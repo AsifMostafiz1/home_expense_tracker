@@ -141,30 +141,28 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 32),
 
-                      // House Section — admin only. Everything in it changes
-                      // what the whole house pays, so it never renders for a
-                      // member who cannot act on it.
-                      if (controller.isAdminUser) ...[
-                        _buildSectionLabel(context, 'HOUSE'.tr),
-                        const SizedBox(height: 12),
-                        Material(
-                          color: Theme.of(context).cardColor,
-                          clipBehavior: Clip.antiAlias,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                                color: Theme.of(context).dividerColor),
-                          ),
-                          child: _buildListTile(
-                            context,
-                            icon: Icons.tune_rounded,
-                            title: 'monthly_statistics'.tr,
-                            subtitle: 'monthly_statistics_subtitle'.tr,
-                            onTap: () => Get.to(() => const MonthlyStatsScreen()),
-                          ),
+                      // House Section — open to everyone: what the house pays
+                      // and what each member owes is shared information. Only
+                      // the actions inside are held back to admins.
+                      _buildSectionLabel(context, 'HOUSE'.tr),
+                      const SizedBox(height: 12),
+                      Material(
+                        color: Theme.of(context).cardColor,
+                        clipBehavior: Clip.antiAlias,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                              color: Theme.of(context).dividerColor),
                         ),
-                        const SizedBox(height: 24),
-                      ],
+                        child: _buildListTile(
+                          context,
+                          icon: Icons.insights_rounded,
+                          title: 'monthly_statistics'.tr,
+                          subtitle: 'monthly_statistics_subtitle'.tr,
+                          onTap: () => Get.to(() => const MonthlyStatsScreen()),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
                       // Account Section
                       _buildSectionLabel(context, 'ACCOUNT'.tr),

@@ -9,12 +9,15 @@ import '../../../services/push_notification_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../../../utils/app_ui.dart';
+import '../../meal/model/meal_stats.dart';
+import '../../meal/repository/meal_repository.dart';
 import '../../member/model/member_model.dart';
+import '../model/month_cost_summary.dart';
 import '../model/monthly_bill_model.dart';
 import '../repository/monthly_stats_repository.dart';
 
-/// Admin-only monthly statistics: the rent, utilities, wifi and other costs for
-/// each month.
+/// Monthly statistics: the rent, utilities, wifi and other costs for each
+/// month. Everyone may read it; only an admin may change anything.
 ///
 /// The screen keeps two kinds of state — the saved months ([bills]) and the
 /// month currently being edited (everything prefixed `form`). Amounts live in
@@ -24,7 +27,13 @@ import '../repository/monthly_stats_repository.dart';
 class MonthlyStatsController extends GetxController implements GetxService {
   final MonthlyStatsRepository repository;
 
-  MonthlyStatsController({required this.repository});
+  /// Only used for a member's own summary — an admin's screen never needs it.
+  final MealRepository mealRepository;
+
+  MonthlyStatsController({
+    required this.repository,
+    required this.mealRepository,
+  });
 
   /// ------------------------------------------------------------- session
 
@@ -43,6 +52,24 @@ class MonthlyStatsController extends GetxController implements GetxService {
 
   List<MonthlyBillModel> bills = [];
   List<MemberModel> members = [];
+
+  /// This month worked out for whoever is looking, so a member sees what they
+  /// owe instead of the whole house's accounts. Built only for members: the
+  /// admin card already shows the house totals.
+  MonthCostSummary? myMonthSummary;
+
+  /// One figure per listed month: what this member owes, or paid.
+  Map<String, double> myAmountByMonth = {};
+  bool isMyCostLoading = false;
+
+  MemberCostSummary? get myCost {
+    final MonthCostSummary? summary = myMonthSummary;
+    if (summary == null) return null;
+    for (final MemberCostSummary member in summary.members) {
+      if (member.phone == userPhone) return member;
+    }
+    return null;
+  }
 
   /// ----------------------------------------------------------- edit form
 
@@ -74,9 +101,10 @@ class MonthlyStatsController extends GetxController implements GetxService {
   @override
   void onInit() {
     super.onInit();
-    _loadSession();
     _watchMembers();
-    loadStats();
+    // Session first and awaited: what gets loaded — and what the screen
+    // offers — depends on the role, so it cannot race the data.
+    _loadSession().then((_) => loadStats());
   }
 
   @override
@@ -119,7 +147,98 @@ class MonthlyStatsController extends GetxController implements GetxService {
 
     isLoading = false;
     update();
+
+    if (!isAdminUser) loadMyCost();
   }
+
+  /// Works out what the signed-in member owes — this month in full, and one
+  /// figure for every other month in the list.
+  ///
+  /// A month they have already been collected from needs no arithmetic at all:
+  /// the settlement record holds the amount that changed hands. Only the
+  /// unsettled ones are computed, and the meal statistics behind them are
+  /// fetched once per meal-month rather than once per row.
+  Future<void> loadMyCost() async {
+    if (userPhone.isEmpty) return;
+
+    try {
+      isMyCostLoading = true;
+      update();
+
+      // Bounded: the list is a house's history, not an archive to trawl.
+      final List<MonthlyBillModel> targets = bills.take(12).toList();
+      final Map<String, double> amounts = {};
+      final Set<DateTime> mealMonths = {};
+
+      for (final MonthlyBillModel bill in targets) {
+        final SettlementRecord? settled = bill.settlements[userPhone];
+        if (settled != null) {
+          amounts[bill.id] = settled.amount;
+          continue;
+        }
+        mealMonths.add(MonthCostSummary.mealMonthOf(bill.monthDate));
+      }
+
+      // The top card needs the full summary either way, settled or not.
+      final MonthlyBillModel? current = currentMonthBill;
+      if (current != null) {
+        mealMonths.add(MonthCostSummary.mealMonthOf(current.monthDate));
+      }
+
+      final List<DateTime> months = mealMonths.toList();
+      final List<MealStats> fetched = await Future.wait(
+        months.map((month) => mealRepository.fetchMonthlyStats(userPhone, month)),
+      );
+
+      final Map<String, MealStats> statsByMealMonth = {
+        for (int i = 0; i < months.length; i++)
+          MonthlyBillModel.monthKeyOf(months[i]): fetched[i]
+      };
+
+      MonthCostSummary? summaryFor(MonthlyBillModel bill) {
+        final MealStats? stats = statsByMealMonth[MonthlyBillModel.monthKeyOf(
+            MonthCostSummary.mealMonthOf(bill.monthDate))];
+        if (stats == null) return null;
+
+        return MonthCostSummary.build(
+          month: bill.monthDate,
+          bill: bill,
+          stats: stats,
+          currentUserPhone: userPhone,
+          currentUserName: userName,
+          activeMembers: members,
+        );
+      }
+
+      for (final MonthlyBillModel bill in targets) {
+        if (amounts.containsKey(bill.id)) continue;
+        final MonthCostSummary? summary = summaryFor(bill);
+        if (summary == null) continue;
+        for (final MemberCostSummary member in summary.members) {
+          if (member.phone == userPhone) {
+            amounts[bill.id] = member.grandTotal;
+            break;
+          }
+        }
+      }
+
+      myAmountByMonth = amounts;
+      myMonthSummary = current == null ? null : summaryFor(current);
+    } catch (e) {
+      debugPrint('Error loading my month costs: $e');
+      myMonthSummary = null;
+    } finally {
+      isMyCostLoading = false;
+      update();
+    }
+  }
+
+  /// What this member owes for [bill], or null while it is still being worked
+  /// out. Already-collected months answer from their settlement record.
+  double? myAmountFor(MonthlyBillModel bill) => myAmountByMonth[bill.id];
+
+  bool hasPaid(MonthlyBillModel bill) =>
+      bill.settlements.containsKey(userPhone);
 
   Future<void> _fetchBills() async {
     try {
