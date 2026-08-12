@@ -26,7 +26,7 @@ class AppConstant {
   static const String collectionEditLogs = 'edit_logs';
 
   /// One document per month, keyed `YYYY-MM` — the house bills an admin sets
-  /// up from the settings screen.
+  /// up from the monthly statistics screen.
   static const String collectionMonthlyBills = 'monthly_bills';
   
   static const double appVersion = 1.0;

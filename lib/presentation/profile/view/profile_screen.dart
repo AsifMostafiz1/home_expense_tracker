@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
 import '../../member/view/member_screen.dart';
-import '../../settings/view/settings_screen.dart';
+import '../../monthly_stats/view/monthly_stats_screen.dart';
 import 'edit_profile_screen.dart';
 import 'edit_history_screen.dart';
 
@@ -158,9 +158,9 @@ class ProfileScreen extends StatelessWidget {
                           child: _buildListTile(
                             context,
                             icon: Icons.tune_rounded,
-                            title: 'settings'.tr,
-                            subtitle: 'settings_subtitle'.tr,
-                            onTap: () => Get.to(() => const SettingsScreen()),
+                            title: 'monthly_statistics'.tr,
+                            subtitle: 'monthly_statistics_subtitle'.tr,
+                            onTap: () => Get.to(() => const MonthlyStatsScreen()),
                           ),
                         ),
                         const SizedBox(height: 24),

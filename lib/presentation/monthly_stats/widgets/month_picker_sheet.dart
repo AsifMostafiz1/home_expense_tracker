@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../utils/app_ui.dart';
-import '../controller/settings_controller.dart';
+import '../controller/monthly_stats_controller.dart';
 import '../model/monthly_bill_model.dart';
 
 /// The month list behind both "add a month" and "change month".
@@ -12,7 +12,7 @@ import '../model/monthly_bill_model.dart';
 /// the choice is made in the sheet rather than by opening months one by one.
 void showMonthPickerSheet(
   BuildContext context,
-  SettingsController controller, {
+  MonthlyStatsController controller, {
   required ValueChanged<DateTime> onSelected,
   DateTime? selected,
 }) {

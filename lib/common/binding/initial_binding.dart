@@ -5,7 +5,7 @@ import '../../presentation/expense/binding/expense_binding.dart';
 import '../../presentation/member/binding/member_binding.dart';
 import '../../presentation/chat/binding/chat_binding.dart';
 import '../../presentation/profile/binding/profile_binding.dart';
-import '../../presentation/settings/binding/settings_binding.dart';
+import '../../presentation/monthly_stats/binding/monthly_stats_binding.dart';
 
 class InitialBinding extends Bindings {
   @override
@@ -16,6 +16,6 @@ class InitialBinding extends Bindings {
     MemberBinding().dependencies();
     ChatBinding().dependencies();
     ProfileBinding().dependencies();
-    SettingsBinding().dependencies();
+    MonthlyStatsBinding().dependencies();
   }
 }

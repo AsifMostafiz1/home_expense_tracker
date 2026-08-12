@@ -39,6 +39,30 @@ class RentShare {
       );
 }
 
+/// Proof that a member's share for the month has been handed over.
+///
+/// The amount is stamped at the moment it is collected, so a later edit to the
+/// bills cannot rewrite what was actually taken.
+class SettlementRecord {
+  final double amount;
+  final String by;
+  final DateTime? at;
+
+  const SettlementRecord({
+    this.amount = 0,
+    this.by = '',
+    this.at,
+  });
+
+  factory SettlementRecord.fromMap(Map<String, dynamic> map) {
+    return SettlementRecord(
+      amount: _toDouble(map['amount']),
+      by: map['by'] ?? '',
+      at: (map['at'] as Timestamp?)?.toDate(),
+    );
+  }
+}
+
 /// The house bills for a single month.
 ///
 /// Stored under a deterministic `YYYY-MM` document id: a month can only exist
@@ -66,6 +90,10 @@ class MonthlyBillModel {
   final double otherCost;
   final String otherNote;
 
+  /// Who has already paid up, keyed by phone. Written only by the collect
+  /// action — never by the bill form, which is why it is absent from [toMap].
+  final Map<String, SettlementRecord> settlements;
+
   final String updatedBy;
   final DateTime? updatedAt;
 
@@ -82,6 +110,7 @@ class MonthlyBillModel {
     this.wifiBill = 0,
     this.otherCost = 0,
     this.otherNote = '',
+    this.settlements = const {},
     this.updatedBy = '',
     this.updatedAt,
   });
@@ -112,6 +141,46 @@ class MonthlyBillModel {
 
   bool get isEmpty => grandTotal == 0;
 
+  bool isSettled(String phone) => settlements.containsKey(phone);
+
+  /// Counted against the month's own roster: someone who only shows up in the
+  /// meal data can still be collected from, but they are not one of the people
+  /// this month's bills were split between.
+  int get settledCount =>
+      rentShares.where((share) => settlements.containsKey(share.phone)).length;
+
+  int get pendingCount => memberCount - settledCount;
+
+  bool get isFullySettled => memberCount > 0 && pendingCount == 0;
+
+  /// A copy carrying one changed settlement — pass null to clear it.
+  MonthlyBillModel withSettlement(String phone, SettlementRecord? record) {
+    final Map<String, SettlementRecord> next = Map.of(settlements);
+    if (record == null) {
+      next.remove(phone);
+    } else {
+      next[phone] = record;
+    }
+
+    return MonthlyBillModel(
+      id: id,
+      year: year,
+      month: month,
+      homeRent: homeRent,
+      rentShares: rentShares,
+      waterBill: waterBill,
+      securityBill: securityBill,
+      electricityBill: electricityBill,
+      cleaningBill: cleaningBill,
+      wifiBill: wifiBill,
+      otherCost: otherCost,
+      otherNote: otherNote,
+      settlements: next,
+      updatedBy: updatedBy,
+      updatedAt: updatedAt,
+    );
+  }
+
   factory MonthlyBillModel.fromMap(String id, Map<String, dynamic> map) {
     final List<String> parts = id.split('-');
 
@@ -134,11 +203,22 @@ class MonthlyBillModel {
       wifiBill: _toDouble(map['wifi_bill']),
       otherCost: _toDouble(map['other_cost']),
       otherNote: map['other_note'] ?? '',
+      settlements: ((map['settlements'] as Map?) ?? {}).map(
+        (key, value) => MapEntry(
+          key.toString(),
+          SettlementRecord.fromMap(
+            Map<String, dynamic>.from(value as Map? ?? {}),
+          ),
+        ),
+      ),
       updatedBy: map['updated_by'] ?? '',
       updatedAt: (map['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
 
+  /// Deliberately without `settlements`: the bill form builds this map, and a
+  /// month saved from the form must not wipe who has already paid. Collections
+  /// are written by their own merge, from the details screen.
   Map<String, dynamic> toMap() => {
         'month_key': id,
         'year': year,

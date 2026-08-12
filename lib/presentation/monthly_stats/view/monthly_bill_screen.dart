@@ -6,11 +6,11 @@ import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_button.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../../../utils/app_ui.dart';
-import '../controller/settings_controller.dart';
+import '../controller/monthly_stats_controller.dart';
 import '../model/monthly_bill_model.dart';
 import '../widgets/bill_amount_field.dart';
 import '../widgets/month_picker_sheet.dart';
-import '../widgets/settings_skeletons.dart';
+import '../widgets/monthly_stats_skeletons.dart';
 
 /// Stable per-member accent, matching the members screen so the same person
 /// keeps the same color everywhere.
@@ -42,12 +42,12 @@ String _initialsOf(String name) {
 /// only bill that has to be argued over per member, then the costs that simply
 /// divide, and finally what each person ends up owing. Every total is derived
 /// from the fields as they are typed — nothing waits for a save to add up.
-class MonthlyBillScreen extends GetView<SettingsController> {
+class MonthlyBillScreen extends GetView<MonthlyStatsController> {
   const MonthlyBillScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return GetBuilder<SettingsController>(
+    return GetBuilder<MonthlyStatsController>(
       builder: (c) {
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -81,7 +81,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// ------------------------------------------------------------------- menu
 
-  Widget _buildMenu(BuildContext context, SettingsController c) {
+  Widget _buildMenu(BuildContext context, MonthlyStatsController c) {
     final MonthlyBillModel? saved = c.editingBill;
 
     return PopupMenuButton<String>(
@@ -127,7 +127,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   void _confirmDelete(
     BuildContext context,
-    SettingsController c,
+    MonthlyStatsController c,
     MonthlyBillModel bill,
   ) {
     showConfirmDialog(
@@ -147,7 +147,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// ----------------------------------------------------------- month banner
 
-  Widget _buildMonthBanner(BuildContext context, SettingsController c) {
+  Widget _buildMonthBanner(BuildContext context, MonthlyStatsController c) {
     final MonthlyBillModel? saved = c.editingBill;
     final Color primary = Theme.of(context).colorScheme.primary;
 
@@ -217,7 +217,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// Next month is nearly always last month with a couple of numbers moved, so
   /// the shortcut is offered before the empty form, not buried in a menu.
-  Widget _buildTemplateCard(BuildContext context, SettingsController c) {
+  Widget _buildTemplateCard(BuildContext context, MonthlyStatsController c) {
     final MonthlyBillModel source = c.templateBill!;
     final Color primary = Theme.of(context).colorScheme.primary;
 
@@ -279,7 +279,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// ------------------------------------------------------------------- rent
 
-  Widget _buildRentSection(BuildContext context, SettingsController c) {
+  Widget _buildRentSection(BuildContext context, MonthlyStatsController c) {
     return _section(
       context,
       icon: Icons.home_rounded,
@@ -336,7 +336,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// The running answer to "does this add up?", in the place where the
   /// question comes up — so a mismatch is never discovered at save time.
-  Widget _buildRentBalance(BuildContext context, SettingsController c) {
+  Widget _buildRentBalance(BuildContext context, MonthlyStatsController c) {
     final double remaining = c.formRentRemaining;
 
     late final MaterialColor color;
@@ -390,7 +390,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// What stands in for the split list when there is nobody in it — a state
   /// that always says which of the three it is, and offers the way out.
-  Widget _buildEmptySplit(BuildContext context, SettingsController c) {
+  Widget _buildEmptySplit(BuildContext context, MonthlyStatsController c) {
     if (c.isMembersLoading) return const MemberSplitSkeleton();
 
     final bool failed = c.membersError.isNotEmpty;
@@ -434,7 +434,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   Widget _buildShareRow(
     BuildContext context,
-    SettingsController c,
+    MonthlyStatsController c,
     RentShare share,
   ) {
     final TextEditingController? field = c.rentControllers[share.phone];
@@ -503,7 +503,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// -------------------------------------------------------------- utilities
 
-  Widget _buildUtilitiesSection(BuildContext context, SettingsController c) {
+  Widget _buildUtilitiesSection(BuildContext context, MonthlyStatsController c) {
     return _section(
       context,
       icon: Icons.bolt_rounded,
@@ -539,7 +539,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// ------------------------------------------------------------------- wifi
 
-  Widget _buildWifiSection(BuildContext context, SettingsController c) {
+  Widget _buildWifiSection(BuildContext context, MonthlyStatsController c) {
     return _section(
       context,
       icon: Icons.wifi_rounded,
@@ -558,7 +558,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// ----------------------------------------------------------------- others
 
-  Widget _buildOthersSection(BuildContext context, SettingsController c) {
+  Widget _buildOthersSection(BuildContext context, MonthlyStatsController c) {
     return _section(
       context,
       icon: Icons.category_outlined,
@@ -583,7 +583,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   /// --------------------------------------------------------------- save bar
 
-  Widget _buildSaveBar(BuildContext context, SettingsController c) {
+  Widget _buildSaveBar(BuildContext context, MonthlyStatsController c) {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
@@ -717,7 +717,7 @@ class MonthlyBillScreen extends GetView<SettingsController> {
 
   Widget _amountRow(
     BuildContext context,
-    SettingsController c, {
+    MonthlyStatsController c, {
     required IconData icon,
     required String label,
     required TextEditingController controller,

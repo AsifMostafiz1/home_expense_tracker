@@ -1,7 +1,7 @@
 import '../../member/model/member_model.dart';
 import '../model/monthly_bill_model.dart';
 
-abstract class SettingsRepository {
+abstract class MonthlyStatsRepository {
   /// Every month that has been set up, newest first.
   Future<List<MonthlyBillModel>> fetchMonthlyBills();
 
@@ -14,6 +14,15 @@ abstract class SettingsRepository {
   Stream<List<MemberModel>> watchActiveMembers();
 
   Future<void> saveMonthlyBill(String monthKey, Map<String, dynamic> data);
+
+  /// Records — or takes back — one member's collected share for a month.
+  Future<void> setMemberSettled(
+    String monthKey,
+    String phone, {
+    required bool settled,
+    double amount,
+    String by,
+  });
 
   Future<void> deleteMonthlyBill(String monthKey);
 }

@@ -5,29 +5,29 @@ import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_button.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/month_details_controller.dart';
-import '../controller/settings_controller.dart';
+import '../controller/monthly_stats_controller.dart';
 import '../model/monthly_bill_model.dart';
 import '../widgets/month_picker_sheet.dart';
-import '../widgets/settings_skeletons.dart';
+import '../widgets/monthly_stats_skeletons.dart';
 import 'month_details_screen.dart';
 import 'monthly_bill_screen.dart';
 
-/// Admin-only house settings.
+/// Admin-only monthly statistics for the house.
 ///
 /// The screen answers one question first — is this month set up? — and keeps
 /// every month that came before it a tap away, because next month's setup
 /// almost always starts from the last one.
-class SettingsScreen extends GetView<SettingsController> {
-  const SettingsScreen({super.key});
+class MonthlyStatsScreen extends GetView<MonthlyStatsController> {
+  const MonthlyStatsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: CustomAppBar(
-        title: 'settings'.tr,
+        title: 'monthly_statistics'.tr,
         actions: [
-          GetBuilder<SettingsController>(
+          GetBuilder<MonthlyStatsController>(
             builder: (c) {
               if (!c.isAdminUser || c.isLoading) return const SizedBox(width: 16);
               return Padding(
@@ -42,12 +42,12 @@ class SettingsScreen extends GetView<SettingsController> {
           ),
         ],
       ),
-      body: GetBuilder<SettingsController>(
+      body: GetBuilder<MonthlyStatsController>(
         builder: (c) {
           // Loading first: the role is read from preferences on init, so a
           // check before that lands would flash the locked state at an admin.
           if (c.isLoading) {
-            return const SettingsListSkeleton();
+            return const MonthlyStatsSkeleton();
           }
 
           // The tile that leads here is admin-only; this is the second lock,
@@ -57,7 +57,7 @@ class SettingsScreen extends GetView<SettingsController> {
           if (c.errorMessage.isNotEmpty) return _buildErrorState(context, c);
 
           return RefreshIndicator(
-            onRefresh: c.loadSettings,
+            onRefresh: c.loadStats,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
               children: [
@@ -142,7 +142,7 @@ class SettingsScreen extends GetView<SettingsController> {
   /// ------------------------------------------------------- this month card
 
   /// The month everyone is living in right now, with its one obvious action.
-  Widget _buildCurrentMonthCard(BuildContext context, SettingsController c) {
+  Widget _buildCurrentMonthCard(BuildContext context, MonthlyStatsController c) {
     final Color primary = Theme.of(context).colorScheme.primary;
     final DateTime month = c.thisMonth;
     final MonthlyBillModel? bill = c.currentMonthBill;
@@ -241,6 +241,43 @@ class SettingsScreen extends GetView<SettingsController> {
     );
   }
 
+  /// How much of the month is still to be collected — the question an admin
+  /// scanning this list is actually asking.
+  Widget _collectionPill(BuildContext context, MonthlyBillModel bill) {
+    final bool done = bill.isFullySettled;
+    final MaterialColor color = done ? Colors.green : Colors.orange;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppUi.tint(context, color),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            done ? Icons.verified_rounded : Icons.pending_outlined,
+            size: 10,
+            color: AppUi.accent(context, color),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            done
+                ? 'all_collected'.tr
+                : 'pending_count'.trParams({'count': '${bill.pendingCount}'}),
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+              color: AppUi.accent(context, color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _statusPill(BuildContext context, bool isSetUp) {
     final MaterialColor color = isSetUp ? Colors.green : Colors.orange;
 
@@ -316,7 +353,7 @@ class SettingsScreen extends GetView<SettingsController> {
 
   Widget _buildMonthRow(
     BuildContext context,
-    SettingsController c,
+    MonthlyStatsController c,
     MonthlyBillModel bill,
   ) {
     final Color primary = Theme.of(context).colorScheme.primary;
@@ -387,16 +424,25 @@ class SettingsScreen extends GetView<SettingsController> {
                         ],
                       ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'members_count'.trParams({'count': '${bill.memberCount}'}),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: AppUi.muted(context),
-                        fontWeight: FontWeight.w500,
-                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'members_count'
+                                .trParams({'count': '${bill.memberCount}'}),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppUi.muted(context),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _collectionPill(context, bill),
+                      ],
                     ),
                   ],
                 ),
@@ -470,7 +516,7 @@ class SettingsScreen extends GetView<SettingsController> {
     );
   }
 
-  Widget _buildErrorState(BuildContext context, SettingsController c) {
+  Widget _buildErrorState(BuildContext context, MonthlyStatsController c) {
     return _centeredState(
       context,
       icon: Icons.cloud_off_rounded,
@@ -478,7 +524,7 @@ class SettingsScreen extends GetView<SettingsController> {
       title: 'failed_load_bills'.tr,
       hint: 'check_connection'.tr,
       action: TextButton.icon(
-        onPressed: c.loadSettings,
+        onPressed: c.loadStats,
         icon: const Icon(Icons.refresh_rounded, size: 18),
         label: Text('retry'.tr),
       ),
@@ -542,7 +588,7 @@ class SettingsScreen extends GetView<SettingsController> {
   /// A month that already has bills opens on its breakdown; a month with
   /// nothing in it has nothing to break down, so it opens on the form.
   /// Editing an existing month is reached from the details app bar.
-  void _openMonth(BuildContext context, SettingsController c, DateTime month) {
+  void _openMonth(BuildContext context, MonthlyStatsController c, DateTime month) {
     final MonthlyBillModel? bill = c.billForMonth(month);
     if (bill == null || bill.isEmpty) {
       _openBill(context, c, month);
@@ -560,14 +606,14 @@ class SettingsScreen extends GetView<SettingsController> {
     Get.to(() => const MonthDetailsScreen());
   }
 
-  void _openBill(BuildContext context, SettingsController c, DateTime month) {
+  void _openBill(BuildContext context, MonthlyStatsController c, DateTime month) {
     c.startBill(month);
     Get.to(() => const MonthlyBillScreen());
   }
 
   /// Month picker for setting up a month other than this one — the month
   /// ahead, or one that was missed.
-  void _showMonthPicker(BuildContext context, SettingsController c) {
+  void _showMonthPicker(BuildContext context, MonthlyStatsController c) {
     showMonthPickerSheet(
       context,
       c,

@@ -4,9 +4,9 @@ import 'package:get/get.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/month_details_controller.dart';
-import '../controller/settings_controller.dart';
+import '../controller/monthly_stats_controller.dart';
 import '../model/month_cost_summary.dart';
-import '../widgets/settings_skeletons.dart';
+import '../widgets/monthly_stats_skeletons.dart';
 import 'monthly_bill_screen.dart';
 
 /// Stable per-member accent, matching the members and bill screens.
@@ -89,7 +89,7 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
                     for (final MemberCostSummary member in summary.members)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildMemberCard(context, member, summary),
+                        child: _buildMemberCard(context, c, member, summary),
                       ),
                     const SizedBox(height: 6),
                     _buildCollectCard(context, summary),
@@ -104,13 +104,13 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
   }
 
   Future<void> _openBillForm(MonthDetailsController c) async {
-    final SettingsController settings = Get.find<SettingsController>();
-    settings.startBill(c.month);
+    final MonthlyStatsController stats = Get.find<MonthlyStatsController>();
+    stats.startBill(c.month);
     await Get.to(() => const MonthlyBillScreen());
 
     // Saved, edited or deleted — whichever it was, the figures here are stale
     // the moment that screen closes.
-    await c.refreshBill(settings.billForMonth(c.month));
+    await c.refreshBill(stats.billForMonth(c.month));
   }
 
   /// ------------------------------------------------------------------ header
@@ -383,6 +383,7 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
   /// much?", so every figure that goes into the answer is on the card.
   Widget _buildMemberCard(
     BuildContext context,
+    MonthDetailsController c,
     MemberCostSummary member,
     MonthCostSummary summary,
   ) {
@@ -393,7 +394,13 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppUi.hairline(context)),
+        // A collected member is edged in green: the state is visible while
+        // scrolling past, without reading a single number.
+        border: Border.all(
+          color: member.settled
+              ? Colors.green.withOpacity(AppUi.isDark(context) ? 0.45 : 0.35)
+              : AppUi.hairline(context),
+        ),
       ),
       child: Column(
         children: [
@@ -518,7 +525,104 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
           ),
           const SizedBox(height: 10),
           _grandTotalStrip(context, member),
+          const SizedBox(height: 10),
+          _buildCollectAction(context, c, member),
         ],
+      ),
+    );
+  }
+
+  /// The admin's tick-off: one tap says the money is in hand, and the same
+  /// row takes it back, because miscounting cash is ordinary.
+  Widget _buildCollectAction(
+    BuildContext context,
+    MonthDetailsController c,
+    MemberCostSummary member,
+  ) {
+    final bool busy = c.settlingPhone == member.phone;
+    final VoidCallback? onTap =
+        c.settlingPhone == null ? () => c.toggleSettled(member) : null;
+
+    if (member.settled) {
+      return Row(
+        children: [
+          Icon(Icons.verified_rounded,
+              size: 17, color: AppUi.accent(context, Colors.green)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'collected_amount'
+                      .trParams({'amount': AppUi.amount(member.settledAmount)}),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppUi.accent(context, Colors.green),
+                  ),
+                ),
+                if (member.settledBy.isNotEmpty) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    'collected_by'.trParams({'name': member.settledBy}),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        TextStyle(fontSize: 10.5, color: AppUi.muted(context)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (busy)
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            TextButton(
+              onPressed: onTap,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                visualDensity: VisualDensity.compact,
+                foregroundColor: AppUi.muted(context),
+              ),
+              child: Text(
+                'undo'.tr,
+                style: const TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w600),
+              ),
+            ),
+        ],
+      );
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      height: 42,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: busy
+            ? const SizedBox(
+                width: 15,
+                height: 15,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.check_circle_outline_rounded, size: 18),
+        label: Text(
+          'mark_collected'.tr,
+          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppUi.accent(context, Colors.green),
+          side: BorderSide(
+            color: Colors.green.withOpacity(AppUi.isDark(context) ? 0.5 : 0.35),
+          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+        ),
       ),
     );
   }
@@ -716,6 +820,47 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
                   color: AppUi.body(context),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // How far along the collection is, in the same card as the number
+          // being collected.
+          Row(
+            children: [
+              Icon(
+                summary.isFullySettled
+                    ? Icons.verified_rounded
+                    : Icons.pending_outlined,
+                size: 14,
+                color: AppUi.accent(
+                    context, summary.isFullySettled ? Colors.green : Colors.orange),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  summary.isFullySettled
+                      ? 'all_collected'.tr
+                      : 'collected_progress'.trParams({
+                          'done': '${summary.settledCount}',
+                          'total': '${summary.members.length}',
+                        }),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppUi.accent(context,
+                        summary.isFullySettled ? Colors.green : Colors.orange),
+                  ),
+                ),
+              ),
+              if (summary.collectedTotal > 0)
+                Text(
+                  AppUi.amount(summary.collectedTotal),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppUi.accent(context, Colors.green),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 8),

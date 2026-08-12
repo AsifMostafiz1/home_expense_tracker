@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../common/widgets/shimmer_loading.dart';
 
 /// ---------------------------------------------------------------------------
-/// Loading placeholders for the settings section.
+/// Loading placeholders for the monthly statistics section.
 ///
 /// Each one traces the screen it stands in for — same block sizes, same
 /// rhythm — so the page does not jump when the real content lands. A centred
@@ -12,8 +12,8 @@ import '../../../common/widgets/shimmer_loading.dart';
 /// ---------------------------------------------------------------------------
 
 /// The months list: header, this-month card, then saved-month rows.
-class SettingsListSkeleton extends StatelessWidget {
-  const SettingsListSkeleton({super.key});
+class MonthlyStatsSkeleton extends StatelessWidget {
+  const MonthlyStatsSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {

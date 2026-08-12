@@ -3,9 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../utils/app_constant.dart';
 import '../../member/model/member_model.dart';
 import '../model/monthly_bill_model.dart';
-import 'settings_repository.dart';
+import 'monthly_stats_repository.dart';
 
-class SettingsRepositoryImpl implements SettingsRepository {
+class MonthlyStatsRepositoryImpl implements MonthlyStatsRepository {
   @override
   Future<List<MonthlyBillModel>> fetchMonthlyBills() async {
     QuerySnapshot<Map<String, dynamic>> snapshot = await FirebaseFirestore
@@ -64,6 +64,38 @@ class SettingsRepositoryImpl implements SettingsRepository {
       ...data,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> setMemberSettled(
+    String monthKey,
+    String phone, {
+    required bool settled,
+    double amount = 0,
+    String by = '',
+  }) async {
+    final DocumentReference<Map<String, dynamic>> doc = FirebaseFirestore
+        .instance
+        .collection(AppConstant.collectionMonthlyBills)
+        .doc(monthKey);
+
+    if (settled) {
+      // Merged one key deep, so collecting from one member never disturbs the
+      // rest of the map — or the bills themselves.
+      await doc.set({
+        'settlements': {
+          phone: {
+            'amount': amount,
+            'by': by,
+            'at': FieldValue.serverTimestamp(),
+          },
+        },
+      }, SetOptions(merge: true));
+      return;
+    }
+
+    // Phone numbers are digits only, so they are safe inside a field path.
+    await doc.update({'settlements.$phone': FieldValue.delete()});
   }
 
   @override

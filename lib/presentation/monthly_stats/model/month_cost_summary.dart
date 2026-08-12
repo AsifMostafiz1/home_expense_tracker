@@ -27,6 +27,15 @@ class MemberCostSummary {
   final double mealPaid;
   final double otherPaid;
 
+  /// Set once the admin has collected this member's share.
+  final bool settled;
+
+  /// What was actually handed over, stamped at collection time — a later edit
+  /// to the bills does not rewrite it.
+  final double settledAmount;
+  final String settledBy;
+  final DateTime? settledAt;
+
   const MemberCostSummary({
     required this.phone,
     required this.name,
@@ -39,6 +48,10 @@ class MemberCostSummary {
     required this.otherCost,
     required this.mealPaid,
     required this.otherPaid,
+    this.settled = false,
+    this.settledAmount = 0,
+    this.settledBy = '',
+    this.settledAt,
   });
 
   /// Rent plus their share of utilities, wifi and the other house costs.
@@ -105,6 +118,18 @@ class MonthCostSummary {
   double get grandTotal =>
       members.fold(0.0, (sum, member) => sum + member.grandTotal);
 
+  /// Collection progress — the amounts as they were stamped, not as they
+  /// stand today, so the tally matches the money that changed hands.
+  double get collectedTotal => members
+      .where((member) => member.settled)
+      .fold(0.0, (sum, member) => sum + member.settledAmount);
+
+  int get settledCount => members.where((member) => member.settled).length;
+
+  int get pendingCount => members.length - settledCount;
+
+  bool get isFullySettled => members.isNotEmpty && pendingCount == 0;
+
   bool get hasMealData => totalMeals > 0 || mealRate > 0 || otherRate > 0;
 
   static DateTime mealMonthOf(DateTime month) =>
@@ -166,6 +191,7 @@ class MonthCostSummary {
     }) {
       final _MealFigures? meals = mealsByPhone[phone];
       final int count = meals?.count ?? 0;
+      final SettlementRecord? settlement = bill?.settlements[phone];
 
       return MemberCostSummary(
         phone: phone,
@@ -180,6 +206,10 @@ class MonthCostSummary {
         otherCost: otherRate,
         mealPaid: meals?.mealPaid ?? 0,
         otherPaid: meals?.otherPaid ?? 0,
+        settled: settlement != null,
+        settledAmount: settlement?.amount ?? 0,
+        settledBy: settlement?.by ?? '',
+        settledAt: settlement?.at,
       );
     }
 

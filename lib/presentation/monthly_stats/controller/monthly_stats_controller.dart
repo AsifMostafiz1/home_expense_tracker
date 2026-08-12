@@ -11,9 +11,9 @@ import '../../../utils/app_enums.dart';
 import '../../../utils/app_ui.dart';
 import '../../member/model/member_model.dart';
 import '../model/monthly_bill_model.dart';
-import '../repository/settings_repository.dart';
+import '../repository/monthly_stats_repository.dart';
 
-/// Admin-only house settings: the rent, utilities, wifi and other costs for
+/// Admin-only monthly statistics: the rent, utilities, wifi and other costs for
 /// each month.
 ///
 /// The screen keeps two kinds of state — the saved months ([bills]) and the
@@ -21,10 +21,10 @@ import '../repository/settings_repository.dart';
 /// [TextEditingController]s while editing, so every total on the form is
 /// derived from the fields rather than mirrored into a second copy that could
 /// drift.
-class SettingsController extends GetxController implements GetxService {
-  final SettingsRepository repository;
+class MonthlyStatsController extends GetxController implements GetxService {
+  final MonthlyStatsRepository repository;
 
-  SettingsController({required this.repository});
+  MonthlyStatsController({required this.repository});
 
   /// ------------------------------------------------------------- session
 
@@ -76,7 +76,7 @@ class SettingsController extends GetxController implements GetxService {
     super.onInit();
     _loadSession();
     _watchMembers();
-    loadSettings();
+    loadStats();
   }
 
   @override
@@ -107,7 +107,7 @@ class SettingsController extends GetxController implements GetxService {
 
   /// ------------------------------------------------------------- loading
 
-  Future<void> loadSettings() async {
+  Future<void> loadStats() async {
     isLoading = true;
     errorMessage = '';
     update();
@@ -146,7 +146,7 @@ class SettingsController extends GetxController implements GetxService {
         members = list;
         isMembersLoading = false;
         membersError = '';
-        debugPrint('Settings: ${members.length} members share the bills');
+        debugPrint('Monthly stats: ${members.length} members share the bills');
 
         // Only when the people changed — an unrelated field on a user document
         // must not reset amounts someone is in the middle of typing.
@@ -180,7 +180,7 @@ class SettingsController extends GetxController implements GetxService {
       update();
 
       members = await repository.fetchActiveMembers();
-      debugPrint('Settings: loaded ${members.length} members for the split');
+      debugPrint('Monthly stats: loaded ${members.length} members for the split');
 
       if (syncForm) _rebuildRoster();
     } catch (e) {
@@ -527,7 +527,7 @@ class SettingsController extends GetxController implements GetxService {
         'updated_by_phone': userPhone,
       });
 
-      await loadSettings();
+      await loadStats();
       editingBill = billForKey(bill.id);
 
       // Back-filling an old month is bookkeeping; nobody needs a push for it.
@@ -569,7 +569,7 @@ class SettingsController extends GetxController implements GetxService {
       update();
 
       await repository.deleteMonthlyBill(bill.id);
-      await loadSettings();
+      await loadStats();
 
       if (MonthlyBillModel.monthKeyOf(formMonth) == bill.id) {
         editingBill = null;
