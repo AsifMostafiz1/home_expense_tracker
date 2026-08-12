@@ -60,4 +60,29 @@ class AppUi {
   /// One money format for the whole app, so totals never render as `1250.0`
   /// in one place and `৳1250.0` in another.
   static String money(double amount) => '৳${amount.toStringAsFixed(1)}';
+
+  /// `৳12,000` / `৳1,050.25` — grouped, and only as precise as it needs to be.
+  /// House bills run into five figures, where [money]'s fixed decimal is noise.
+  static String amount(double value) =>
+      '৳${NumberFormat('#,##0.##').format(value)}';
+
+  static const List<String> _monthKeys = [
+    'month_jan',
+    'month_feb',
+    'month_mar',
+    'month_apr',
+    'month_may',
+    'month_jun',
+    'month_jul',
+    'month_aug',
+    'month_sep',
+    'month_oct',
+    'month_nov',
+    'month_dec',
+  ];
+
+  /// `August 2026`, in the app's language — `DateFormat` would always answer
+  /// in English here, since only the app's own strings are translated.
+  static String monthLabel(DateTime month) =>
+      '${_monthKeys[month.month - 1].tr} ${month.year}';
 }

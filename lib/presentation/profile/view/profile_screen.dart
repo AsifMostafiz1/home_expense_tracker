@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
 import '../../member/view/member_screen.dart';
+import '../../settings/view/settings_screen.dart';
 import 'edit_profile_screen.dart';
 import 'edit_history_screen.dart';
 
@@ -140,19 +141,33 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 32),
 
-                      // Account Section
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'ACCOUNT'.tr,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade500,
-                            letterSpacing: 1.2,
+                      // House Section — admin only. Everything in it changes
+                      // what the whole house pays, so it never renders for a
+                      // member who cannot act on it.
+                      if (controller.isAdminUser) ...[
+                        _buildSectionLabel(context, 'HOUSE'.tr),
+                        const SizedBox(height: 12),
+                        Material(
+                          color: Theme.of(context).cardColor,
+                          clipBehavior: Clip.antiAlias,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                                color: Theme.of(context).dividerColor),
+                          ),
+                          child: _buildListTile(
+                            context,
+                            icon: Icons.tune_rounded,
+                            title: 'settings'.tr,
+                            subtitle: 'settings_subtitle'.tr,
+                            onTap: () => Get.to(() => const SettingsScreen()),
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 24),
+                      ],
+
+                      // Account Section
+                      _buildSectionLabel(context, 'ACCOUNT'.tr),
                       const SizedBox(height: 12),
                       // Material, not a decorated Container: ListTile paints
                       // its ripple on the nearest Material ancestor, so a
@@ -431,11 +446,27 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildSectionLabel(BuildContext context, String label) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey.shade500,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
   Widget _buildListTile(
     BuildContext context, {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    String? subtitle,
     Color? textColor,
     Color? iconColor,
   }) {
@@ -451,6 +482,19 @@ class ProfileScreen extends StatelessWidget {
           fontWeight: FontWeight.w500,
         ),
       ),
+      subtitle: subtitle == null
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ),
       trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20),
     );
   }

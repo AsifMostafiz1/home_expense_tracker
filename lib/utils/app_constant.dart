@@ -24,6 +24,10 @@ class AppConstant {
   static const String collectionChats = 'chats';
   static const String collectionSeenStatus = 'seen_status';
   static const String collectionEditLogs = 'edit_logs';
+
+  /// One document per month, keyed `YYYY-MM` — the house bills an admin sets
+  /// up from the settings screen.
+  static const String collectionMonthlyBills = 'monthly_bills';
   
   static const double appVersion = 1.0;
   static const String docBusinessConfig = 'business_config';
