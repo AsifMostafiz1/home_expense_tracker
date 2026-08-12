@@ -135,6 +135,15 @@ class AuthController extends GetxController implements GetxService {
       UserModel? user = await repository.signIn(phone);
 
       if (user != null) {
+        // Removed by an admin: the record still exists, but access is gone.
+        if (user.isRemoved) {
+          isLoading = false;
+          update();
+          CustomSnackbar.show(
+              type: SnackbarType.error, message: 'account_removed_message'.tr);
+          return;
+        }
+
         if (user.password == password) {
           SharedPreferences prefs = await SharedPreferences.getInstance();
           await prefs.setBool(AppConstant.keyIsLoggedIn, true);
