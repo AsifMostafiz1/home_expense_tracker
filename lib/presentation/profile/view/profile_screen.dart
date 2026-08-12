@@ -154,11 +154,16 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
+                      // Material, not a decorated Container: ListTile paints
+                      // its ripple on the nearest Material ancestor, so a
+                      // colored box in between would hide it.
+                      Material(
+                        color: Theme.of(context).cardColor,
+                        clipBehavior: Clip.antiAlias,
+                        shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Theme.of(context).dividerColor),
+                          side: BorderSide(
+                              color: Theme.of(context).dividerColor),
                         ),
                         child: Column(
                           children: [
@@ -354,15 +359,16 @@ class ProfileScreen extends StatelessWidget {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isSelected 
-            ? Theme.of(context).colorScheme.primary.withOpacity(0.1) 
-            : Theme.of(context).cardColor,
+    return Material(
+      color: isSelected
+          ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+          : Theme.of(context).cardColor,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isSelected 
-              ? Theme.of(context).colorScheme.primary 
+        side: BorderSide(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
               : Theme.of(context).dividerColor,
           width: isSelected ? 2 : 1,
         ),

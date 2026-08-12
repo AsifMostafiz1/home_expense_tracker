@@ -246,7 +246,6 @@ class ChatScreen extends GetView<ChatController> {
       constraints: const BoxConstraints(maxHeight: 150),
       margin: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -255,35 +254,45 @@ class ChatScreen extends GetView<ChatController> {
             offset: const Offset(0, -2),
           ),
         ],
-        border: Border.all(color: Theme.of(context).dividerColor),
       ),
-      child: ListView.builder(
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        itemCount: controller.filteredMentionUsers.length,
-        itemBuilder: (context, index) {
-          final user = controller.filteredMentionUsers[index];
-          final name = user['name'] ?? 'unknown'.tr;
-          
-          return ListTile(
-            dense: true,
-            visualDensity: VisualDensity.compact,
-            leading: CircleAvatar(
-              radius: 14,
-              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
+      // The surface lives on a Material, not on the Container's decoration,
+      // so the tiles below can paint their ink splashes.
+      child: Material(
+        color: Theme.of(context).cardColor,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+        child: ListView.builder(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: controller.filteredMentionUsers.length,
+          itemBuilder: (context, index) {
+            final user = controller.filteredMentionUsers[index];
+            final name = user['name'] ?? 'unknown'.tr;
+
+            return ListTile(
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              leading: CircleAvatar(
+                radius: 14,
+                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
-            ),
-            title: Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-            onTap: () => controller.insertMention(name),
-          );
-        },
+              title:
+                  Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+              onTap: () => controller.insertMention(name),
+            );
+          },
+        ),
       ),
     );
   }

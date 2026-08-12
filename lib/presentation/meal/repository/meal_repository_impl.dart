@@ -242,4 +242,26 @@ class MealRepositoryImpl implements MealRepository {
       return data;
     }).toList();
   }
+
+  /// Marks the announcement resolved for everyone — the flag lives on the
+  /// server, so the card disappears from every member's meal screen.
+  @override
+  Future<void> resolveAnnouncement(String id, String userName) async {
+    await FirebaseFirestore.instance
+        .collection(AppConstant.collectionAnnouncements)
+        .doc(id)
+        .set({
+      'resolved': true,
+      'resolved_by': userName,
+      'resolved_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> deleteAnnouncement(String id) async {
+    await FirebaseFirestore.instance
+        .collection(AppConstant.collectionAnnouncements)
+        .doc(id)
+        .delete();
+  }
 }

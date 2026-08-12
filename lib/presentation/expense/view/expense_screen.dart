@@ -1,9 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
+import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
+import '../../../utils/app_ui.dart';
 import '../controller/expense_controller.dart';
 import '../model/expense_model.dart';
 import '../widgets/expense_bottom_sheet.dart';
+
+/// Type `expense` means a meal expense; `others` is everything else. The two
+/// keep the same icon and color they already have on the meal screen, so a
+/// row means the same thing wherever it is shown.
+const MaterialColor _mealColor = Colors.blue;
+const MaterialColor _othersColor = Colors.orange;
+
+bool _isMeal(ExpenseModel item) => item.type == 'expense';
+
+MaterialColor _colorOf(ExpenseModel item) =>
+    _isMeal(item) ? _mealColor : _othersColor;
+
+IconData _iconOf(ExpenseModel item) => _isMeal(item)
+    ? Icons.shopping_cart_outlined
+    : Icons.miscellaneous_services_outlined;
+
+String _labelOf(ExpenseModel item) => _isMeal(item) ? 'meal'.tr : 'others'.tr;
 
 class ExpenseScreen extends GetView<ExpenseController> {
   const ExpenseScreen({super.key});
@@ -12,360 +32,516 @@ class ExpenseScreen extends GetView<ExpenseController> {
   Widget build(BuildContext context) {
     // Controller is provided via ExpenseBinding
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: CustomAppBar(
-          title: 'expense'.tr,
-          bottom: TabBar(
-            onTap: (index) => controller.setMonthIndex(index),
-            tabs: [
-              Tab(text: 'current_month'.tr),
-              Tab(text: 'next_month'.tr),
-            ],
-            indicatorColor: Theme.of(context).colorScheme.primary,
-            labelColor: Theme.of(context).colorScheme.primary,
-            unselectedLabelColor: Colors.grey,
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
+    return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          controller.clearForm();
-          _showExpenseBottomSheet(context);
-        },
+      appBar: CustomAppBar(
+        title: 'expense'.tr,
+        bottom: const _MonthSwitcher(),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showExpenseBottomSheet(context),
         backgroundColor: Theme.of(context).colorScheme.primary,
-        child: const Icon(Icons.add, color: Colors.white),
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(Icons.add_rounded),
+        label: Text(
+          'add_expense'.tr,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: GetBuilder<ExpenseController>(
         builder: (controller) {
-          if (controller.isLoading && controller.expenses.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          final bool isFirstLoad =
+              controller.isLoading && controller.expenses.isEmpty;
+          final List<String> dateKeys =
+              controller.groupedExpenses.keys.toList();
 
           return RefreshIndicator(
+            color: Theme.of(context).colorScheme.primary,
             onRefresh: () => controller.fetchExpenses(),
-            child: ListView(
+            child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                // Current Month Total Card
-                Container(
-                  margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).colorScheme.primary,
-                        Theme.of(context).colorScheme.primary.withOpacity(0.75),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withOpacity(0.3),
-                        blurRadius: 16,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  width: double.infinity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'monthly_expense'.trParams({'month': controller.selectedMonthName}),
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: Colors.white70,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0.5,
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '৳${controller.displayTotal.toStringAsFixed(1)}',
-                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                              Text(
-                                'total_paid'.tr,
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              _buildCardStat(context, 'meal'.tr, controller.mealTotal),
-                              const SizedBox(height: 4),
-                              _buildCardStat(context, 'others'.tr, controller.othersTotal),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _buildSummaryCard(context, isLoading: isFirstLoad),
                 ),
-
-                // Expenses List
-                controller.groupedExpenses.isEmpty
-                    ? SizedBox(
-                        height: 200,
-                        child: Center(
-                          child: Text(
-                            'no_expenses_found'.trParams({'month': controller.selectedMonthName}),
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  color: Theme.of(context).hintColor,
-                                ),
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                        itemCount: controller.groupedExpenses.keys.length,
-                        itemBuilder: (context, index) {
-                          String dateKey =
-                              controller.groupedExpenses.keys.elementAt(index);
-                          List<ExpenseModel> items =
-                              controller.groupedExpenses[dateKey]!;
-
-                          double totalAmount = items.fold(0, (sum, item) {
-                            return sum + item.amount;
-                          });
-
-                          double displayTotal = totalAmount.abs();
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Group Header
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 8),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        dateKey,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                      Text(
-                                        'total'.tr + ': $displayTotal',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                // Group Items
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).cardColor,
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.03),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Column(
-                                    children: items.asMap().entries.map((entry) {
-                                      int idx = entry.key;
-                                      ExpenseModel item = entry.value;
-                                      bool isLast = idx == items.length - 1;
-
-                                      String formattedTime =
-                                          item.time.format(context);
-
-                                      return Column(
-                                        children: [
-                                          ListTile(
-                                            contentPadding:
-                                                const EdgeInsets.symmetric(
-                                                    horizontal: 16, vertical: 4),
-                                            leading: Container(
-                                              padding: const EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: Colors.red.withOpacity(0.1),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: const Icon(
-                                                Icons.remove,
-                                                color: Colors.red,
-                                                size: 16,
-                                              ),
-                                            ),
-                                            title: Text(
-                                              item.description,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                            ),
-                                            subtitle: Row(
-                                              children: [
-                                                Text(
-                                                  formattedTime,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodySmall,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: item.type == 'expense' ? Colors.blue.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: Text(
-                                                    item.type.toUpperCase(),
-                                                    style: TextStyle(
-                                                      fontSize: 8,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: item.type == 'expense' ? Colors.blue.shade400 : Colors.orange.shade400,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            trailing: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  '${item.amount}',
-                                                  style: const TextStyle(
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.red,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                PopupMenuButton<String>(
-                                                  onSelected: (value) {
-                                                    if (value == 'update') {
-                                                      _showExpenseBottomSheet(
-                                                          context,
-                                                          item: item);
-                                                    } else if (value ==
-                                                        'delete') {
-                                                      _showDeleteConfirmation(
-                                                          context, item);
-                                                    }
-                                                  },
-                                                  itemBuilder: (context) => [
-                                                    PopupMenuItem(
-                                                      value: 'update',
-                                                      child: Text('update'.tr),
-                                                    ),
-                                                    PopupMenuItem(
-                                                      value: 'delete',
-                                                      child: Text('delete'.tr),
-                                                    ),
-                                                  ],
-                                                  icon: Icon(Icons.more_vert,
-                                                      color: Theme.of(context).textTheme.bodySmall?.color),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          if (!isLast)
-                                            const Divider(
-                                                height: 1,
-                                                indent: 16,
-                                                endIndent: 16),
-                                        ],
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                if (isFirstLoad)
+                  const SliverToBoxAdapter(child: _ListSkeleton())
+                else if (dateKeys.isEmpty)
+                  SliverToBoxAdapter(child: _buildEmptyState(context))
+                else
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final String dateKey = dateKeys[index];
+                        return _buildDayGroup(
+                          context,
+                          dateKey,
+                          controller.groupedExpenses[dateKey]!,
+                        );
+                      },
+                      childCount: dateKeys.length,
+                    ),
+                  ),
+                // Breathing room so the FAB never covers the last card.
+                const SliverToBoxAdapter(child: SizedBox(height: 96)),
               ],
             ),
           );
         },
       ),
-    ),
-  );
-}
-
-  Widget _buildCardStat(BuildContext context, String label, double amount) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$label: ',
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
-        ),
-        Text(
-          '৳${amount.toStringAsFixed(1)}',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
     );
   }
 
-  void _showDeleteConfirmation(BuildContext context, ExpenseModel item) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('delete_expense'.tr),
-        content: Text('confirm_delete'.tr),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: Text('cancel'.tr),
-          ),
-          TextButton(
-            onPressed: () {
-              Get.back();
-              controller.deleteExpense(item);
-            },
-            child: Text('delete'.tr, style: const TextStyle(color: Colors.red)),
+  /// --------------------------------------------------------------- summary
+
+  Widget _buildSummaryCard(BuildContext context, {required bool isLoading}) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+    final double total = controller.displayTotal;
+    final double meal = controller.mealTotal;
+    final double others = controller.othersTotal;
+    final int count = controller.filteredExpenses.length;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [primary, primary.withOpacity(0.72)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.30),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.calendar_month_rounded,
+                  color: Colors.white70, size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  controller.selectedMonthName.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              if (!isLoading)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'entries_count'.trParams({'count': '$count'}),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          isLoading
+              ? const _Pulse(width: 150, height: 34, radius: 10, onDark: true)
+              : Text(
+                  AppUi.money(total),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 34,
+                    height: 1.1,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+          const SizedBox(height: 2),
+          Text(
+            'total_paid'.tr,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 18),
+          // Where the money actually went — value contrast reads cleanly on a
+          // saturated ground, where two hues would fight the gradient.
+          _SplitBar(meal: meal, others: others),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _splitLegend(
+                label: 'meal'.tr,
+                amount: meal,
+                total: total,
+                opacity: 0.95,
+              ),
+              const SizedBox(width: 20),
+              _splitLegend(
+                label: 'others'.tr,
+                amount: others,
+                total: total,
+                opacity: 0.45,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitLegend({
+    required String label,
+    required double amount,
+    required double total,
+    required double opacity,
+  }) {
+    final int percent = total <= 0 ? 0 : ((amount / total) * 100).round();
+
+    return Expanded(
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(opacity),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$label · $percent%',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  AppUi.money(amount),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ------------------------------------------------------------- day group
+
+  Widget _buildDayGroup(
+    BuildContext context,
+    String dateKey,
+    List<ExpenseModel> items,
+  ) {
+    final double dayTotal =
+        items.fold<double>(0, (sum, item) => sum + item.amount);
+    // The key is a pre-formatted string; the items carry the real date.
+    final String label =
+        items.isEmpty ? dateKey : AppUi.dayLabel(items.first.date);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppUi.neutralSurface(context),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppUi.hairline(context)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_today_rounded,
+                        size: 12, color: AppUi.muted(context)),
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppUi.body(context).withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Divider(color: AppUi.hairline(context), height: 1),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                AppUi.money(dayTotal),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: AppUi.body(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppUi.hairline(context)),
+              boxShadow: AppUi.softShadow(context),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                for (int i = 0; i < items.length; i++) ...[
+                  _buildExpenseRow(context, items[i]),
+                  if (i != items.length - 1)
+                    Divider(
+                      height: 1,
+                      indent: 68,
+                      endIndent: 16,
+                      color: AppUi.hairline(context),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tap edits, the overflow menu keeps delete one step away — the row itself
+  /// is the primary target, so the chrome can stay quiet.
+  Widget _buildExpenseRow(BuildContext context, ExpenseModel item) {
+    final MaterialColor color = _colorOf(item);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showExpenseBottomSheet(context, item: item),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppUi.tint(context, color),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(_iconOf(item),
+                    size: 19, color: AppUi.accent(context, color)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppUi.body(context),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppUi.tint(context, color),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _labelOf(item),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.4,
+                              color: AppUi.accent(context, color),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            item.time.format(context),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppUi.muted(context),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                AppUi.money(item.amount),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppUi.body(context),
+                ),
+              ),
+              SizedBox(
+                width: 32,
+                child: PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  iconSize: 18,
+                  splashRadius: 18,
+                  tooltip: '',
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  icon: Icon(Icons.more_vert_rounded,
+                      color: AppUi.muted(context)),
+                  onSelected: (value) {
+                    if (value == 'update') {
+                      _showExpenseBottomSheet(context, item: item);
+                    } else if (value == 'delete') {
+                      _confirmDelete(item);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'update',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_outlined,
+                              size: 18, color: AppUi.body(context)),
+                          const SizedBox(width: 12),
+                          Text('update'.tr),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.delete_outline_rounded,
+                              size: 18, color: Colors.red),
+                          const SizedBox(width: 12),
+                          Text('delete'.tr,
+                              style: const TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// ----------------------------------------------------------- empty state
+
+  Widget _buildEmptyState(BuildContext context) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 56, 32, 0),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(26),
+            decoration: BoxDecoration(
+              color: AppUi.tint(context, primary),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.receipt_long_outlined, size: 48, color: primary),
+          ),
+          const SizedBox(height: 22),
+          Text(
+            'no_expenses_found'
+                .trParams({'month': controller.selectedMonthName}),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppUi.body(context).withOpacity(0.75),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'expense_empty_hint'.tr,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: AppUi.muted(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ---------------------------------------------------------------- sheets
+
+  void _confirmDelete(ExpenseModel item) {
+    showConfirmDialog(
+      title: 'delete_expense'.tr,
+      message: 'confirm_delete'.tr,
+      detail: '${item.description} · ${AppUi.money(item.amount)}',
+      confirmText: 'delete'.tr,
+      onConfirm: () => controller.deleteExpense(item),
     );
   }
 
@@ -388,3 +564,245 @@ class ExpenseScreen extends GetView<ExpenseController> {
   }
 }
 
+/// ---------------------------------------------------------------------------
+/// Month selector — a segmented pill instead of a stock tab strip, so it reads
+/// as a filter over the card below rather than as page navigation.
+/// ---------------------------------------------------------------------------
+
+class _MonthSwitcher extends StatelessWidget implements PreferredSizeWidget {
+  const _MonthSwitcher();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(58);
+
+  @override
+  Widget build(BuildContext context) {
+    return GetBuilder<ExpenseController>(
+      builder: (controller) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppUi.neutralSurface(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppUi.hairline(context)),
+          ),
+          child: Row(
+            children: [
+              _segment(context, controller, 0, 'current_month'.tr),
+              _segment(context, controller, 1, 'next_month'.tr),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _segment(
+    BuildContext context,
+    ExpenseController controller,
+    int index,
+    String label,
+  ) {
+    final bool selected = controller.selectedMonthIndex == index;
+    final Color primary = Theme.of(context).colorScheme.primary;
+
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => controller.setMonthIndex(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: primary.withOpacity(0.30),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: selected ? Colors.white : AppUi.muted(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// The meal / others split, drawn as one bar so the proportion is readable at
+/// a glance instead of having to compare two numbers.
+/// ---------------------------------------------------------------------------
+
+class _SplitBar extends StatelessWidget {
+  final double meal;
+  final double others;
+
+  const _SplitBar({required this.meal, required this.others});
+
+  @override
+  Widget build(BuildContext context) {
+    final double total = meal + others;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        height: 8,
+        child: total <= 0
+            ? Container(color: Colors.white.withOpacity(0.22))
+            : Row(
+                children: [
+                  Expanded(
+                    flex: (meal * 1000).round().clamp(0, 1000000),
+                    child: Container(color: Colors.white.withOpacity(0.95)),
+                  ),
+                  if (meal > 0 && others > 0) const SizedBox(width: 3),
+                  Expanded(
+                    flex: (others * 1000).round().clamp(0, 1000000),
+                    child: Container(color: Colors.white.withOpacity(0.45)),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// Loading placeholders — the shape of the content beats a centered spinner.
+/// ---------------------------------------------------------------------------
+
+class _Pulse extends StatefulWidget {
+  final double? width;
+  final double height;
+  final double radius;
+  final bool onDark;
+
+  const _Pulse({
+    this.width,
+    this.height = 14,
+    this.radius = 8,
+    this.onDark = false,
+  });
+
+  @override
+  State<_Pulse> createState() => _PulseState();
+}
+
+class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color base =
+        widget.onDark || AppUi.isDark(context) ? Colors.white : Colors.black;
+
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.3, end: 0.75).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+      ),
+      child: Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: base.withOpacity(widget.onDark ? 0.28 : 0.10),
+          borderRadius: BorderRadius.circular(widget.radius),
+        ),
+      ),
+    );
+  }
+}
+
+class _ListSkeleton extends StatelessWidget {
+  const _ListSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Column(
+        children: [
+          for (int group = 0; group < 2; group++) ...[
+            Row(
+              children: [
+                const _Pulse(width: 96, height: 26, radius: 20),
+                const SizedBox(width: 12),
+                Expanded(child: Divider(color: AppUi.hairline(context))),
+                const SizedBox(width: 12),
+                const _Pulse(width: 54, height: 14),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppUi.hairline(context)),
+              ),
+              child: const Column(
+                children: [
+                  _SkeletonRow(),
+                  SizedBox(height: 22),
+                  _SkeletonRow(),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        _Pulse(width: 40, height: 40, radius: 13),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Pulse(height: 14),
+              SizedBox(height: 8),
+              _Pulse(width: 110, height: 10),
+            ],
+          ),
+        ),
+        SizedBox(width: 12),
+        _Pulse(width: 58, height: 14),
+      ],
+    );
+  }
+}

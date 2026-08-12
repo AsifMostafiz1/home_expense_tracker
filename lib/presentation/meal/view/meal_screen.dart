@@ -1,273 +1,163 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../expense/model/expense_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
+
+import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
-import '../../../common/widgets/custom_text_field.dart';
-import '../controller/meal_controller.dart';
 import '../../../common/widgets/custom_button.dart';
-import 'announcement_history_screen.dart';
+import '../../../common/widgets/custom_text_field.dart';
 import '../../expense/controller/expense_controller.dart';
+import '../../expense/model/expense_model.dart';
 import '../../expense/widgets/expense_bottom_sheet.dart';
+import '../controller/meal_controller.dart';
+import 'announcement_history_screen.dart';
+
+/// ---------------------------------------------------------------------------
+/// Small design helpers shared by every section of this screen so spacing,
+/// elevation and tinting stay consistent in both light and dark themes.
+/// ---------------------------------------------------------------------------
+
+const List<String> _monthKeys = [
+  'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+  'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+];
+
+String _monthLabel(DateTime date) =>
+    '${_monthKeys[date.month - 1].tr} ${date.year}';
+
+String _dateKeyOf(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+bool _isDark(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark;
+
+/// Background tint of a colored accent that stays readable in both themes.
+Color _tint(BuildContext context, Color color) =>
+    color.withOpacity(_isDark(context) ? 0.20 : 0.10);
+
+/// Foreground version of an accent color, lightened for dark surfaces.
+Color _accentOn(BuildContext context, MaterialColor color) =>
+    _isDark(context) ? color.shade300 : color.shade700;
+
+Color _bodyColor(BuildContext context) =>
+    Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87;
+
+Color _mutedColor(BuildContext context) =>
+    (Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey)
+        .withOpacity(0.65);
+
+Color _neutralSurface(BuildContext context) =>
+    _isDark(context) ? Colors.white.withOpacity(0.04) : Colors.grey.shade50;
+
+Color _hairline(BuildContext context) =>
+    Theme.of(context).dividerColor.withOpacity(_isDark(context) ? 0.8 : 1);
+
+List<BoxShadow> _softShadow(BuildContext context) => [
+      BoxShadow(
+        color: Colors.black.withOpacity(_isDark(context) ? 0.28 : 0.05),
+        blurRadius: 18,
+        offset: const Offset(0, 8),
+      ),
+    ];
+
+/// Same balance formula the member cards have always used:
+/// what you paid  −  what you consumed.
+double _balanceOf({
+  required int count,
+  required double expense,
+  required double otherExpense,
+  required double rate,
+  required double otherRate,
+}) =>
+    (expense + otherExpense) - (count * rate + otherRate);
+
+String _initialsOf(String name) {
+  final parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty && RegExp(r'[\wঀ-৿]').hasMatch(p))
+      .toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
+  return (parts[0].characters.first + parts[1].characters.first).toUpperCase();
+}
+
+String _friendlyDateTime(DateTime date) {
+  final now = DateTime.now();
+  final day = DateTime(date.year, date.month, date.day);
+  final today = DateTime(now.year, now.month, now.day);
+  final diff = today.difference(day).inDays;
+  final time = DateFormat('hh:mm a').format(date);
+  if (diff == 0) return '${'today'.tr}, $time';
+  if (diff == 1) return '${'yesterday'.tr}, $time';
+  return '${DateFormat('dd MMM').format(date)}, $time';
+}
 
 class MealScreen extends GetView<MealController> {
   const MealScreen({super.key});
+
+  static const List<MaterialColor> _memberColors = [
+    Colors.orange,
+    Colors.purple,
+    Colors.pink,
+    Colors.blue,
+    Colors.amber,
+  ];
 
   @override
   Widget build(BuildContext context) {
     // Controller is provided via MealBinding
 
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: CustomAppBar(
         title: 'meal'.tr,
+        actions: [
+          IconButton(
+            tooltip: 'announcement_history'.tr,
+            icon: const Icon(Icons.history_rounded, size: 22),
+            onPressed: () => Get.to(() => const AnnouncementHistoryScreen()),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAnnouncementBottomSheet(context),
         backgroundColor: Theme.of(context).colorScheme.primary,
-        child: const Icon(Icons.campaign, color: Colors.white),
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(Icons.campaign_rounded),
+        label: Text(
+          'announcement'.tr,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: GetBuilder<MealController>(
         builder: (controller) {
+          final bool isFirstLoad = controller.isFetchingStats &&
+              controller.totalMealCount == 0 &&
+              controller.otherUsersMeals.isEmpty;
+
           return RefreshIndicator(
+            color: Theme.of(context).colorScheme.primary,
             onRefresh: () async {
               await controller.fetchMeals();
               await controller.fetchMonthlyStats();
+              await controller.fetchAnnouncement();
             },
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 children: [
                   _buildAnnouncement(context),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _buildQuickStatCard(
-                            context,
-                            title: "today_total".tr,
-                            count: controller.getTodayTotal(),
-                            color: Colors.blue,
-                            icon: Icons.today,
-                            onInfoPressed: () {
-                              final now = DateTime.now();
-                              String dateKey =
-                                  '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-                              _showMealBreakdownDialog(context, "today".tr, dateKey);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildQuickStatCard(
-                            context,
-                            title: "tomorrow_total".tr,
-                            count: controller.getTomorrowTotal(),
-                            color: Colors.orange,
-                            icon: Icons.event,
-                            onInfoPressed: () {
-                              final tomorrow =
-                                  DateTime.now().add(const Duration(days: 1));
-                              String dateKey =
-                                  '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
-                              _showMealBreakdownDialog(
-                                  context, "tomorrow".tr, dateKey);
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        )
-                      ],
-                    ),
-                    child: TableCalendar(
-                      firstDay: controller.firstDay,
-                      lastDay: controller.lastDay,
-                      focusedDay: controller.focusedDay,
-                      availableGestures: AvailableGestures.none,
-                      selectedDayPredicate: (day) =>
-                          isSameDay(controller.selectedDay, day),
-                      onDaySelected: controller.onDaySelected,
-                      onPageChanged: controller.onPageChanged,
-                      headerStyle: HeaderStyle(
-                        formatButtonVisible: false,
-                        titleCentered: true,
-                        titleTextStyle: Theme.of(context).textTheme.titleLarge!,
-                      ),
-                      calendarStyle: CalendarStyle(
-                        todayDecoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withOpacity(0.3),
-                          shape: BoxShape.circle,
-                        ),
-                        selectedDecoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        defaultTextStyle:
-                            Theme.of(context).textTheme.bodyMedium!,
-                        weekendTextStyle: Theme.of(context)
-                            .textTheme
-                            .bodyMedium!
-                            .copyWith(color: Colors.red),
-                      ),
-                      calendarBuilders: CalendarBuilders(
-                        markerBuilder: (context, date, events) {
-                          String dateKey =
-                              '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-                          if (!controller.dailyMeals.containsKey(dateKey)) {
-                            return const SizedBox.shrink();
-                          }
-
-                          int count = controller.dailyMeals[dateKey]!;
-
-                          Color bgColor;
-                          Color textColor;
-
-                          if (count == 0) {
-                            bgColor = Colors.red.withOpacity(0.2);
-                            textColor = Colors.red.shade400;
-                          } else if (count == 1) {
-                            bgColor = Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withOpacity(0.2);
-                            textColor = Theme.of(context).colorScheme.primary;
-                          } else {
-                            bgColor = Colors.amber.withOpacity(0.2);
-                            textColor = Colors.amber.shade400;
-                          }
-
-                          return Positioned(
-                            bottom: 2,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: bgColor,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                '$count',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: textColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (controller.canAddBulkMeal) ...[
-
-                          CustomButton(
-                            text: 'add_bulk_meal'.tr,
-                            isLoading: controller.isLoading,
-                            onPressed: () => controller.addBulkMeal(),
-                          ),
-                          const SizedBox(height: 24),
-                        ],
-                        Text(
-                          'monthly_summary'.tr,
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildSummaryCard(
-                          context,
-                          title: 'total_monthly_stats'.tr,
-                          count: controller.totalMealCount,
-                          expense: controller.totalMonthlyExpense,
-                          otherExpense: controller.totalOtherExpense,
-                          rate: controller.avgMealRate,
-                          otherRate: controller.totalOtherExpense, // For total card, we show the total other expense as the rate placeholder or similar
-                          color: Colors.indigo,
-                          icon: Icons.restaurant,
-                          isTotal: true,
-                        ),
-                        const SizedBox(height: 12),
-                        _buildSummaryCard(
-                          context,
-                          title: 'my_meals'.tr,
-                          count: controller.myMealCount,
-                          expense: controller.myMonthlyExpense,
-                          otherExpense: controller.myOtherExpense,
-                          rate: controller.avgMealRate,
-                          otherRate: controller.otherCostPerPerson,
-                          color: Colors.teal,
-                          icon: Icons.person,
-                          onCountPressed: () => _showUserCalendarBottomSheet(context, {
-                            'name': 'me_you'.tr,
-                            'count': controller.myMealCount,
-                            'daily_meals': controller.dailyMeals,
-                            'expenses': controller.myExpenses,
-                            'expense': controller.myMonthlyExpense,
-                            'other_expense': controller.myOtherExpense,
-                          }),
-                        ),
-                        const SizedBox(height: 12),
-                        ...controller.otherUsersMeals
-                            .asMap()
-                            .entries
-                            .map((entry) {
-                          final colors = [
-                            Colors.orange,
-                            Colors.purple,
-                            Colors.pink,
-                            Colors.blue,
-                            Colors.amber
-                          ];
-                          final color = colors[entry.key % colors.length];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildSummaryCard(
-                              context,
-                              title: entry.value['name'] ?? 'unknown'.tr,
-                              count: entry.value['count'] as int,
-                              expense: entry.value['expense'] as double? ?? 0.0,
-                              otherExpense: entry.value['other_expense'] as double? ?? 0.0,
-                              rate: controller.avgMealRate,
-                              otherRate: controller.otherCostPerPerson,
-                              color: color,
-                              icon: Icons.person_outline,
-                              onCountPressed: () =>
-                                  _showUserCalendarBottomSheet(context, entry.value),
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 24),
-                      ],
-                    ),
-                  ),
+                  _buildQuickStats(context),
+                  _buildCalendarCard(context),
+                  _buildBulkMealCard(context),
+                  _buildSummarySection(context, isLoading: isFirstLoad),
+                  // Breathing room so the FAB never covers the last card.
+                  const SizedBox(height: 96),
                 ],
               ),
             ),
@@ -277,331 +167,882 @@ class MealScreen extends GetView<MealController> {
     );
   }
 
+  /// ----------------------------------------------------------- quick stats
+
+  Widget _buildQuickStats(BuildContext context) {
+    final now = DateTime.now();
+    final tomorrow = now.add(const Duration(days: 1));
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildQuickStatCard(
+              context,
+              title: 'today_total'.tr,
+              count: controller.getTodayTotal(),
+              color: Colors.blue,
+              icon: Icons.wb_sunny_rounded,
+              onTap: () => _showMealBreakdownDialog(
+                  context, 'today'.tr, _dateKeyOf(now)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildQuickStatCard(
+              context,
+              title: 'tomorrow_total'.tr,
+              count: controller.getTomorrowTotal(),
+              color: Colors.orange,
+              icon: Icons.event_rounded,
+              onTap: () => _showMealBreakdownDialog(
+                  context, 'tomorrow'.tr, _dateKeyOf(tomorrow)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickStatCard(
     BuildContext context, {
     required String title,
     required int count,
-    required Color color,
+    required MaterialColor color,
     required IconData icon,
-    VoidCallback? onInfoPressed,
+    VoidCallback? onTap,
   }) {
+    return Material(
+      color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: color.withOpacity(0.20)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: _tint(context, color),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: _accentOn(context, color), size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _mutedColor(context),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 26,
+                      height: 1,
+                      fontWeight: FontWeight.bold,
+                      color: _accentOn(context, color),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      'meals'.tr,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: _mutedColor(context),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (onTap != null)
+                    Icon(Icons.chevron_right_rounded,
+                        size: 18, color: _mutedColor(context)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// -------------------------------------------------------------- calendar
+
+  Widget _buildCalendarCard(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final today = DateTime.now();
+    final startOfToday = DateTime(today.year, today.month, today.day);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-        border: Border.all(color: color.withOpacity(0.1)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _hairline(context)),
+        boxShadow: _softShadow(context),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 9,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          Padding(
+            // Bottom gap keeps the last row's day numbers and count badges
+            // off the divider below.
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+            child: TableCalendar(
+              firstDay: controller.firstDay,
+              lastDay: controller.lastDay,
+              focusedDay: controller.focusedDay,
+              availableGestures: AvailableGestures.none,
+              rowHeight: 46,
+              daysOfWeekHeight: 28,
+              selectedDayPredicate: (day) =>
+                  isSameDay(controller.selectedDay, day),
+              onDaySelected: controller.onDaySelected,
+              onPageChanged: controller.onPageChanged,
+              headerStyle: HeaderStyle(
+                formatButtonVisible: false,
+                titleCentered: true,
+                headerPadding: const EdgeInsets.symmetric(vertical: 10),
+                leftChevronIcon: Icon(Icons.chevron_left_rounded,
+                    color: _bodyColor(context), size: 26),
+                rightChevronIcon: Icon(Icons.chevron_right_rounded,
+                    color: _bodyColor(context), size: 26),
+                titleTextStyle: Theme.of(context).textTheme.titleMedium!,
+              ),
+              daysOfWeekStyle: DaysOfWeekStyle(
+                weekdayStyle: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _mutedColor(context),
                 ),
-                Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
+                weekendStyle: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.red.withOpacity(0.7),
+                ),
+              ),
+              calendarStyle: CalendarStyle(
+                cellMargin: const EdgeInsets.all(4),
+                todayDecoration: BoxDecoration(
+                  color: primary.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: primary, width: 1.4),
+                ),
+                todayTextStyle: TextStyle(
+                  color: _isDark(context) ? Colors.white : primary,
+                  fontWeight: FontWeight.bold,
+                ),
+                selectedDecoration: BoxDecoration(
+                  color: primary,
+                  shape: BoxShape.circle,
+                ),
+                defaultTextStyle: Theme.of(context).textTheme.bodyMedium!,
+                weekendTextStyle: Theme.of(context)
+                    .textTheme
+                    .bodyMedium!
+                    .copyWith(color: Colors.red),
+                outsideTextStyle: TextStyle(
+                  color: _mutedColor(context).withOpacity(0.35),
+                ),
+                disabledTextStyle: TextStyle(
+                  color: _mutedColor(context).withOpacity(0.55),
+                ),
+                markersMaxCount: 1,
+              ),
+              calendarBuilders: CalendarBuilders(
+                headerTitleBuilder: (context, day) => Center(
+                  child: Text(
+                    _monthLabel(day),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
+                ),
+                // Past days can't be edited (the controller blocks them), so
+                // dim them — but keep their meal markers fully visible.
+                defaultBuilder: (context, day, focusedDay) {
+                  if (!DateTime(day.year, day.month, day.day)
+                      .isBefore(startOfToday)) {
+                    return null; // keep the package's default rendering
+                  }
+                  final bool isWeekend = day.weekday == DateTime.saturday ||
+                      day.weekday == DateTime.sunday;
+                  return Container(
+                    margin: const EdgeInsets.all(4),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: (isWeekend ? Colors.red : _bodyColor(context))
+                            .withOpacity(0.40),
+                      ),
+                    ),
+                  );
+                },
+                markerBuilder: (context, date, events) {
+                  final String dateKey = _dateKeyOf(date);
+                  if (!controller.dailyMeals.containsKey(dateKey)) {
+                    return const SizedBox.shrink();
+                  }
+                  return Positioned(
+                    bottom: 1,
+                    child: _mealMarker(context, controller.dailyMeals[dateKey]!),
+                  );
+                },
+              ),
+            ),
+          ),
+          Divider(height: 1, color: _hairline(context)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _legendItem(context, Colors.red, 'no_meal'.tr),
+                    _legendItem(context, primary, 'one_meal'.tr, useRaw: true),
+                    _legendItem(context, Colors.amber, 'two_plus_meals'.tr),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.touch_app_outlined,
+                        size: 14, color: _mutedColor(context)),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'tap_day_to_update'.tr,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _mutedColor(context),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          if (onInfoPressed != null)
-            GestureDetector(
-              onTap: onInfoPressed,
-              child: Icon(
-                Icons.info_outline,
-                size: 16,
-                color: color.withOpacity(0.6),
-              ),
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildSmallSummaryCard(BuildContext context, String title, int count,
-      MaterialColor color, IconData icon) {
+  /// The little count badge under each calendar day.
+  /// 0 → red · 1 → primary · 2+ → amber (unchanged rules, cleaner look).
+  Widget _mealMarker(BuildContext context, int count) {
+    final Color accent = count == 0
+        ? Colors.red
+        : count == 1
+            ? Theme.of(context).colorScheme.primary
+            : Colors.amber;
+    final Color fg = count == 0
+        ? (_isDark(context) ? Colors.red.shade300 : Colors.red.shade600)
+        : count == 1
+            ? Theme.of(context).colorScheme.primary
+            : (_isDark(context) ? Colors.amber.shade300 : Colors.amber.shade800);
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      constraints: const BoxConstraints(minWidth: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.shade100),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
+        color: _tint(context, accent),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: accent.withOpacity(0.35)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.shade50,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color.shade600, size: 20),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$count',
-            style: TextStyle(
-                fontSize: 24,
-                color: color.shade800,
-                fontWeight: FontWeight.bold),
-          ),
-        ],
+      child: Text(
+        '$count',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 9,
+          height: 1.2,
+          color: fg,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
 
-  Widget _buildInfoColumn(
-      BuildContext context, String label, String value, Color color,
-      {bool isBalance = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _legendItem(BuildContext context, Color color, String label,
+      {bool useRaw = false}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: _tint(context, color),
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withOpacity(0.6), width: 1.4),
+          ),
+        ),
+        const SizedBox(width: 6),
         Text(
           label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
-                fontWeight: FontWeight.w500,
-              ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
           style: TextStyle(
-              fontSize: isBalance ? 15 : 16,
-              color: color,
-              fontWeight: FontWeight.bold),
+            fontSize: 11,
+            color: _mutedColor(context),
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildSummaryCard(
-    BuildContext context, {
-    required String title,
-    required int count,
-    required double expense,
-    double otherExpense = 0.0,
-    required double rate,
-    required double otherRate,
-    required MaterialColor color,
-    required IconData icon,
-    bool isTotal = false,
-    VoidCallback? onCountPressed,
-  }) {
-    double mealCost = count * rate;
-    double totalCost = mealCost + otherRate;
-    double totalPaid = expense + otherExpense;
-    double balance = totalPaid - totalCost;
-    
-    String balanceLabel = balance >= 0 ? 'will_get'.tr : 'to_give'.tr;
-    String balanceValue = '৳${balance.abs().toStringAsFixed(2)}';
-    Color balanceColor = balance >= 0 ? Colors.teal : Colors.red;
+  /// ------------------------------------------------------------ bulk meals
 
-    return GestureDetector(
-      onTap: onCountPressed,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            )
+  Widget _buildBulkMealCard(BuildContext context) {
+    if (!controller.canAddBulkMeal) return const SizedBox.shrink();
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _tint(context, primary),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: primary.withOpacity(0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: primary.withOpacity(0.20),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.auto_awesome_rounded,
+                    color: primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${'add_bulk_meal'.tr} · ${_monthLabel(controller.focusedDay)}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'bulk_meal_hint'.tr,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: _mutedColor(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          CustomButton(
+            text: 'add_bulk_meal'.tr,
+            height: 48,
+            isLoading: controller.isLoading,
+            onPressed: () => controller.addBulkMeal(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// --------------------------------------------------------------- summary
+
+  Widget _buildSummarySection(BuildContext context, {required bool isLoading}) {
+    final int memberCount = controller.otherUsersMeals.length + 1;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'monthly_summary'.tr,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _monthLabel(controller.focusedDay),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _mutedColor(context),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _neutralSurface(context),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _hairline(context)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.people_alt_rounded,
+                        size: 13, color: _mutedColor(context)),
+                    const SizedBox(width: 5),
+                    Text(
+                      '$memberCount',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: _bodyColor(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (isLoading) ...[
+            const _CardSkeleton(),
+            const SizedBox(height: 12),
+            const _CardSkeleton(),
+            const SizedBox(height: 12),
+            const _CardSkeleton(),
+          ] else ...[
+            _buildTotalCard(context),
+            const SizedBox(height: 12),
+            _buildMemberCard(
+              context,
+              title: 'my_meals'.tr,
+              count: controller.myMealCount,
+              expense: controller.myMonthlyExpense,
+              otherExpense: controller.myOtherExpense,
+              rate: controller.avgMealRate,
+              otherRate: controller.otherCostPerPerson,
+              color: Colors.teal,
+              isMe: true,
+              onTap: () => _showUserCalendarBottomSheet(context, {
+                'name': 'me_you'.tr,
+                'count': controller.myMealCount,
+                'daily_meals': controller.dailyMeals,
+                'expenses': controller.myExpenses,
+                'expense': controller.myMonthlyExpense,
+                'other_expense': controller.myOtherExpense,
+              }),
+            ),
+            ...controller.otherUsersMeals.asMap().entries.map((entry) {
+              final color = _memberColors[entry.key % _memberColors.length];
+              return Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: _buildMemberCard(
+                  context,
+                  title: entry.value['name'] ?? 'unknown'.tr,
+                  count: entry.value['count'] as int,
+                  expense: entry.value['expense'] as double? ?? 0.0,
+                  otherExpense: entry.value['other_expense'] as double? ?? 0.0,
+                  rate: controller.avgMealRate,
+                  otherRate: controller.otherCostPerPerson,
+                  color: color,
+                  onTap: () =>
+                      _showUserCalendarBottomSheet(context, entry.value),
+                ),
+              );
+            }),
           ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: Container(width: 6, color: color),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalCard(BuildContext context) {
+    const MaterialColor color = Colors.indigo;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withOpacity(0.25)),
+        boxShadow: _softShadow(context),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            color: _tint(context, color),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(_isDark(context) ? 0.35 : 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.restaurant_rounded,
+                      color: _accentOn(context, color), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'total_monthly_stats'.tr,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.2,
+                        ),
+                  ),
+                ),
+                _countChip(context, controller.totalMealCount, color),
+              ],
+            ),
           ),
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
             child: Column(
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, color: color, size: 24),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: -0.2,
+                    _statTile(context,
+                        label: 'meal_paid'.tr,
+                        value:
+                            '৳${controller.totalMonthlyExpense.toStringAsFixed(1)}'),
+                    _statTile(context,
+                        label: 'other_paid'.tr,
+                        value:
+                            '৳${controller.totalOtherExpense.toStringAsFixed(1)}'),
+                    _statTile(context,
+                        label: 'total_users'.tr,
+                        value: '${controller.userCount}'),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _neutralSurface(context),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _hairline(context)),
+                  ),
+                  child: Row(
+                    children: [
+                      _statTile(context,
+                          label: 'meal_rate'.tr,
+                          value:
+                              '৳${controller.avgMealRate.toStringAsFixed(2)}',
+                          valueColor: _accentOn(context, color)),
+                      _statTile(context,
+                          label: 'other_rate'.tr,
+                          value:
+                              '৳${controller.otherCostPerPerson.toStringAsFixed(2)}',
+                          valueColor: _accentOn(context, color)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMemberCard(
+    BuildContext context, {
+    required String title,
+    required int count,
+    required double expense,
+    required double otherExpense,
+    required double rate,
+    required double otherRate,
+    required MaterialColor color,
+    bool isMe = false,
+    VoidCallback? onTap,
+  }) {
+    final double mealCost = count * rate;
+    final double balance = _balanceOf(
+      count: count,
+      expense: expense,
+      otherExpense: otherExpense,
+      rate: rate,
+      otherRate: otherRate,
+    );
+    final bool willGet = balance >= 0;
+    final MaterialColor balanceColor = willGet ? Colors.teal : Colors.red;
+
+    return Material(
+      color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: _hairline(context)),
+            boxShadow: _softShadow(context),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(width: 5, color: color),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        _avatar(context, title, color, isMe: isMe),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.2,
+                                    ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'member_stats'.tr,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: _mutedColor(context),
                                 ),
+                              ),
+                            ],
                           ),
-                          if (!isTotal)
-                            Text(
-                              'member_stats'.tr,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
-                                  ),
-                            ),
+                        ),
+                        _countChip(context, count, color),
+                        if (onTap != null) ...[
+                          const SizedBox(width: 2),
+                          Icon(Icons.chevron_right_rounded,
+                              size: 20, color: _mutedColor(context)),
                         ],
-                      ),
+                      ],
                     ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _statTile(context,
+                            label: 'meal_paid'.tr,
+                            value: '৳${expense.toStringAsFixed(1)}'),
+                        _statTile(context,
+                            label: 'other_paid'.tr,
+                            value: '৳${otherExpense.toStringAsFixed(1)}'),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _statTile(context,
+                            label: 'meal_cost'.tr,
+                            value: '৳${mealCost.toStringAsFixed(1)}'),
+                        _statTile(context,
+                            label: 'other_cost'.tr,
+                            value: '৳${otherRate.toStringAsFixed(1)}'),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                          horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(30),
+                        color: _tint(context, balanceColor),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Text(
-                        'meals_count'.trParams({'count': count.toString()}),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Divider(height: 1),
-                const SizedBox(height: 20),
-                
-                // Expenses row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildInfoColumn(context, 'meal_paid'.tr,
-                        '৳${expense.toStringAsFixed(1)}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
-                    _buildInfoColumn(context, 'other_paid'.tr,
-                        '৳${otherExpense.toStringAsFixed(1)}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
-                    if (isTotal)
-                      _buildInfoColumn(context, 'meal_rate'.tr,
-                          '৳${rate.toStringAsFixed(2)}', color)
-                    else
-                      _buildInfoColumn(context, 'meal_cost'.tr,
-                          '৳${mealCost.toStringAsFixed(1)}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                // Costs row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (isTotal) ...[
-                       _buildInfoColumn(context, 'other_rate'.tr,
-                          '৳${otherRate.toStringAsFixed(2)}', color),
-                       const SizedBox(width: 20),
-                       _buildInfoColumn(context, 'total_users'.tr,
-                          '${controller.userCount}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
-                    ] else ...[
-                       _buildInfoColumn(context, 'other_cost'.tr,
-                          '৳${otherRate.toStringAsFixed(1)}', Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      child: Row(
                         children: [
-                          Text(
-                            balanceLabel,
-                            style: TextStyle(
-                              color: balanceColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1,
+                          Icon(
+                            willGet
+                                ? Icons.trending_up_rounded
+                                : Icons.trending_down_rounded,
+                            size: 16,
+                            color: _accentOn(context, balanceColor),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              willGet ? 'will_get'.tr : 'to_give'.tr,
+                              style: TextStyle(
+                                color: _accentOn(context, balanceColor),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.8,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 4),
                           Text(
-                            balanceValue,
+                            '৳${balance.abs().toStringAsFixed(2)}',
                             style: TextStyle(
-                              color: balanceColor,
+                              color: _accentOn(context, balanceColor),
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ],
                 ),
-              ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statTile(
+    BuildContext context, {
+    required String label,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: _mutedColor(context),
+              fontWeight: FontWeight.w500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              color: valueColor ?? _bodyColor(context),
+              fontWeight: FontWeight.bold,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
-    ),
-   );
+    );
   }
 
+  Widget _countChip(BuildContext context, int count, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Text(
+        'meals_count'.trParams({'count': count.toString()}),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _avatar(
+    BuildContext context,
+    String name,
+    MaterialColor color, {
+    bool isMe = false,
+    double size = 42,
+  }) {
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: _tint(context, color),
+        shape: BoxShape.circle,
+        border: Border.all(color: color.withOpacity(0.35), width: 1.5),
+      ),
+      child: isMe
+          ? Icon(Icons.person_rounded,
+              color: _accentOn(context, color), size: size * 0.5)
+          : Text(
+              _initialsOf(name),
+              style: TextStyle(
+                color: _accentOn(context, color),
+                fontSize: size * 0.34,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+    );
+  }
+
+  /// ---------------------------------------------------------- announcement
+
   Widget _buildAnnouncement(BuildContext context) {
-    if (controller.announcements.isEmpty) {
+    final latest = controller.visibleAnnouncement;
+    if (latest == null) {
       return const SizedBox.shrink();
     }
 
-    final latest = controller.announcements.first;
     final text = latest['text'] ?? '';
     final userName = latest['user_name'] ?? 'unknown'.tr;
     final updatedAt = latest['updatedAt'];
@@ -613,159 +1054,304 @@ class MealScreen extends GetView<MealController> {
       date = DateTime.parse(updatedAt);
     }
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.amber.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.campaign, color: Colors.amber, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+    final String? id = latest['id'] as String?;
+    final Color primary = Theme.of(context).colorScheme.primary;
+    final Color accent = _isDark(context)
+        ? Color.lerp(primary, Colors.white, 0.35)!
+        : Color.lerp(primary, Colors.black, 0.20)!;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Material(
+        color: _tint(context, primary),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => Get.to(() => const AnnouncementHistoryScreen()),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: primary.withOpacity(0.35)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (date != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            Text(
-                              userName,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.amber,
-                                fontWeight: FontWeight.w900,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color:
+                            primary.withOpacity(_isDark(context) ? 0.30 : 0.25),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.campaign_rounded,
+                          color: accent, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  userName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: accent,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
+                              if (date != null) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  _friendlyDateTime(date),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: _mutedColor(context),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            text,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.35,
+                              color: _bodyColor(context),
+                              fontWeight: FontWeight.w500,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              DateFormat('dd MMM, hh:mm a').format(date!),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
-                                fontWeight: FontWeight.w500,
-                              ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    // Hides the card until a newer announcement arrives.
+                    Material(
+                      color: Colors.transparent,
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: controller.dismissAnnouncement,
+                        child: Tooltip(
+                          message: 'close'.tr,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: _mutedColor(context),
                             ),
-                          ],
+                          ),
                         ),
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    if (id != null)
+                      _resolveButton(context, id: id, primary: primary),
+                    const Spacer(),
                     Text(
-                      text,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      controller.announcements.length > 1
+                          ? '${'see_more'.tr} (${controller.announcements.length})'
+                          : 'see_more'.tr,
                       style: TextStyle(
-                        color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                        color: accent,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.arrow_forward_rounded, size: 14, color: accent),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Marks the announcement done for the whole household — the flag is stored
+  /// on the server, so the card leaves every member's meal screen.
+  Widget _resolveButton(
+    BuildContext context, {
+    required String id,
+    required Color primary,
+  }) {
+    return Material(
+      color: primary,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _confirmResolveAnnouncement(context, id),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle_rounded,
+                  size: 14, color: Colors.white),
+              const SizedBox(width: 5),
+              Text(
+                'resolve'.tr,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmResolveAnnouncement(BuildContext context, String id) {
+    showConfirmDialog(
+      title: 'resolve_announcement'.tr,
+      message: 'confirm_resolve_announcement'.tr,
+      confirmText: 'resolve'.tr,
+      confirmColor: Theme.of(context).colorScheme.primary,
+      onConfirm: () => controller.resolveAnnouncement(id),
+    );
+  }
+
+  void _showAnnouncementBottomSheet(BuildContext context) {
+    // Every submission creates a NEW announcement, so always start empty.
+    controller.announcementController.clear();
+
+    Get.bottomSheet(
+      Builder(
+        builder: (sheetContext) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sheetHandle(context),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: _tint(context, Colors.amber),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Icon(Icons.campaign_rounded,
+                                    color: _accentOn(context, Colors.amber),
+                                    size: 22),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'announcement'.tr,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () =>
+                                    Navigator.of(sheetContext).pop(),
+                                icon: Icon(Icons.close_rounded,
+                                    color: _mutedColor(context)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          CustomTextField(
+                            controller: controller.announcementController,
+                            hintText: 'enter_announcement'.tr,
+                            maxLines: 4,
+                          ),
+                          const SizedBox(height: 20),
+                          GetBuilder<MealController>(
+                            builder: (c) => CustomButton(
+                              text: 'submit'.tr,
+                              isLoading: c.isLoading,
+                              onPressed: () => c.submitAnnouncement(),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
-          if (controller.announcements.length > 1) ...[
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Get.to(() => const AnnouncementHistoryScreen()),
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(0, 0),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  'see_more'.tr,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.amber,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  void _showAnnouncementBottomSheet(BuildContext context) {
-    // We don't need to populate the controller with existing text anymore 
-    // since every submission is a NEW announcement.
-    controller.announcementController.clear();
-
-    Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'announcement'.tr,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 24),
-            CustomTextField(
-              controller: controller.announcementController,
-              hintText: 'enter_announcement'.tr,
-              maxLines: 3,
-            ),
-            const SizedBox(height: 24),
-            CustomButton(
-              text: 'submit'.tr,
-              isLoading: controller.isLoading,
-              onPressed: () => controller.submitAnnouncement(),
-            ),
-            const SizedBox(height: 16),
-          ],
         ),
       ),
       isScrollControlled: true,
     );
   }
 
-  Widget _buildSheetBadge(BuildContext context, String text, Color color) {
+  /// ----------------------------------------------------------------- sheets
+
+  Widget _sheetHandle(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          width: 44,
+          height: 4,
+          decoration: BoxDecoration(
+            color: _mutedColor(context).withOpacity(0.35),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSheetBadge(
+      BuildContext context, String text, MaterialColor color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: _tint(context, color),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withOpacity(0.30)),
       ),
       child: Text(
         text,
         style: TextStyle(
-          color: color,
+          color: _accentOn(context, color),
           fontWeight: FontWeight.bold,
           fontSize: 12,
         ),
@@ -800,54 +1386,122 @@ class MealScreen extends GetView<MealController> {
     final String userName = user['name'] ?? 'User';
     final List<ExpenseModel> userExpenses =
         List<ExpenseModel>.from(user['expenses'] ?? []);
+    final bool isMe = userName == 'me_you'.tr;
+    final bool canAdminEdit = controller.isAdminUser && !isMe;
+    final MaterialColor accent = isMe ? Colors.teal : Colors.indigo;
 
     Get.bottomSheet(
       Container(
-        padding: const EdgeInsets.only(top: 24),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.65,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'summary_of'.trParams({'name': userName}),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+            _sheetHandle(context),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
+              child: Row(
+                children: [
+                  _avatar(context, userName, accent, isMe: isMe, size: 40),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'summary_of'.trParams({'name': userName}),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          _monthLabel(controller.focusedDay),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _mutedColor(context),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  IconButton(
+                    onPressed: closeOverlayRoute,
+                    icon: Icon(Icons.close_rounded,
+                        color: _mutedColor(context)),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   _buildSheetBadge(
                     context,
-                    'meals_count'.trParams({'count': (user['count'] ?? 0).toString()}),
+                    'meals_count'
+                        .trParams({'count': (user['count'] ?? 0).toString()}),
                     Colors.blue,
                   ),
                   const SizedBox(width: 8),
                   _buildSheetBadge(
                     context,
-                    'meal_paid_val'.trParams({'val': (user['expense'] as num? ?? 0).toStringAsFixed(1)}),
+                    'meal_paid_val'.trParams({
+                      'val': (user['expense'] as num? ?? 0).toStringAsFixed(1)
+                    }),
                     Colors.teal,
                   ),
                   const SizedBox(width: 8),
                   _buildSheetBadge(
                     context,
-                    'other_paid_val'.trParams({'val': (user['other_expense'] as num? ?? 0).toStringAsFixed(1)}),
+                    'other_paid_val'.trParams({
+                      'val':
+                          (user['other_expense'] as num? ?? 0).toStringAsFixed(1)
+                    }),
                     Colors.orange,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            if (canAdminEdit)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _tint(context, Colors.blue),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.withOpacity(0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.admin_panel_settings_rounded,
+                          size: 16, color: _accentOn(context, Colors.blue)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'admin_edit_hint'.trParams({'name': userName}),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: _accentOn(context, Colors.blue),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
@@ -856,97 +1510,113 @@ class MealScreen extends GetView<MealController> {
                       firstDay: controller.firstDay,
                       lastDay: controller.lastDay,
                       focusedDay: controller.focusedDay,
-                      availableGestures: controller.isAdminUser && userName != 'me_you'.tr ? AvailableGestures.all : AvailableGestures.none,
-                      onDaySelected: controller.isAdminUser && userName != 'me_you'.tr ? (selected, focused) {
-                        controller.showAdminUpdateMealBottomSheet(selected, userName, user['phone']);
-                      } : null,
+                      rowHeight: 44,
+                      daysOfWeekHeight: 26,
+                      availableGestures: canAdminEdit
+                          ? AvailableGestures.all
+                          : AvailableGestures.none,
+                      onDaySelected: canAdminEdit
+                          ? (selected, focused) {
+                              controller.showAdminUpdateMealBottomSheet(
+                                  selected, userName, user['phone']);
+                            }
+                          : null,
                       headerStyle: HeaderStyle(
                         formatButtonVisible: false,
                         titleCentered: true,
                         leftChevronVisible: false,
                         rightChevronVisible: false,
+                        headerPadding: const EdgeInsets.only(bottom: 8),
                         titleTextStyle:
                             Theme.of(context).textTheme.titleMedium!,
                       ),
+                      daysOfWeekStyle: DaysOfWeekStyle(
+                        weekdayStyle: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _mutedColor(context),
+                        ),
+                        weekendStyle: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.red.withOpacity(0.7),
+                        ),
+                      ),
                       calendarStyle: CalendarStyle(
+                        cellMargin: const EdgeInsets.all(4),
                         todayDecoration: BoxDecoration(
                           color: Theme.of(context)
                               .colorScheme
                               .primary
-                              .withOpacity(0.3),
+                              .withOpacity(0.15),
                           shape: BoxShape.circle,
+                          border: Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 1.4),
+                        ),
+                        todayTextStyle: TextStyle(
+                          color: _isDark(context)
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
                         ),
                         defaultTextStyle:
                             Theme.of(context).textTheme.bodyMedium!,
+                        outsideTextStyle: TextStyle(
+                          color: _mutedColor(context).withOpacity(0.35),
+                        ),
+                        markersMaxCount: 1,
                       ),
                       calendarBuilders: CalendarBuilders(
+                        headerTitleBuilder: (context, day) => Center(
+                          child: Text(
+                            _monthLabel(day),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ),
                         markerBuilder: (context, date, events) {
-                          String dateKey =
-                              '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
+                          final String dateKey = _dateKeyOf(date);
                           if (!userDailyMeals.containsKey(dateKey)) {
                             return const SizedBox.shrink();
                           }
-
-                          int count = userDailyMeals[dateKey]!;
-
-                          Color bgColor;
-                          Color textColor;
-
-                          if (count == 0) {
-                            bgColor = Colors.red.shade100;
-                            textColor = Colors.red.shade800;
-                          } else if (count == 1) {
-                            bgColor = Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withOpacity(0.1);
-                            textColor = Theme.of(context).colorScheme.primary;
-                          } else {
-                            bgColor = Colors.amber.shade100;
-                            textColor = Colors.amber.shade900;
-                          }
-
                           return Positioned(
-                            bottom: 2,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: bgColor,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                '$count',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: textColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
+                            bottom: 1,
+                            child:
+                                _mealMarker(context, userDailyMeals[dateKey]!),
                           );
                         },
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Divider(),
+                    const SizedBox(height: 8),
+                    Divider(height: 1, color: _hairline(context)),
                     Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                       child: Row(
                         children: [
-                          Icon(Icons.receipt_long_outlined,
-                              color: Colors.amber.shade900),
-                          const SizedBox(width: 12),
-                          Text(
-                            "expenses_breakdown".tr,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                          Icon(Icons.receipt_long_rounded,
+                              size: 20, color: _accentOn(context, Colors.amber)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'expenses_breakdown'.tr,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
                           ),
+                          if (userExpenses.isNotEmpty)
+                            Text(
+                              '${userExpenses.length}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: _mutedColor(context),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -955,12 +1625,20 @@ class MealScreen extends GetView<MealController> {
                         padding: const EdgeInsets.symmetric(vertical: 32),
                         child: Column(
                           children: [
-                            Icon(Icons.money_off,
-                                size: 48, color: Colors.grey.shade300),
-                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: _neutralSurface(context),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.receipt_long_outlined,
+                                  size: 32, color: _mutedColor(context)),
+                            ),
+                            const SizedBox(height: 12),
                             Text(
-                              "no_expenses_recorded".tr,
-                              style: TextStyle(color: Colors.grey.shade500),
+                              'no_expenses_recorded'.tr,
+                              style: TextStyle(
+                                  color: _mutedColor(context), fontSize: 13),
                             ),
                           ],
                         ),
@@ -970,35 +1648,35 @@ class MealScreen extends GetView<MealController> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: userExpenses.length,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                         separatorBuilder: (context, index) =>
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final item = userExpenses[index];
+                          final bool isMealExpense = item.type == 'expense';
+                          final MaterialColor typeColor =
+                              isMealExpense ? Colors.blue : Colors.orange;
+
                           return Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade200),
+                              color: _neutralSurface(context),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: _hairline(context)),
                             ),
                             child: Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.all(8),
+                                  padding: const EdgeInsets.all(9),
                                   decoration: BoxDecoration(
-                                    color: item.type == 'expense'
-                                        ? Colors.blue.shade50
-                                        : Colors.orange.shade50,
-                                    shape: BoxShape.circle,
+                                    color: _tint(context, typeColor),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Icon(
-                                    item.type == 'expense'
+                                    isMealExpense
                                         ? Icons.shopping_cart_outlined
                                         : Icons.miscellaneous_services_outlined,
-                                    color: item.type == 'expense'
-                                        ? Colors.blue.shade700
-                                        : Colors.orange.shade700,
+                                    color: _accentOn(context, typeColor),
                                     size: 18,
                                   ),
                                 ),
@@ -1010,59 +1688,81 @@ class MealScreen extends GetView<MealController> {
                                     children: [
                                       Text(
                                         item.description,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14,
+                                          color: _bodyColor(context),
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      Text(
-                                        "${DateFormat('dd MMM').format(item.date)} • ${item.type.toUpperCase()}",
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.grey.shade600,
-                                        ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            DateFormat('dd MMM')
+                                                .format(item.date),
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: _mutedColor(context),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: _tint(context, typeColor),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              item.type.toUpperCase(),
+                                              style: TextStyle(
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.bold,
+                                                color: _accentOn(
+                                                    context, typeColor),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
                                 ),
                                 Text(
-                                  "৳${item.amount.toStringAsFixed(1)}",
+                                  '৳${item.amount.toStringAsFixed(1)}',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w900,
                                     fontSize: 15,
                                     color: Colors.red,
                                   ),
                                 ),
-                                if (controller.isAdminUser && userName != 'me_you'.tr)
+                                if (canAdminEdit)
                                   PopupMenuButton<String>(
-                                    icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade600),
+                                    icon: Icon(Icons.more_vert,
+                                        size: 20, color: _mutedColor(context)),
                                     onSelected: (value) {
                                       if (value == 'update') {
-                                        _showExpenseBottomSheet(context, item: item);
+                                        _showExpenseBottomSheet(context,
+                                            item: item);
                                       } else if (value == 'delete') {
-                                        Get.dialog(
-                                          AlertDialog(
-                                            title: Text('delete'.tr),
-                                            content: Text('Are you sure you want to delete this expense for $userName?'),
-                                            actions: [
-                                              TextButton(onPressed: () => Get.back(), child: Text('cancel'.tr)),
-                                              ElevatedButton(
-                                                onPressed: () {
-                                                  Get.back();
-                                                  if (Get.isRegistered<ExpenseController>()) {
-                                                    Get.find<ExpenseController>().deleteExpense(item);
-                                                  }
-                                                },
-                                                child: Text('delete'.tr),
-                                              ),
-                                            ],
-                                          ),
-                                        );
+                                        _confirmDeleteExpense(
+                                            context, item, userName);
                                       }
                                     },
                                     itemBuilder: (context) => [
-                                      PopupMenuItem(value: 'update', child: Text('update'.tr)),
-                                      PopupMenuItem(value: 'delete', child: Text('delete'.tr)),
+                                      PopupMenuItem(
+                                          value: 'update',
+                                          child: Text('update'.tr)),
+                                      PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('delete'.tr,
+                                              style: const TextStyle(
+                                                  color: Colors.red))),
                                     ],
                                   ),
                               ],
@@ -1082,17 +1782,29 @@ class MealScreen extends GetView<MealController> {
     );
   }
 
+  void _confirmDeleteExpense(
+      BuildContext context, ExpenseModel item, String userName) {
+    showConfirmDialog(
+      title: 'delete_expense'.tr,
+      message: 'confirm_delete_expense_for'.trParams({'name': userName}),
+      detail: item.description,
+      confirmText: 'delete'.tr,
+      onConfirm: () {
+        if (Get.isRegistered<ExpenseController>()) {
+          Get.find<ExpenseController>().deleteExpense(item);
+        }
+      },
+    );
+  }
+
   void _showMealBreakdownDialog(
       BuildContext context, String title, String dateKey) {
-    // Get all members from controller stats to ensure we show those with 0 meals too
-    // Combine current user and other users
+    // Show every member for the day, including those with 0 meals.
     final List<Map<String, dynamic>> allMembers = [
       {'name': 'me_you'.tr, 'count': controller.dailyMeals[dateKey] ?? 0},
       ...controller.otherUsersMeals.map((u) {
-        // Find their count for this specific day in userDailyMeals
         final dayMeals = controller.userDailyMeals[dateKey] ?? [];
-        final userMeal = dayMeals.firstWhere(
-            (m) => m['name'] == u['name'],
+        final userMeal = dayMeals.firstWhere((m) => m['name'] == u['name'],
             orElse: () => {'count': 0});
         return {
           'name': u['name'],
@@ -1101,30 +1813,98 @@ class MealScreen extends GetView<MealController> {
       }),
     ];
 
+    final int dayTotal = allMembers.fold<int>(
+        0, (running, m) => running + ((m['count'] as int?) ?? 0));
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('breakdown_title'.trParams({'title': title})),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _tint(context, Colors.blue),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.pie_chart_rounded,
+                  size: 18, color: _accentOn(context, Colors.blue)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'breakdown_title'.trParams({'title': title}),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'meals_count'.trParams({'count': dayTotal.toString()}),
+                    style: TextStyle(
+                        fontSize: 12, color: _mutedColor(context)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.separated(
             shrinkWrap: true,
             itemCount: allMembers.length,
-            separatorBuilder: (context, index) => const Divider(),
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final member = allMembers[index];
               final count = member['count'] as int;
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(member['name'] ?? 'Unknown',
-                    style: const TextStyle(fontSize: 14)),
-                trailing: Text(
-                  count > 0 ? 'meals_count'.trParams({'count': count.toString()}) : 'no_meal'.tr,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: count > 0 ? Colors.teal : Colors.red,
-                    fontWeight: count > 0 ? FontWeight.bold : FontWeight.normal,
-                  ),
+              final String name = member['name'] ?? 'unknown'.tr;
+              final bool hasMeal = count > 0;
+              final MaterialColor color = hasMeal ? Colors.teal : Colors.red;
+
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _neutralSurface(context),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _hairline(context)),
+                ),
+                child: Row(
+                  children: [
+                    _avatar(context, name, index == 0 ? Colors.teal : Colors.blue,
+                        isMe: index == 0, size: 32),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _bodyColor(context),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      hasMeal
+                          ? 'meals_count'.trParams({'count': count.toString()})
+                          : 'no_meal'.tr,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _accentOn(context, color),
+                        fontWeight:
+                            hasMeal ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -1135,6 +1915,94 @@ class MealScreen extends GetView<MealController> {
             onPressed: () => Navigator.pop(context),
             child: Text('close'.tr),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// Loading placeholders — a gentle pulse beats an empty screen or a spinner
+/// that hides the layout the user is about to see.
+/// ---------------------------------------------------------------------------
+
+class _PulseBox extends StatefulWidget {
+  final double? width;
+  final double height;
+  final double radius;
+
+  const _PulseBox({this.width, this.height = 14, this.radius = 8});
+
+  @override
+  State<_PulseBox> createState() => _PulseBoxState();
+}
+
+class _PulseBoxState extends State<_PulseBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = _isDark(context) ? Colors.white : Colors.black;
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.35, end: 0.8).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+      ),
+      child: Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: base.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(widget.radius),
+        ),
+      ),
+    );
+  }
+}
+
+class _CardSkeleton extends StatelessWidget {
+  const _CardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _hairline(context)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _PulseBox(width: 42, height: 42, radius: 21),
+              SizedBox(width: 12),
+              Expanded(child: _PulseBox(height: 16)),
+              SizedBox(width: 12),
+              _PulseBox(width: 64, height: 24, radius: 12),
+            ],
+          ),
+          SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(child: _PulseBox(height: 12)),
+              SizedBox(width: 16),
+              Expanded(child: _PulseBox(height: 12)),
+            ],
+          ),
+          SizedBox(height: 14),
+          _PulseBox(height: 40, radius: 14),
         ],
       ),
     );

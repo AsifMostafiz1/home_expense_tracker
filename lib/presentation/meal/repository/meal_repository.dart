@@ -7,4 +7,6 @@ abstract class MealRepository {
   Future<void> updateMeal(String userName, String userPhone, DateTime date, int count);
   Future<void> updateAnnouncement(String text, String userName);
   Future<List<Map<String, dynamic>>> fetchAnnouncement();
+  Future<void> resolveAnnouncement(String id, String userName);
+  Future<void> deleteAnnouncement(String id);
 }

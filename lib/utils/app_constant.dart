@@ -12,6 +12,7 @@ class AppConstant {
   static const String keySavedPhone = 'savedPhone';
   static const String keySavedPassword = 'savedPassword';
   static const String keyIsAdmin = 'isAdmin';
+  static const String keyDismissedAnnouncementId = 'dismissedAnnouncementId';
 
 
   // Firestore Collection Names

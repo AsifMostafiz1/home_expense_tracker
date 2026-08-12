@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:flutter/services.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -69,7 +68,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             (canPop
                 ? IconButton(
                     icon: const Icon(Icons.arrow_back_ios, size: 20),
-                    onPressed: () => Get.back(),
+                    // Not Get.back(): it only closes a visible snackbar and
+                    // returns, leaving the user stuck on the page.
+                    onPressed: () => Navigator.of(context).maybePop(),
                   )
                 : const SizedBox.shrink()),
         title: titleWidget ??

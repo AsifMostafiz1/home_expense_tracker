@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/push_notification_service.dart';
 import '../../../utils/app_constant.dart';
+import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
 import '../repository/meal_repository.dart';
@@ -42,6 +43,27 @@ class MealController extends GetxController implements GetxService {
   List<ExpenseModel> myExpenses = [];
   final announcementController = TextEditingController();
 
+  /// Id of the announcement the user dismissed with the card's close button.
+  /// A newer announcement has a different id, so the card comes back on its own.
+  String? dismissedAnnouncementId;
+
+  /// Announcements still waiting on someone — resolved ones are hidden for
+  /// every member because the flag is stored on the server.
+  List<Map<String, dynamic>> get pendingAnnouncements =>
+      announcements.where((a) => a['resolved'] != true).toList();
+
+  /// The newest pending announcement, or null when there is none or the user
+  /// dismissed it locally with the close button.
+  Map<String, dynamic>? get visibleAnnouncement {
+    final pending = pendingAnnouncements;
+    if (pending.isEmpty) return null;
+    final latest = pending.first;
+    if (latest['id'] != null && latest['id'] == dismissedAnnouncementId) {
+      return null;
+    }
+    return latest;
+  }
+
   double get avgMealRate {
     if (totalMealCount == 0) return 0.0;
     return totalMonthlyExpense / totalMealCount;
@@ -62,6 +84,7 @@ class MealController extends GetxController implements GetxService {
     firstDay = DateTime(today.year, today.month - 2, 1);
     lastDay = DateTime(today.year, today.month + 2, 0);
     _loadAdminStatus();
+    _loadDismissedAnnouncement();
     fetchMeals();
     fetchMonthlyStats();
     fetchAnnouncement();
@@ -71,6 +94,73 @@ class MealController extends GetxController implements GetxService {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     isAdminUser = prefs.getString(AppConstant.keyIsAdmin) == '1';
     update();
+  }
+
+  Future<void> _loadDismissedAnnouncement() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    dismissedAnnouncementId =
+        prefs.getString(AppConstant.keyDismissedAnnouncementId);
+    update();
+  }
+
+  /// Hides the announcement card for this user only, until a newer
+  /// announcement arrives.
+  Future<void> dismissAnnouncement() async {
+    final String? id = visibleAnnouncement?['id'] as String?;
+    if (id == null) return;
+
+    dismissedAnnouncementId = id;
+    update();
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(AppConstant.keyDismissedAnnouncementId, id);
+  }
+
+  /// Marks an announcement resolved on the server, so it disappears from the
+  /// meal screen for every member.
+  Future<void> resolveAnnouncement(String id) async {
+    isLoading = true;
+    update();
+
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userName = prefs.getString(AppConstant.keyUserName);
+
+      await repository.resolveAnnouncement(id, userName ?? 'unknown'.tr);
+      await fetchAnnouncement();
+      CustomSnackbar.show(
+          type: SnackbarType.success, message: 'announcement_resolved'.tr);
+    } catch (e) {
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_resolve_announcement'.tr);
+    } finally {
+      isLoading = false;
+      update();
+    }
+  }
+
+  /// Deletes an announcement for everyone. Any member is allowed to do this.
+  Future<void> deleteAnnouncement(String id) async {
+    isLoading = true;
+    update();
+
+    try {
+      await repository.deleteAnnouncement(id);
+      if (dismissedAnnouncementId == id) {
+        dismissedAnnouncementId = null;
+        await (await SharedPreferences.getInstance())
+            .remove(AppConstant.keyDismissedAnnouncementId);
+      }
+      await fetchAnnouncement();
+      CustomSnackbar.show(
+          type: SnackbarType.success, message: 'announcement_deleted'.tr);
+    } catch (e) {
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_delete_announcement'.tr);
+    } finally {
+      isLoading = false;
+      update();
+    }
   }
 
   void onDaySelected(DateTime selected, DateTime focused) {
@@ -210,7 +300,7 @@ class MealController extends GetxController implements GetxService {
 
   Future<void> updateSingleMeal(DateTime date, int count) async {
     try {
-      Get.back();
+      closeOverlayRoute();
       isLoading = true;
       update();
       SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -407,30 +497,20 @@ class MealController extends GetxController implements GetxService {
               height: 50,
               child: ElevatedButton(
                 onPressed: () {
-                  Get.back(); // close bottom sheet
-                  Get.dialog(
-                    AlertDialog(
-                      title: Text('confirm_edit'.tr),
-                      content: Text('confirm_edit_meal'.trParams({
-                        'name': otherUserName,
-                        'old': currentCount.toString(),
-                        'new': selectedCount.value.toString(),
-                        'date': formattedDate,
-                      })),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Get.back(), // close dialog
-                          child: Text('cancel'.tr),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            Get.back(); // close dialog
-                            _updateOtherUserMeal(date, selectedCount.value, currentCount, otherUserName, otherUserPhone);
-                          },
-                          child: Text('confirm'.tr),
-                        ),
-                      ],
-                    ),
+                  final int newCount = selectedCount.value;
+                  closeOverlayRoute(); // close bottom sheet
+                  showConfirmDialog(
+                    title: 'confirm_edit'.tr,
+                    message: 'confirm_edit_meal'.trParams({
+                      'name': otherUserName,
+                      'old': currentCount.toString(),
+                      'new': newCount.toString(),
+                      'date': formattedDate,
+                    }),
+                    confirmText: 'confirm'.tr,
+                    confirmColor: Colors.blue.shade600,
+                    onConfirm: () => _updateOtherUserMeal(date, newCount,
+                        currentCount, otherUserName, otherUserPhone),
                   );
                 },
                 style: ElevatedButton.styleFrom(
@@ -533,7 +613,7 @@ class MealController extends GetxController implements GetxService {
 
       await fetchAnnouncement();
       announcementController.clear();
-      Get.back();
+      closeOverlayRoute();
       CustomSnackbar.show(type: SnackbarType.success, message: 'announcement_updated'.tr);
     } catch (e) {
       CustomSnackbar.show(
