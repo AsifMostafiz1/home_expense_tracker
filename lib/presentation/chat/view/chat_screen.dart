@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import '../../../common/widgets/custom_app_bar.dart';
+import '../../../common/widgets/profile_avatar.dart';
 import '../controller/chat_controller.dart';
 import '../model/chat_message_model.dart';
 
@@ -275,17 +276,14 @@ class ChatScreen extends GetView<ChatController> {
             return ListTile(
               dense: true,
               visualDensity: VisualDensity.compact,
-              leading: CircleAvatar(
-                radius: 14,
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                child: Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
+              leading: ProfileAvatar(
+                name: name,
+                phone: user['phone']?.toString(),
+                imageUrl: user['image']?.toString(),
+                size: 28,
+                background: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                foreground: Theme.of(context).colorScheme.primary,
+                fontSize: 12,
               ),
               title:
                   Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
@@ -373,22 +371,17 @@ class _MessageBubble extends StatelessWidget {
                 if (!isMe && isLastInGroup)
                   Container(
                     margin: const EdgeInsets.only(right: 4),
-                    child: CircleAvatar(
-                      radius: 14,
-                      backgroundColor: Colors.amber.shade100,
-                      backgroundImage: message.senderImage != null
-                          ? NetworkImage(message.senderImage!)
-                          : null,
-                      child: message.senderImage == null
-                          ? Text(
-                              message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
-                              style: const TextStyle(
-                                color: Colors.amber,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            )
-                          : null,
+                    // The URL stamped on the message is only as fresh as the
+                    // moment it was sent, so the directory gets first refusal
+                    // and the stamped one is the fallback.
+                    child: ProfileAvatar(
+                      name: message.senderName,
+                      phone: message.senderPhone,
+                      imageUrl: message.senderImage,
+                      size: 28,
+                      background: Colors.amber.shade100,
+                      foreground: Colors.amber,
+                      fontSize: 12,
                     ),
                   )
                 else if (!isMe)
@@ -517,22 +510,14 @@ class _MessageBubble extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
                 ),
-                child: CircleAvatar(
-                  radius: 7,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                  backgroundImage: imageUrl != null && imageUrl.toString().isNotEmpty 
-                      ? NetworkImage(imageUrl) 
-                      : null,
-                  child: (imageUrl == null || imageUrl.toString().isEmpty)
-                      ? Text(
-                          _getInitials(name),
-                          style: TextStyle(
-                            fontSize: 5, 
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary
-                          ),
-                        )
-                      : null,
+                child: ProfileAvatar(
+                  name: name,
+                  phone: status['userPhone']?.toString(),
+                  imageUrl: imageUrl?.toString(),
+                  size: 14,
+                  background: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                  foreground: Theme.of(context).colorScheme.primary,
+                  fontSize: 5,
                 ),
               );
             }).toList(),
@@ -549,15 +534,6 @@ class _MessageBubble extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _getInitials(String name) {
-    if (name.isEmpty) return '?';
-    List<String> parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length > 1) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return parts[0][0].toUpperCase();
   }
 
   Widget _buildReplyContent(BuildContext context) {
@@ -771,21 +747,16 @@ class _MessageBubble extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Row(
                         children: [
-                          CircleAvatar(
-                            radius: 22,
-                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                            backgroundImage: imageUrl != null && imageUrl.toString().isNotEmpty 
-                                ? NetworkImage(imageUrl) 
-                                : null,
-                            child: (imageUrl == null || imageUrl.toString().isEmpty) 
-                                ? Text(
-                                    _getInitials(name),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context).colorScheme.primary
-                                    ),
-                                  ) 
-                                : null,
+                          ProfileAvatar(
+                            name: name,
+                            // The reaction key, not `user['phone']` — the
+                            // lookup above yields an empty map for someone who
+                            // has since left the house.
+                            phone: userPhone,
+                            imageUrl: imageUrl?.toString(),
+                            size: 44,
+                            background: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            foreground: Theme.of(context).colorScheme.primary,
                           ),
                           const SizedBox(width: 16),
                           Expanded(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
+import '../../../common/widgets/profile_avatar.dart';
 import '../../member/view/member_screen.dart';
 import '../../monthly_stats/view/monthly_stats_screen.dart';
 import '../../settings/view/settings_screen.dart';
@@ -10,19 +11,6 @@ import 'edit_history_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
-
-  String _getAvatarText(String name) {
-    if (name.isEmpty) return 'U';
-    List<String> words = name.trim().split(RegExp(r'\s+'));
-    String initials = '';
-    for (var word in words) {
-      if (word.isNotEmpty) {
-        initials += word[0].toUpperCase();
-      }
-      if (initials.length >= 2) break;
-    }
-    return initials;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,22 +39,15 @@ class ProfileScreen extends StatelessWidget {
                     children: [
                       // Avatar
                       Center(
-                        child: CircleAvatar(
-                          radius: 50,
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          backgroundImage: controller.userModel?.profileImage != null
-                              ? NetworkImage(controller.userModel!.profileImage!)
-                              : null,
-                          child: controller.userModel?.profileImage == null
-                              ? Text(
-                                  _getAvatarText(controller.userName),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )
-                              : null,
+                        child: ProfileAvatar(
+                          name: controller.userName,
+                          phone: controller.userPhone,
+                          imageUrl: controller.userModel?.profileImage,
+                          isMe: true,
+                          size: 100,
+                          background: Theme.of(context).colorScheme.primary,
+                          foreground: Colors.white,
+                          fontSize: 36,
                         ),
                       ),
                       const SizedBox(height: 16),

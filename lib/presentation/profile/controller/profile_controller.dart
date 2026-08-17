@@ -1,8 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../services/member_avatar_service.dart';
+import '../../../services/supabase_storage_service.dart';
+import '../../../utils/supabase_config.dart';
 import '../../../utils/app_constant.dart';
 import '../../auth/view/sign_in_screen.dart';
 import '../../auth/binding/auth_binding.dart';
@@ -30,6 +36,14 @@ class ProfileController extends GetxController implements GetxService {
 
   bool isLoading = true;
   bool isUpdating = false;
+
+  final SupabaseStorageService _storage = SupabaseStorageService();
+
+  /// Avatar chosen on the edit screen but not saved yet. Held locally so the
+  /// upload happens on "save changes" — backing out of the form should not
+  /// have already replaced the picture.
+  File? pickedProfileImage;
+  bool clearProfileImage = false;
 
   ThemeMode themeMode = ThemeMode.system;
   String currentLanguage = 'en';
@@ -225,10 +239,58 @@ class ProfileController extends GetxController implements GetxService {
     }
   }
 
+  /// Picks a new avatar from [source]. Downscaled before it ever leaves the
+  /// device — a full-resolution camera shot is several MB, and nothing here
+  /// renders larger than a circle avatar.
+  Future<void> pickProfileImage(ImageSource source) async {
+    try {
+      final XFile? picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (picked == null) return;
+
+      pickedProfileImage = File(picked.path);
+      clearProfileImage = false;
+      update();
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_pick_image'.tr);
+    }
+  }
+
+  /// Marks the current avatar for removal on the next save.
+  void removeProfileImage() {
+    pickedProfileImage = null;
+    clearProfileImage = true;
+    update();
+  }
+
+  /// Drops any unsaved avatar choice — called when the edit screen is left.
+  void discardProfileImageChanges() {
+    pickedProfileImage = null;
+    clearProfileImage = false;
+  }
+
   Future<void> updateProfile({required String name, required String password}) async {
     try {
       isUpdating = true;
       update();
+
+      // Images live in Supabase Storage; Firestore only ever holds the URL.
+      final String? previousImage = userModel?.profileImage;
+      String? imageUrl = previousImage;
+      if (clearProfileImage) {
+        imageUrl = null;
+      } else if (pickedProfileImage != null) {
+        imageUrl = await _storage.uploadFile(
+          pickedProfileImage!,
+          folder: SupabaseConfig.folderProfile,
+        );
+      }
 
       await FirebaseFirestore.instance
           .collection(AppConstant.collectionUsers)
@@ -236,13 +298,33 @@ class ProfileController extends GetxController implements GetxService {
           .update({
         'name': name,
         'password': password,
+        'profileImage': imageUrl,
       });
+
+      // Only after Firestore points at the new object. Deleting first would
+      // leave the avatar broken for good if the write then failed.
+      if (imageUrl != previousImage) {
+        await _storage.deleteByPublicUrl(previousImage);
+      }
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString(AppConstant.keyUserName, name);
-      
+      // Chat reads this pref to stamp outgoing messages with the sender avatar.
+      if (imageUrl == null) {
+        await prefs.remove(AppConstant.keyUserProfileImage);
+      } else {
+        await prefs.setString(AppConstant.keyUserProfileImage, imageUrl);
+      }
+
+      // Push it into the shared directory straight away so every avatar in the
+      // app repaints on the way back, without waiting for the next Firestore read.
+      if (Get.isRegistered<MemberAvatarService>()) {
+        Get.find<MemberAvatarService>().setMyImage(userPhone, imageUrl);
+      }
+
+      discardProfileImageChanges();
       await _loadUserData();
-      
+
       CustomSnackbar.show(type: SnackbarType.success, message: 'profile_updated_success'.tr);
       Get.back();
     } catch (e, stack) {

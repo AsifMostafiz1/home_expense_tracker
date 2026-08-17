@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../common/widgets/custom_app_bar.dart';
+import '../../../common/widgets/profile_avatar.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/month_details_controller.dart';
 import '../controller/monthly_stats_controller.dart';
@@ -22,17 +23,6 @@ const List<MaterialColor> _memberColors = [
 
 MaterialColor _colorFor(String name) =>
     _memberColors[name.hashCode.abs() % _memberColors.length];
-
-String _initialsOf(String name) {
-  final parts = name
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty && RegExp(r'[\wঀ-৿]').hasMatch(p))
-      .toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
-  return (parts[0].characters.first + parts[1].characters.first).toUpperCase();
-}
 
 /// One month, member by member.
 ///
@@ -420,24 +410,14 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
         children: [
           Row(
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppUi.tint(context, color),
-                  shape: BoxShape.circle,
-                  border:
-                      Border.all(color: color.withOpacity(0.35), width: 1.5),
-                ),
-                child: Text(
-                  _initialsOf(member.name),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppUi.accent(context, color),
-                  ),
-                ),
+              ProfileAvatar(
+                name: member.name,
+                phone: member.phone,
+                size: 42,
+                background: AppUi.tint(context, color),
+                foreground: AppUi.accent(context, color),
+                borderColor: color.withOpacity(0.35),
+                fontSize: 14,
               ),
               const SizedBox(width: 12),
               Expanded(

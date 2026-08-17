@@ -9,6 +9,7 @@ import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_button.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../../../common/widgets/hiding_fab.dart';
+import '../../../common/widgets/profile_avatar.dart';
 import '../../expense/controller/expense_controller.dart';
 import '../../expense/model/expense_model.dart';
 import '../../expense/widgets/expense_bottom_sheet.dart';
@@ -74,17 +75,6 @@ double _balanceOf({
   required double otherRate,
 }) =>
     (expense + otherExpense) - (count * rate + otherRate);
-
-String _initialsOf(String name) {
-  final parts = name
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty && RegExp(r'[\wঀ-৿]').hasMatch(p))
-      .toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
-  return (parts[0].characters.first + parts[1].characters.first).toUpperCase();
-}
 
 String _friendlyDateTime(DateTime date) {
   final now = DateTime.now();
@@ -695,6 +685,7 @@ class MealScreen extends GetView<MealController> {
                   rate: controller.avgMealRate,
                   otherRate: controller.otherCostPerPerson,
                   color: color,
+                  phone: entry.value['phone']?.toString(),
                   onTap: () =>
                       _showUserCalendarBottomSheet(context, entry.value),
                 ),
@@ -808,6 +799,7 @@ class MealScreen extends GetView<MealController> {
     required double otherRate,
     required MaterialColor color,
     bool isMe = false,
+    String? phone,
     VoidCallback? onTap,
   }) {
     final double mealCost = count * rate;
@@ -847,6 +839,7 @@ class MealScreen extends GetView<MealController> {
                   children: [
                     _avatar(context, title, color,
                         isMe: isMe,
+                        phone: phone,
                         size: 38,
                         background: Theme.of(context).cardColor),
                     const SizedBox(width: 11),
@@ -1099,27 +1092,23 @@ class MealScreen extends GetView<MealController> {
     bool isMe = false,
     double size = 42,
     Color? background,
+    String? phone,
   }) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: background ?? _tint(context, color),
-        shape: BoxShape.circle,
-        border: Border.all(color: color.withOpacity(0.35), width: 1.5),
-      ),
-      child: isMe
+    return ProfileAvatar(
+      name: name,
+      phone: phone,
+      isMe: isMe,
+      size: size,
+      background: background ?? _tint(context, color),
+      foreground: _accentOn(context, color),
+      borderColor: color.withOpacity(0.35),
+      fontSize: size * 0.34,
+      // The viewer's own rows are labelled "My Meals" / "You", so there are no
+      // initials to fall back on — the person glyph stands in instead.
+      placeholder: isMe
           ? Icon(Icons.person_rounded,
               color: _accentOn(context, color), size: size * 0.5)
-          : Text(
-              _initialsOf(name),
-              style: TextStyle(
-                color: _accentOn(context, color),
-                fontSize: size * 0.34,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+          : null,
     );
   }
 
@@ -1495,7 +1484,10 @@ class MealScreen extends GetView<MealController> {
               padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
               child: Row(
                 children: [
-                  _avatar(context, userName, accent, isMe: isMe, size: 40),
+                  _avatar(context, userName, accent,
+                      isMe: isMe,
+                      phone: user['phone']?.toString(),
+                      size: 40),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1896,6 +1888,7 @@ class MealScreen extends GetView<MealController> {
             orElse: () => {'count': 0});
         return {
           'name': u['name'],
+          'phone': u['phone'],
           'count': userMeal['count'],
         };
       }),
@@ -1967,7 +1960,9 @@ class MealScreen extends GetView<MealController> {
                 child: Row(
                   children: [
                     _avatar(context, name, index == 0 ? Colors.teal : Colors.blue,
-                        isMe: index == 0, size: 32),
+                        isMe: index == 0,
+                        phone: member['phone']?.toString(),
+                        size: 32),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(

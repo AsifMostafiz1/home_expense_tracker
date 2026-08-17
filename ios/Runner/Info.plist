@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Meal Tracker needs access to your photos so you can set a profile picture.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Meal Tracker needs access to your camera so you can take a profile picture.</string>
 </dict>
 </plist>

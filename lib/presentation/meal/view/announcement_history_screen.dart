@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_snackbar.dart';
+import '../../../common/widgets/profile_avatar.dart';
 import '../../../utils/app_enums.dart';
 import '../controller/meal_controller.dart';
 
@@ -41,17 +42,6 @@ Color _hairline(BuildContext context) =>
 
 MaterialColor _colorForAuthor(String name) =>
     _authorColors[name.hashCode.abs() % _authorColors.length];
-
-String _initialsOf(String name) {
-  final parts = name
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty && RegExp(r'[\wঀ-৿]').hasMatch(p))
-      .toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
-  return (parts[0].characters.first + parts[1].characters.first).toUpperCase();
-}
 
 /// A group of announcements that share the same calendar day.
 class _DayGroup {
@@ -267,24 +257,16 @@ class AnnouncementHistoryScreen extends GetView<MealController> {
           // Timeline rail: author avatar + connector to the next item.
           Column(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: _tint(context, color),
-                  shape: BoxShape.circle,
-                  border:
-                      Border.all(color: color.withOpacity(0.45), width: 1.5),
-                ),
-                child: Text(
-                  _initialsOf(userName),
-                  style: TextStyle(
-                    color: _accentOn(context, color),
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              ProfileAvatar(
+                // Announcements store the author's name, not their phone, so
+                // the directory falls back to a name match here.
+                name: userName,
+                phone: announcement['user_phone']?.toString(),
+                size: 40,
+                background: _tint(context, color),
+                foreground: _accentOn(context, color),
+                borderColor: color.withOpacity(0.45),
+                fontSize: 14,
               ),
               if (!isLastOfDay)
                 Expanded(

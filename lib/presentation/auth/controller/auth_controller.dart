@@ -150,6 +150,14 @@ class AuthController extends GetxController implements GetxService {
           await prefs.setString(AppConstant.keyUserPhone, user.phone);
           await prefs.setString(AppConstant.keyUserName, user.name);
           await prefs.setString(AppConstant.keyIsAdmin, user.isAdmin);
+          // The chat controller stamps outgoing messages with this, so it has
+          // to be cached at login too — not only when the avatar is changed.
+          if (user.profileImage != null && user.profileImage!.isNotEmpty) {
+            await prefs.setString(
+                AppConstant.keyUserProfileImage, user.profileImage!);
+          } else {
+            await prefs.remove(AppConstant.keyUserProfileImage);
+          }
 
           // Handle Remember Me
           await prefs.setBool(AppConstant.keyRememberMe, isRememberMe);

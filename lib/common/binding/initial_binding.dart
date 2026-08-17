@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import '../../services/member_avatar_service.dart';
 import '../../presentation/auth/binding/auth_binding.dart';
 import '../../presentation/meal/binding/meal_binding.dart';
 import '../../presentation/expense/binding/expense_binding.dart';
@@ -11,6 +12,10 @@ import '../../presentation/settings/binding/settings_binding.dart';
 class InitialBinding extends Bindings {
   @override
   void dependencies() {
+    // Registered first, and permanent: every screen's avatars resolve against
+    // it, so it has to outlive the controller that happens to be on screen.
+    Get.put(MemberAvatarService(), permanent: true).load();
+
     AuthBinding().dependencies();
     MealBinding().dependencies();
     ExpenseBinding().dependencies();

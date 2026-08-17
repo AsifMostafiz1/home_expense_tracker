@@ -4,6 +4,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+// Narrowed import: the package also exports `User`, `AuthState` and friends,
+// which would collide with the firebase_auth symbols above.
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
+import 'package:demo_project/utils/supabase_config.dart';
 import 'package:demo_project/presentation/auth/view/sign_in_screen.dart';
 import 'package:demo_project/presentation/dashboard/view/dashboard_screen.dart';
 import 'package:demo_project/utils/app_constant.dart';
@@ -45,7 +49,25 @@ void main() async {
   } catch (e) {
     debugPrint("Firebase initialization failed: $e");
   }
-  
+
+  // Supabase covers file/image storage only — Firestore is still the database.
+  // Firebase Storage needs a billing account on the project, which this one
+  // does not have. Kept outside the Firebase block, for the same reason the
+  // anonymous sign-in above is: one failing service should not take the rest
+  // of startup down with it.
+  if (SupabaseConfig.isConfigured) {
+    try {
+      await Supabase.initialize(
+        url: SupabaseConfig.url,
+        publishableKey: SupabaseConfig.publishableKey,
+      );
+    } catch (e) {
+      debugPrint('Supabase initialization failed: $e');
+    }
+  } else {
+    debugPrint('Supabase not configured — uploads are disabled.');
+  }
+
   SharedPreferences prefs = await SharedPreferences.getInstance();
   
   String themeStr = prefs.getString(AppConstant.keyThemeMode) ?? 'system';
