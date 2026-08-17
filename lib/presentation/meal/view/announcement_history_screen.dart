@@ -249,6 +249,7 @@ class AnnouncementHistoryScreen extends GetView<MealController> {
     final MaterialColor color = _colorForAuthor(userName);
     final String? id = announcement['id'] as String?;
     final bool isResolved = announcement['resolved'] == true;
+    final bool isPending = controller.isAnnouncementPending(announcement);
 
     return IntrinsicHeight(
       child: Row(
@@ -353,6 +354,16 @@ class AnnouncementHistoryScreen extends GetView<MealController> {
                               _resolvedChip(context),
                             ],
                             const Spacer(),
+                            // On this device only, until the connection
+                            // delivers it — clears by itself.
+                            if (isPending) ...[
+                              Tooltip(
+                                message: 'waiting_to_sync'.tr,
+                                child: Icon(Icons.cloud_upload_outlined,
+                                    size: 14, color: _mutedColor(context)),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
                             if (date != null)
                               Text(
                                 DateFormat('hh:mm a').format(date),

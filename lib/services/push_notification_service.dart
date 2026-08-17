@@ -212,7 +212,10 @@ class PushNotificationService {
     }
   }
 
-  Future<void> sendPushNotification({
+  /// Returns true when every topic accepted the message. False covers both
+  /// "no network" and "FCM said no" — the caller that cares (the push outbox)
+  /// retries either way, up to a point.
+  Future<bool> sendPushNotification({
     required String title,
     required String body,
     List<String>? targetPhones,
@@ -226,7 +229,7 @@ class PushNotificationService {
       final String accessToken = await FcmV1Service().getAccessToken();
       if (accessToken.isEmpty) {
         print('Notification Error: Failed to get access token');
-        return;
+        return false;
       }
 
       print("access token : ----> ${accessToken}");
@@ -252,6 +255,7 @@ class PushNotificationService {
 
       print("topics : ----> ${topics.toString()}");
 
+      bool allSent = true;
       for (final topic in topics) {
         final payload = {
           'message': {
@@ -292,16 +296,21 @@ class PushNotificationService {
           }
         };
 
-        final response =
-            await http.post(url, headers: headers, body: jsonEncode(payload));
+        // Bounded: a link that is up but not answering must not hold a save.
+        final response = await http
+            .post(url, headers: headers, body: jsonEncode(payload))
+            .timeout(const Duration(seconds: 20));
         if (response.statusCode != 200) {
           print('FCM Send Error [Topic: $topic]: ${response.body}');
+          allSent = false;
         } else {
           print('FCM Send Success [Topic: $topic]');
         }
       }
+      return allSent;
     } catch (e) {
       print('Error in sendPushNotification: $e');
+      return false;
     }
   }
 

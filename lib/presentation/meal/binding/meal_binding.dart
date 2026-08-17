@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import '../../../services/connectivity_service.dart';
 import '../controller/meal_controller.dart';
 import '../repository/meal_repository.dart';
 import '../repository/meal_repository_impl.dart';
@@ -6,7 +7,9 @@ import '../repository/meal_repository_impl.dart';
 class MealBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut<MealRepository>(() => MealRepositoryImpl());
+    Get.lazyPut<MealRepository>(
+      () => MealRepositoryImpl(connectivity: Get.find<ConnectivityService>()),
+    );
     Get.lazyPut<MealController>(
         () => MealController(repository: Get.find<MealRepository>()));
   }

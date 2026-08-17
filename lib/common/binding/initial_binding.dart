@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import '../../services/chat_outbox_service.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/member_avatar_service.dart';
+import '../../services/push_outbox_service.dart';
 import '../../services/receipt_outbox_service.dart';
 import '../../presentation/auth/binding/auth_binding.dart';
 import '../../presentation/meal/binding/meal_binding.dart';
@@ -23,6 +24,8 @@ class InitialBinding extends Bindings {
     connectivity.init();
     Get.put(ReceiptOutboxService(), permanent: true).init(connectivity);
     Get.put(ChatOutboxService(connectivity: connectivity), permanent: true)
+        .init(connectivity);
+    Get.put(PushOutboxService(connectivity: connectivity), permanent: true)
         .init(connectivity);
 
     // Registered before the feature bindings, and permanent: every screen's

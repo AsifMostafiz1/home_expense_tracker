@@ -1,10 +1,31 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import '../../../services/background_sync_service.dart';
+import '../../../services/connectivity_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../expense/model/expense_model.dart';
 import '../model/meal_stats.dart';
 import 'meal_repository.dart';
 
+/// Firestore-backed. Writes are offline-first — they land in Firestore's
+/// local store at once and wait for the server's acknowledgement only while
+/// there is a connection to wait on (see [_commit]); the same shape as the
+/// expense and chat repositories.
 class MealRepositoryImpl implements MealRepository {
+  /// Optional, for the same reason as everywhere else: with none, every write
+  /// simply waits for its acknowledgement.
+  final ConnectivityService? connectivity;
+
+  MealRepositoryImpl({this.connectivity});
+
+  static const Duration _ackTimeout = Duration(seconds: 8);
+  static const Duration _readTimeout = Duration(seconds: 15);
+
+  CollectionReference<Map<String, dynamic>> get _announcements =>
+      FirebaseFirestore.instance.collection(AppConstant.collectionAnnouncements);
+
   @override
   Future<Map<String, int>> fetchDailyMeals(String userPhone) async {
     QuerySnapshot snapshot = await FirebaseFirestore.instance
@@ -203,42 +224,56 @@ class MealRepositoryImpl implements MealRepository {
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
-    await batch.commit();
+    await _commit(batch.commit());
   }
 
   @override
   Future<void> updateMeal(String userName, String userPhone, DateTime date, int count) async {
     String docId = '${userPhone}_${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     DocumentReference docRef = FirebaseFirestore.instance.collection(AppConstant.collectionMeals).doc(docId);
-    await docRef.set({
+    await _commit(docRef.set({
       'meal_count': count,
       'date_time': date.toIso8601String(),
       'user_name': userName,
       'user_phone': userPhone,
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    }, SetOptions(merge: true)));
   }
+
   @override
-  Future<void> updateAnnouncement(String text, String userName) async {
-    await FirebaseFirestore.instance
-        .collection(AppConstant.collectionAnnouncements)
-        .add({
+  Future<void> updateAnnouncement(String text, String userName) {
+    return _commit(_announcements.doc().set({
       'text': text,
       'user_name': userName,
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    }));
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchAnnouncement() async {
-    QuerySnapshot snapshot = await FirebaseFirestore.instance
-        .collection(AppConstant.collectionAnnouncements)
-        .orderBy('updatedAt', descending: true)
-        .get();
+  Future<List<Map<String, dynamic>>> fetchAnnouncement(
+      {bool fromCache = false}) async {
+    final Query<Map<String, dynamic>> query =
+        _announcements.orderBy('updatedAt', descending: true);
+
+    // `estimate`: an announcement written offline has no server time yet;
+    // the device's clock stands in so it still sorts and shows a time
+    // instead of falling off the bottom under "unknown date".
+    final QuerySnapshot<Map<String, dynamic>> snapshot = fromCache
+        ? await query.get(const GetOptions(
+            source: Source.cache,
+            serverTimestampBehavior: ServerTimestampBehavior.estimate,
+          ))
+        : await query
+            .get(const GetOptions(
+              source: Source.server,
+              serverTimestampBehavior: ServerTimestampBehavior.estimate,
+            ))
+            .timeout(_readTimeout);
 
     return snapshot.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
+      final Map<String, dynamic> data = doc.data();
       data['id'] = doc.id;
+      data['pending'] = doc.metadata.hasPendingWrites;
       return data;
     }).toList();
   }
@@ -246,22 +281,35 @@ class MealRepositoryImpl implements MealRepository {
   /// Marks the announcement resolved for everyone — the flag lives on the
   /// server, so the card disappears from every member's meal screen.
   @override
-  Future<void> resolveAnnouncement(String id, String userName) async {
-    await FirebaseFirestore.instance
-        .collection(AppConstant.collectionAnnouncements)
-        .doc(id)
-        .set({
+  Future<void> resolveAnnouncement(String id, String userName) {
+    return _commit(_announcements.doc(id).set({
       'resolved': true,
       'resolved_by': userName,
       'resolved_at': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    }, SetOptions(merge: true)));
   }
 
   @override
-  Future<void> deleteAnnouncement(String id) async {
-    await FirebaseFirestore.instance
-        .collection(AppConstant.collectionAnnouncements)
-        .doc(id)
-        .delete();
+  Future<void> deleteAnnouncement(String id) =>
+      _commit(_announcements.doc(id).delete());
+
+  /// Waits for the server's acknowledgement while online — a rejected write
+  /// still surfaces as an error — and returns at once when offline, leaving
+  /// the write in Firestore's queue for the next connection.
+  Future<void> _commit(Future<void> write) async {
+    if (connectivity?.isOffline ?? false) {
+      unawaited(write.catchError(
+        (Object e) => debugPrint('Meal: queued write failed — $e'),
+      ));
+      BackgroundSyncService.schedule();
+      return;
+    }
+
+    try {
+      await write.timeout(_ackTimeout);
+    } on TimeoutException {
+      debugPrint('Meal: write not acknowledged in time — queued');
+      BackgroundSyncService.schedule();
+    }
   }
 }

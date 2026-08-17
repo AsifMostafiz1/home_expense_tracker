@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EditLogModel {
+  /// Every [type] the app writes today, in the order the history screen
+  /// offers them as filters. Anything else is still shown, just untinted.
+  static const List<String> knownTypes = ['meal', 'expense', 'role', 'member'];
+
   String id;
   String adminName;
   String adminPhone;

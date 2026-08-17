@@ -150,6 +150,30 @@ class AppTranslations extends Translations {
           'edit_history': 'Edit History',
           'no_edit_history': 'No edit history found',
           'target_user': 'Target: @name',
+          'edit_history_hint':
+              'Every change an admin makes on someone else\'s behalf ends up here.',
+          'no_matching_edits': 'Nothing matches these filters',
+          'try_widening_filters':
+              'Try a wider period, or clear the filters to see everything.',
+          'show_all_time': 'Show all time',
+          'failed_load_edit_history': 'Could not load the edit history',
+          'select_period': 'Select period',
+          'last_month': 'Last month',
+          'last_7_days': 'Last 7 days',
+          'all_time': 'All time',
+          'custom_range': 'Custom range…',
+          'reset_filters': 'Reset',
+          'all': 'All',
+          'role': 'Role',
+          'member': 'Member',
+          'one_change': '1 change',
+          'changes_count': '@count changes',
+          'changed_by': 'Changed by @name',
+          'delete_edit_log': 'Delete entry',
+          'confirm_delete_edit_log':
+              'Remove this entry from the edit history for everyone? This cannot be undone.',
+          'edit_log_deleted': 'Entry deleted',
+          'failed_delete_edit_log': 'Could not delete the entry',
           'confirm': 'Confirm',
           'filter_by_user': 'Filter by User',
           'all_users': 'All Users',
@@ -474,6 +498,10 @@ class AppTranslations extends Translations {
           'banner_back_online_title': 'Back online',
           'banner_back_online_syncing': 'Syncing your changes…',
           'banner_back_online_body': 'Everything is up to date.',
+          'announcement_saved_offline':
+              'Announcement saved on this device — it will be posted, and everyone notified, once you are back online',
+          'announcement_change_saved_offline':
+              'Saved on this device — it will sync once you are back online',
           'waiting_for_connection': 'Waiting for connection',
           'revise_needs_connection':
               'You are offline. Messages can only be edited or deleted within 5 minutes, so this needs a connection.',
@@ -625,6 +653,30 @@ class AppTranslations extends Translations {
           'edit_history': 'সম্পাদনার ইতিহাস',
           'no_edit_history': 'কোনো সম্পাদনার ইতিহাস পাওয়া যায়নি',
           'target_user': 'টার্গেট: @name',
+          'edit_history_hint':
+              'কোনো অ্যাডমিন অন্য কারও হয়ে যা পরিবর্তন করেন, তা এখানে জমা থাকে।',
+          'no_matching_edits': 'এই ফিল্টারে কিছু পাওয়া যায়নি',
+          'try_widening_filters':
+              'সময়কাল বাড়িয়ে দেখুন, বা সব দেখতে ফিল্টার মুছে দিন।',
+          'show_all_time': 'সব সময়ের দেখুন',
+          'failed_load_edit_history': 'সম্পাদনার ইতিহাস লোড করা যায়নি',
+          'select_period': 'সময়কাল বাছুন',
+          'last_month': 'গত মাস',
+          'last_7_days': 'গত ৭ দিন',
+          'all_time': 'সব সময়',
+          'custom_range': 'নিজে তারিখ বাছুন…',
+          'reset_filters': 'রিসেট',
+          'all': 'সব',
+          'role': 'ভূমিকা',
+          'member': 'সদস্য',
+          'one_change': '১ টি পরিবর্তন',
+          'changes_count': '@count টি পরিবর্তন',
+          'changed_by': 'পরিবর্তন করেছেন @name',
+          'delete_edit_log': 'এন্ট্রি মুছে ফেলুন',
+          'confirm_delete_edit_log':
+              'এই এন্ট্রিটি সবার সম্পাদনার ইতিহাস থেকে মুছে ফেলবেন? এটি আর ফেরানো যাবে না।',
+          'edit_log_deleted': 'এন্ট্রি মুছে ফেলা হয়েছে',
+          'failed_delete_edit_log': 'এন্ট্রিটি মুছে ফেলা যায়নি',
           'confirm': 'নিশ্চিত করুন',
           'filter_by_user': 'ব্যবহারকারী দিয়ে ফিল্টার করুন',
           'all_users': 'সব ব্যবহারকারী',
@@ -946,6 +998,10 @@ class AppTranslations extends Translations {
           'banner_back_online_title': 'আবার অনলাইনে',
           'banner_back_online_syncing': 'আপনার পরিবর্তনগুলো সিঙ্ক হচ্ছে…',
           'banner_back_online_body': 'সবকিছু আপ টু ডেট।',
+          'announcement_saved_offline':
+              'ঘোষণাটি এই ডিভাইসে সেভ হয়েছে — অনলাইনে এলে পোস্ট হবে আর সবাইকে জানানো হবে',
+          'announcement_change_saved_offline':
+              'এই ডিভাইসে সেভ হয়েছে — অনলাইনে এলে সিঙ্ক হয়ে যাবে',
           'waiting_for_connection': 'সংযোগের অপেক্ষায়',
           'revise_needs_connection':
               'আপনি অফলাইনে আছেন। মেসেজ শুধু ৫ মিনিটের মধ্যে সম্পাদনা বা মুছে ফেলা যায়, তাই এর জন্য ইন্টারনেট সংযোগ লাগবে।',

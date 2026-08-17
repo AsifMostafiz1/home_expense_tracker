@@ -38,6 +38,9 @@ class AppConstant {
   /// Chat messages sent but not yet delivered — see `ChatOutboxService`.
   static const String keyChatOutbox = 'chatOutbox';
 
+  /// Push notifications that could not go out yet — see `PushOutboxService`.
+  static const String keyPushOutbox = 'pushOutbox';
+
 
   // Firestore Collection Names
   static const String collectionUsers = 'users';

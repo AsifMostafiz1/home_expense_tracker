@@ -14,7 +14,7 @@ import '../utils/app_constant.dart';
 /// [ProfileAvatar] resolve against it.
 ///
 /// One Firestore read of `users` fills it. That collection is a handful of
-/// documents — the same read `fetchUsersForFilter` and the member screen
+/// documents — the same read `loadEditLogs` and the member screen
 /// already do.
 class MemberAvatarService extends GetxController implements GetxService {
   final Map<String, String> _byPhone = {};

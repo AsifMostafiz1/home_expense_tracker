@@ -12,6 +12,7 @@ import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../services/background_sync_service.dart';
 import '../../../services/connectivity_service.dart';
+import '../../../services/push_outbox_service.dart';
 import '../../../services/receipt_outbox_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/app_enums.dart';
@@ -19,7 +20,6 @@ import '../../../utils/supabase_config.dart';
 import '../model/expense_model.dart';
 import '../repository/expense_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../services/push_notification_service.dart';
 
 class ExpenseController extends GetxController implements GetxService {
   final ExpenseRepository repository;
@@ -75,6 +75,7 @@ class ExpenseController extends GetxController implements GetxService {
   final SupabaseStorageService _storage = SupabaseStorageService();
   final ConnectivityService _connectivity = Get.find<ConnectivityService>();
   final ReceiptOutboxService _outbox = Get.find<ReceiptOutboxService>();
+  final PushOutboxService _pushOutbox = Get.find<PushOutboxService>();
 
   StreamSubscription<bool>? _onlineSubscription;
   StreamSubscription<void>? _receiptSyncSubscription;
@@ -458,15 +459,14 @@ class ExpenseController extends GetxController implements GetxService {
           description: 'Expense "${existingExpense.description}" edited: amount ${existingExpense.amount} -> $amount',
         );
 
-        // Best effort, and not worth holding the sheet for — no connection,
-        // no notification. The log above is queued like any other write.
-        if (online) {
-          unawaited(PushNotificationService().sendPushNotification(
-            title: 'Admin Updated Your Expense',
-            body: '$currentUserName has updated your expense "${existingExpense.description}".',
-            targetPhones: [finalUserPhone],
-          ));
-        }
+        // Not worth holding the sheet for: sent now if there is a connection,
+        // filed for the next one if not. The log above is queued like any
+        // other write.
+        unawaited(_pushOutbox.send(
+          title: 'Admin Updated Your Expense',
+          body: '$currentUserName has updated your expense "${existingExpense.description}".',
+          targetPhones: [finalUserPhone],
+        ));
       }
 
       // Saved — now the sheet can go.
@@ -572,13 +572,11 @@ class ExpenseController extends GetxController implements GetxService {
           description: 'Expense "${expense.description}" of ৳${expense.amount} deleted',
         );
 
-        if (isOnline) {
-          unawaited(PushNotificationService().sendPushNotification(
-            title: 'Admin Deleted Your Expense',
-            body: '$currentUserName has deleted your expense "${expense.description}".',
-            targetPhones: [expense.userPhone],
-          ));
-        }
+        unawaited(_pushOutbox.send(
+          title: 'Admin Deleted Your Expense',
+          body: '$currentUserName has deleted your expense "${expense.description}".',
+          targetPhones: [expense.userPhone],
+        ));
       }
       CustomSnackbar.show(
           type: isOnline ? SnackbarType.success : SnackbarType.info,

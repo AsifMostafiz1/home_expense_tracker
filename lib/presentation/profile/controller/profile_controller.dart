@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../services/connectivity_service.dart';
 import '../../../services/member_avatar_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/supabase_config.dart';
@@ -17,6 +19,10 @@ import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
 import '../model/edit_log_model.dart';
 
+/// The period presets offered on the edit history screen. [custom] is any
+/// range picked by hand from the calendar.
+enum EditLogPeriod { thisMonth, lastMonth, last7Days, allTime, custom }
+
 class ProfileController extends GetxController implements GetxService {
   String userName = '';
   String userPhone = '';
@@ -25,9 +31,20 @@ class ProfileController extends GetxController implements GetxService {
   List<EditLogModel> allEditLogs = [];
   List<EditLogModel> editLogs = [];
 
+  /// Edit history has its own load state so its screen can show a skeleton,
+  /// an error with retry, and pull-to-refresh without touching the profile
+  /// page's [isLoading].
+  bool isEditLogsLoading = false;
+  bool editLogsLoaded = false;
+  String editLogsError = '';
+
   DateTime? filterStartDate;
   DateTime? filterEndDate;
+  EditLogPeriod filterPeriod = EditLogPeriod.thisMonth;
   UserModel? filterTargetUser;
+
+  /// One of [EditLogModel.knownTypes]; null shows every type.
+  String? filterType;
   List<UserModel> availableUsers = [];
 
   int totalMealsEaten = 0;
@@ -51,11 +68,8 @@ class ProfileController extends GetxController implements GetxService {
   @override
   void onInit() {
     super.onInit();
-    
-    // Set default filter to current month
-    DateTime now = DateTime.now();
-    filterStartDate = DateTime(now.year, now.month, 1);
-    filterEndDate = DateTime(now.year, now.month + 1, 0); // Last day of current month
+
+    _applyPeriodDates(EditLogPeriod.thisMonth);
 
     _loadThemeMode();
     _loadLanguage();
@@ -66,9 +80,12 @@ class ProfileController extends GetxController implements GetxService {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? themeStr = prefs.getString(AppConstant.keyThemeMode);
     if (themeStr != null) {
-      if (themeStr == 'light') themeMode = ThemeMode.light;
-      else if (themeStr == 'dark') themeMode = ThemeMode.dark;
-      else themeMode = ThemeMode.system;
+      if (themeStr == 'light')
+        themeMode = ThemeMode.light;
+      else if (themeStr == 'dark')
+        themeMode = ThemeMode.dark;
+      else
+        themeMode = ThemeMode.system;
     }
     update();
   }
@@ -83,21 +100,23 @@ class ProfileController extends GetxController implements GetxService {
     themeMode = mode;
     Get.changeThemeMode(mode);
     update();
-    
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String themeStr = 'system';
-    if (mode == ThemeMode.light) themeStr = 'light';
+    if (mode == ThemeMode.light)
+      themeStr = 'light';
     else if (mode == ThemeMode.dark) themeStr = 'dark';
-    
+
     await prefs.setString(AppConstant.keyThemeMode, themeStr);
   }
 
   void changeLanguage(String langCode) async {
     currentLanguage = langCode;
-    Locale locale = langCode == 'bn' ? const Locale('bn', 'BD') : const Locale('en', 'US');
+    Locale locale =
+        langCode == 'bn' ? const Locale('bn', 'BD') : const Locale('en', 'US');
     Get.updateLocale(locale);
     update();
-    
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString(AppConstant.keyLanguage, langCode);
   }
@@ -106,17 +125,17 @@ class ProfileController extends GetxController implements GetxService {
     try {
       isLoading = true;
       update();
-      
+
       SharedPreferences prefs = await SharedPreferences.getInstance();
       userName = prefs.getString(AppConstant.keyUserName) ?? '';
       userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
-      
+
       if (userPhone.isNotEmpty) {
         DocumentSnapshot doc = await FirebaseFirestore.instance
             .collection(AppConstant.collectionUsers)
             .doc(userPhone)
             .get();
-        
+
         if (doc.exists) {
           userModel = UserModel.fromMap(doc.data() as Map<String, dynamic>);
           userName = userModel!.name;
@@ -125,10 +144,12 @@ class ProfileController extends GetxController implements GetxService {
           await prefs.setString(AppConstant.keyUserName, userName);
           await prefs.setString(AppConstant.keyIsAdmin, userModel!.isAdmin);
         }
-        
+
         await _fetchLifetimeStats();
-        await fetchUsersForFilter();
-        await _fetchEditLogs();
+        // The history screen has its own skeleton, so the profile page does
+        // not wait on this read; it is only started here so the list is
+        // usually ready by the time that screen is opened.
+        unawaited(loadEditLogs(silent: true));
       }
     } catch (e) {
       print('Error loading user data: $e');
@@ -174,46 +195,192 @@ class ProfileController extends GetxController implements GetxService {
       }
       totalMealExpense = mealExp;
       totalOtherExpense = otherExp;
-
     } catch (e) {
       print('Error fetching lifetime stats: $e');
     }
   }
 
-  Future<void> _fetchEditLogs() async {
+  /// Reads the whole edit log. While a list is already on screen it stays
+  /// put and is swapped once the read lands; a failure then is a snackbar
+  /// (or nothing at all when [silent]) rather than a blank page. Before the
+  /// first successful read a failure becomes the screen's error state.
+  Future<void> loadEditLogs({bool silent = false}) async {
+    if (isEditLogsLoading) return; // a read is already in flight
     try {
-      Query query = FirebaseFirestore.instance
-          .collection(AppConstant.collectionEditLogs)
-          .orderBy('createdAt', descending: true);
+      isEditLogsLoading = true;
+      editLogsError = '';
+      update();
 
-      QuerySnapshot snapshot = await query.get();
-      allEditLogs = snapshot.docs.map((doc) => EditLogModel.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+      final results = await Future.wait<QuerySnapshot>([
+        FirebaseFirestore.instance
+            .collection(AppConstant.collectionEditLogs)
+            .orderBy('createdAt', descending: true)
+            .get(),
+        FirebaseFirestore.instance
+            .collection(AppConstant.collectionUsers)
+            .get(),
+      ]);
+
+      allEditLogs = results[0]
+          .docs
+          .map((doc) =>
+              EditLogModel.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+          .toList();
+      availableUsers = results[1]
+          .docs
+          .map((doc) => UserModel.fromMap(doc.data() as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+      editLogsLoaded = true;
       applyFilters();
     } catch (e) {
-      print('Error fetching edit logs: $e');
+      debugPrint('Error fetching edit logs: $e');
+      if (!editLogsLoaded) {
+        editLogsError = e.toString();
+      } else if (!silent) {
+        CustomSnackbar.show(
+            type: SnackbarType.error, message: 'failed_load_edit_history'.tr);
+      }
+    } finally {
+      isEditLogsLoading = false;
+      update();
+    }
+  }
+
+  /// First open of the history screen: start a read only if none has
+  /// succeeded yet and none is running (a failed one is retried here).
+  void ensureEditLogsLoaded() {
+    if (!editLogsLoaded && !isEditLogsLoading) loadEditLogs();
+  }
+
+  Future<void> refreshEditLogs() => loadEditLogs();
+
+  /// Admin-only: removes one history entry for everyone. The row leaves the
+  /// list at once; while offline the delete sits in Firestore's queue for
+  /// the next connection rather than holding the screen up.
+  Future<void> deleteEditLog(EditLogModel log) async {
+    if (!isAdminUser) return;
+
+    final bool offline = Get.isRegistered<ConnectivityService>() &&
+        Get.find<ConnectivityService>().isOffline;
+    final Future<void> write = FirebaseFirestore.instance
+        .collection(AppConstant.collectionEditLogs)
+        .doc(log.id)
+        .delete();
+
+    void dropLocally() {
+      allEditLogs.removeWhere((l) => l.id == log.id);
+      applyFilters();
+    }
+
+    if (offline) {
+      dropLocally();
+      unawaited(write.catchError(
+          (Object e) => debugPrint('Queued edit log delete failed: $e')));
+      CustomSnackbar.show(
+          type: SnackbarType.info,
+          message: 'announcement_change_saved_offline'.tr);
+      return;
+    }
+
+    try {
+      await write;
+      dropLocally();
+      CustomSnackbar.show(
+          type: SnackbarType.success, message: 'edit_log_deleted'.tr);
+    } catch (e) {
+      debugPrint('Error deleting edit log: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_delete_edit_log'.tr);
     }
   }
 
   void applyFilters() {
     editLogs = allEditLogs.where((log) {
-      if (filterStartDate != null) {
-        if (log.createdAt.isBefore(filterStartDate!)) return false;
-      }
-      if (filterEndDate != null) {
-        DateTime end = filterEndDate!.add(const Duration(days: 1));
-        if (log.createdAt.isAfter(end) || log.createdAt.isAtSameMomentAs(end)) return false;
-      }
-      if (filterTargetUser != null) {
-        if (log.targetUserPhone != filterTargetUser!.phone) return false;
-      }
+      if (!_matchesDate(log) || !_matchesUser(log)) return false;
+      if (filterType != null && log.type != filterType) return false;
       return true;
     }).toList();
     update();
   }
 
+  bool _matchesDate(EditLogModel log) {
+    if (filterStartDate != null && log.createdAt.isBefore(filterStartDate!)) {
+      return false;
+    }
+    if (filterEndDate != null) {
+      final DateTime end = filterEndDate!.add(const Duration(days: 1));
+      if (!log.createdAt.isBefore(end)) return false;
+    }
+    return true;
+  }
+
+  bool _matchesUser(EditLogModel log) =>
+      filterTargetUser == null ||
+      log.targetUserPhone == filterTargetUser!.phone;
+
+  /// How many entries the current period and user leave for [type] — the
+  /// number on each type chip, so it stays honest while a type is selected.
+  int countForType(String? type) => allEditLogs
+      .where((log) =>
+          _matchesDate(log) &&
+          _matchesUser(log) &&
+          (type == null || log.type == type))
+      .length;
+
+  /// The types that actually occur in the log, in [EditLogModel.knownTypes]
+  /// order, so the chip row never offers a filter that can only be empty.
+  List<String> get presentTypes {
+    final Set<String> seen = allEditLogs.map((l) => l.type).toSet();
+    return [
+      ...EditLogModel.knownTypes.where(seen.contains),
+      ...seen.where((t) => !EditLogModel.knownTypes.contains(t)),
+    ];
+  }
+
+  /// Anything narrower than the default view (this month, everyone, all types).
+  bool get hasActiveFilters =>
+      filterTargetUser != null ||
+      filterType != null ||
+      filterPeriod != EditLogPeriod.thisMonth;
+
+  void _applyPeriodDates(EditLogPeriod period,
+      {DateTime? start, DateTime? end}) {
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    filterPeriod = period;
+    switch (period) {
+      case EditLogPeriod.thisMonth:
+        filterStartDate = DateTime(now.year, now.month, 1);
+        filterEndDate = DateTime(now.year, now.month + 1, 0);
+        break;
+      case EditLogPeriod.lastMonth:
+        filterStartDate = DateTime(now.year, now.month - 1, 1);
+        filterEndDate = DateTime(now.year, now.month, 0);
+        break;
+      case EditLogPeriod.last7Days:
+        filterStartDate = today.subtract(const Duration(days: 6));
+        filterEndDate = today;
+        break;
+      case EditLogPeriod.allTime:
+        filterStartDate = null;
+        filterEndDate = null;
+        break;
+      case EditLogPeriod.custom:
+        filterStartDate = start;
+        filterEndDate = end;
+        break;
+    }
+  }
+
+  void setPeriod(EditLogPeriod period) {
+    _applyPeriodDates(period);
+    applyFilters();
+  }
+
   void setDateFilter(DateTime? start, DateTime? end) {
-    filterStartDate = start;
-    filterEndDate = end;
+    _applyPeriodDates(EditLogPeriod.custom, start: start, end: end);
     applyFilters();
   }
 
@@ -222,21 +389,25 @@ class ProfileController extends GetxController implements GetxService {
     applyFilters();
   }
 
-  void clearFilters() {
-    filterStartDate = null;
-    filterEndDate = null;
-    filterTargetUser = null;
+  void setTypeFilter(String? type) {
+    filterType = type;
     applyFilters();
   }
 
-  Future<void> fetchUsersForFilter() async {
-    try {
-      QuerySnapshot snapshot = await FirebaseFirestore.instance.collection(AppConstant.collectionUsers).get();
-      availableUsers = snapshot.docs.map((doc) => UserModel.fromMap(doc.data() as Map<String, dynamic>)).toList();
-      update();
-    } catch(e) {
-      print('Error fetching users for filter: $e');
-    }
+  /// Back to the default view: this month, every member, every type.
+  void clearFilters() {
+    filterTargetUser = null;
+    filterType = null;
+    _applyPeriodDates(EditLogPeriod.thisMonth);
+    applyFilters();
+  }
+
+  /// The empty state's escape hatch — drop every filter, including the period.
+  void showAllTime() {
+    filterTargetUser = null;
+    filterType = null;
+    _applyPeriodDates(EditLogPeriod.allTime);
+    applyFilters();
   }
 
   /// Picks a new avatar from [source]. Downscaled before it ever leaves the
@@ -277,7 +448,8 @@ class ProfileController extends GetxController implements GetxService {
 
   /// Saves the profile. [password] blank means "leave it as it is" — the form
   /// starts empty, so most saves never touch it.
-  Future<void> updateProfile({required String name, String password = ''}) async {
+  Future<void> updateProfile(
+      {required String name, String password = ''}) async {
     try {
       isUpdating = true;
       update();
@@ -334,12 +506,15 @@ class ProfileController extends GetxController implements GetxService {
       discardProfileImageChanges();
       await _loadUserData();
 
-      CustomSnackbar.show(type: SnackbarType.success, message: 'profile_updated_success'.tr);
+      CustomSnackbar.show(
+          type: SnackbarType.success, message: 'profile_updated_success'.tr);
       Get.back();
     } catch (e, stack) {
       debugPrint('Error updating profile: $e');
       debugPrint('Stack trace: $stack');
-      CustomSnackbar.show(type: SnackbarType.error, message: '${'failed_update_profile'.tr}: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error,
+          message: '${'failed_update_profile'.tr}: $e');
     } finally {
       isUpdating = false;
       update();

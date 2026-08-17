@@ -899,9 +899,9 @@ class MealScreen extends GetView<MealController> {
                             child: Text(
                               AppUi.amount(balance.abs()),
                               style: TextStyle(
-                                fontSize: 28,
+                                fontSize: 23,
                                 fontWeight: FontWeight.bold,
-                                letterSpacing: -1.2,
+                                letterSpacing: -0.9,
                                 height: 1.05,
                                 color: _accentOn(context, balanceColor),
                               ),
@@ -1195,6 +1195,15 @@ class MealScreen extends GetView<MealController> {
                                     color: _mutedColor(context),
                                     fontWeight: FontWeight.w500,
                                   ),
+                                ),
+                              ],
+                              // Posted on this device, not on the server yet.
+                              if (controller.isAnnouncementPending(latest)) ...[
+                                const SizedBox(width: 8),
+                                Tooltip(
+                                  message: 'waiting_to_sync'.tr,
+                                  child: Icon(Icons.cloud_upload_outlined,
+                                      size: 13, color: _mutedColor(context)),
                                 ),
                               ],
                             ],

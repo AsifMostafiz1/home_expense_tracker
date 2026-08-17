@@ -12,6 +12,7 @@ import '../presentation/chat/repository/chat_repository_impl.dart';
 import '../presentation/expense/repository/expense_repository_impl.dart';
 import '../utils/supabase_config.dart';
 import 'chat_outbox_service.dart';
+import 'push_outbox_service.dart';
 import 'receipt_outbox_service.dart';
 import 'supabase_storage_service.dart';
 
@@ -149,6 +150,23 @@ class BackgroundSyncService {
       }
     } catch (e) {
       debugPrint('BackgroundSync: receipt flush failed — $e');
+      done = false;
+    }
+
+    // Notifications for writes that were saved offline — announcements, an
+    // admin's corrections. After the queue above, so the write they announce
+    // is on the server before anyone taps them.
+    try {
+      final PushOutboxService outbox = PushOutboxService();
+      await outbox.load();
+      if (outbox.isNotEmpty) {
+        final bool flushed = await outbox.flush();
+        debugPrint(
+            'BackgroundSync: notifications ${flushed ? 'sent' : 'left over'}');
+        done = flushed && done;
+      }
+    } catch (e) {
+      debugPrint('BackgroundSync: notification flush failed — $e');
       done = false;
     }
 

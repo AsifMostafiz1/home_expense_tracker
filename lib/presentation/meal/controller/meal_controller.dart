@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../services/push_notification_service.dart';
+import '../../../services/connectivity_service.dart';
+import '../../../services/push_outbox_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_snackbar.dart';
@@ -20,6 +22,11 @@ class MealController extends GetxController implements GetxService {
   final MealRepository repository;
 
   MealController({required this.repository});
+
+  final ConnectivityService _connectivity = Get.find<ConnectivityService>();
+  final PushOutboxService _pushOutbox = Get.find<PushOutboxService>();
+
+  bool get isOnline => _connectivity.isOnline;
 
   // State variables (non-reactive, managed via update())
   DateTime focusedDay = DateTime.now();
@@ -138,10 +145,17 @@ class MealController extends GetxController implements GetxService {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userName = prefs.getString(AppConstant.keyUserName);
 
+      // Local-first: back at once offline, queued for the next connection.
       await repository.resolveAnnouncement(id, userName ?? 'unknown'.tr);
-      await fetchAnnouncement();
+      // Not awaited: the cache step shows the change at once, and the server
+      // read that follows can take a while to give up offline — the button
+      // must not spin for it.
+      unawaited(fetchAnnouncement());
       CustomSnackbar.show(
-          type: SnackbarType.success, message: 'announcement_resolved'.tr);
+          type: isOnline ? SnackbarType.success : SnackbarType.info,
+          message: isOnline
+              ? 'announcement_resolved'.tr
+              : 'announcement_change_saved_offline'.tr);
     } catch (e) {
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_resolve_announcement'.tr);
@@ -163,9 +177,12 @@ class MealController extends GetxController implements GetxService {
         await (await SharedPreferences.getInstance())
             .remove(AppConstant.keyDismissedAnnouncementId);
       }
-      await fetchAnnouncement();
+      unawaited(fetchAnnouncement());
       CustomSnackbar.show(
-          type: SnackbarType.success, message: 'announcement_deleted'.tr);
+          type: isOnline ? SnackbarType.success : SnackbarType.info,
+          message: isOnline
+              ? 'announcement_deleted'.tr
+              : 'announcement_change_saved_offline'.tr);
     } catch (e) {
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_delete_announcement'.tr);
@@ -595,21 +612,28 @@ class MealController extends GetxController implements GetxService {
       List<String> months = ['jan'.tr, 'feb'.tr, 'mar'.tr, 'apr'.tr, 'may'.tr, 'jun'.tr, 'jul'.tr, 'aug'.tr, 'sep'.tr, 'oct'.tr, 'nov'.tr, 'dec'.tr];
       String formattedDate = '${date.day} ${months[date.month - 1]}, ${date.year}';
       
-      await FirebaseFirestore.instance.collection(AppConstant.collectionEditLogs).add({
-        'adminName': adminName,
-        'adminPhone': adminPhone,
-        'targetUserName': otherUserName,
-        'targetUserPhone': otherUserPhone,
-        'type': 'meal',
-        'description': 'Meal count changed from $oldCount to $newCount on $formattedDate',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // Queued like any other write offline; not awaited for the server,
+      // since it would never resolve there.
+      unawaited(FirebaseFirestore.instance
+          .collection(AppConstant.collectionEditLogs)
+          .add({
+            'adminName': adminName,
+            'adminPhone': adminPhone,
+            'targetUserName': otherUserName,
+            'targetUserPhone': otherUserPhone,
+            'type': 'meal',
+            'description': 'Meal count changed from $oldCount to $newCount on $formattedDate',
+            'createdAt': FieldValue.serverTimestamp(),
+          })
+          .then<void>((_) {},
+              onError: (Object e) => debugPrint('Edit log write failed: $e')));
 
-      await PushNotificationService().sendPushNotification(
+      // Sent now, or filed for the next connection.
+      unawaited(_pushOutbox.send(
         title: 'Admin Updated Your Meal',
         body: '$adminName has changed your meal count from $oldCount to $newCount on $formattedDate.',
         targetPhones: [otherUserPhone],
-      );
+      ));
 
       await fetchMeals();
       await fetchMonthlyStats();
@@ -622,14 +646,35 @@ class MealController extends GetxController implements GetxService {
     }
   }
 
+  /// Cache first, then the server — the device's copy answers instantly and
+  /// holds anything posted while offline; the server read replaces it, or
+  /// fails without a connection and the cached list simply stays.
   Future<void> fetchAnnouncement() async {
     try {
-      announcements = await repository.fetchAnnouncement();
+      final List<Map<String, dynamic>> cached =
+          await repository.fetchAnnouncement(fromCache: true);
+      if (cached.isNotEmpty) {
+        announcements = cached;
+        update();
+      }
     } catch (e) {
-      print('Error fetching announcements: $e');
+      debugPrint('Announcement cache read failed: $e');
+    }
+
+    try {
+      announcements = await repository.fetchAnnouncement();
+      _connectivity.reportReachable();
+    } catch (e) {
+      debugPrint('Error fetching announcements: $e');
+      _connectivity.probe();
     }
     update();
   }
+
+  /// Whether any announcement, or a change to one, is still on this device
+  /// only — what the card's "waiting to sync" mark reads.
+  bool isAnnouncementPending(Map<String, dynamic> announcement) =>
+      announcement['pending'] == true;
 
 
 
@@ -648,11 +693,15 @@ class MealController extends GetxController implements GetxService {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userName = prefs.getString(AppConstant.keyUserName);
 
+      final bool online = isOnline;
+
+      // Local-first: on the device at once, in Firestore's queue if offline.
       await repository.updateAnnouncement(text, userName ?? 'unknown'.tr);
-      
-      // Send Push Notification
+
+      // The notification rides separately — sent now if it can be, filed for
+      // the next connection if not, from the app or the background job.
       String? userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
-      await PushNotificationService().sendPushNotification(
+      unawaited(_pushOutbox.send(
         title: 'new_announcement_from'.trParams({'name': userName ?? 'unknown'.tr}),
         body: text,
         data: {
@@ -660,12 +709,19 @@ class MealController extends GetxController implements GetxService {
           'senderPhone': userPhone,
           'type': 'announcement',
         },
-      );
+      ));
 
-      await fetchAnnouncement();
       announcementController.clear();
       closeOverlayRoute();
-      CustomSnackbar.show(type: SnackbarType.success, message: 'announcement_updated'.tr);
+      CustomSnackbar.show(
+          type: online ? SnackbarType.success : SnackbarType.info,
+          message: online
+              ? 'announcement_updated'.tr
+              : 'announcement_saved_offline'.tr);
+      // Not awaited: the cache step puts the new announcement on screen at
+      // once; offline, the server read that follows has to give up first, and
+      // neither the toast nor the button should wait for that.
+      unawaited(fetchAnnouncement());
     } catch (e) {
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_update_announcement'.tr);
