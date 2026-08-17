@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 class ExpenseModel {
@@ -10,6 +12,20 @@ class ExpenseModel {
   String userPhone;
   String type; // 'expense' or 'others'
 
+  /// Public URL of the receipt photo, when one was attached. Optional: most
+  /// entries are typed from memory and never have one.
+  String? imageUrl;
+
+  /// True while the entry — or an edit to it — is stored on this device only,
+  /// waiting for a connection to reach the server. Read off Firestore's own
+  /// queue, so it survives a restart and clears by itself once delivered.
+  bool isPending;
+
+  /// A receipt picked while offline, still on this device: its upload is
+  /// waiting in the outbox. Set by the controller, never stored — the server
+  /// only ever learns the URL, once there is one.
+  String? pendingReceiptPath;
+
   ExpenseModel({
     required this.id,
     required this.description,
@@ -19,9 +35,28 @@ class ExpenseModel {
     required this.userName,
     required this.userPhone,
     required this.type,
+    this.imageUrl,
+    this.isPending = false,
+    this.pendingReceiptPath,
   });
 
-  factory ExpenseModel.fromMap(String id, Map<String, dynamic> map) {
+  bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
+
+  bool get hasPendingReceipt =>
+      pendingReceiptPath != null && pendingReceiptPath!.isNotEmpty;
+
+  /// The local copy of a receipt whose upload is still waiting.
+  File? get pendingReceiptFile =>
+      hasPendingReceipt ? File(pendingReceiptPath!) : null;
+
+  /// Something to show for the receipt — uploaded, or waiting to be.
+  bool get hasAnyReceipt => hasImage || hasPendingReceipt;
+
+  factory ExpenseModel.fromMap(
+    String id,
+    Map<String, dynamic> map, {
+    bool isPending = false,
+  }) {
     return ExpenseModel(
       id: id,
       description: map['description'] ?? '',
@@ -34,6 +69,8 @@ class ExpenseModel {
       userName: map['user_name'] ?? '',
       userPhone: map['user_phone'] ?? '',
       type: map['type'] ?? 'expense',
+      imageUrl: map['image_url'],
+      isPending: isPending,
     );
   }
 
@@ -47,6 +84,7 @@ class ExpenseModel {
       'user_name': userName,
       'user_phone': userPhone,
       'type': type,
+      'image_url': imageUrl,
     };
   }
 }

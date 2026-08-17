@@ -26,6 +26,7 @@ class SupabaseConfig {
   /// Folders inside the bucket, so objects stay grouped by what they belong to.
   static const String folderProfile = 'profile';
   static const String folderChat = 'chat';
+  static const String folderExpense = 'expense';
 
   static bool get isConfigured =>
       url != 'YOUR_SUPABASE_PROJECT_URL' &&

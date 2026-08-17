@@ -11,7 +11,13 @@ import '../utils/supabase_config.dart';
 /// app already expects: `users/{phone}.profileImage`, `chats.sender_image`, and
 /// every `NetworkImage` reading them stay unchanged.
 class SupabaseStorageService {
-  SupabaseClient get _client => Supabase.instance.client;
+  /// A client of the caller's own, for where `Supabase.initialize()` has not
+  /// run — the headless background sync. Everywhere else the app-wide one.
+  final SupabaseClient? _clientOverride;
+
+  SupabaseStorageService({SupabaseClient? client}) : _clientOverride = client;
+
+  SupabaseClient get _client => _clientOverride ?? Supabase.instance.client;
 
   /// Uploads [file] into [folder] and returns its public URL.
   ///
@@ -75,7 +81,11 @@ class SupabaseStorageService {
     if (objectPath == null) return;
 
     try {
-      await _client.storage.from(SupabaseConfig.bucket).remove([objectPath]);
+      // Bounded, since a caller is usually holding a sheet open on this: a
+      // link that is up but not answering must not turn a save into a stall.
+      await _client.storage
+          .from(SupabaseConfig.bucket)
+          .remove([objectPath]).timeout(const Duration(seconds: 10));
     } catch (e) {
       debugPrint('Supabase: failed to delete $objectPath — $e');
     }

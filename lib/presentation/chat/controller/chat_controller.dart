@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -8,11 +7,12 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../common/widgets/custom_snackbar.dart';
+import '../../../services/chat_outbox_service.dart';
+import '../../../services/connectivity_service.dart';
 import '../../../services/push_notification_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
-import '../../../utils/supabase_config.dart';
 import '../model/chat_message_model.dart';
 import '../model/outgoing_image_model.dart';
 import '../repository/chat_repository.dart';
@@ -57,6 +57,8 @@ class ChatController extends GetxController implements GetxService {
   StreamSubscription? _seenStatusSubscription;
 
   final SupabaseStorageService _storage = SupabaseStorageService();
+  final ChatOutboxService _outbox = Get.find<ChatOutboxService>();
+  final ConnectivityService _connectivity = Get.find<ConnectivityService>();
 
   /// How many pictures may ride on one send. A cap keeps a stray "select all"
   /// in the gallery from queueing a hundred uploads.
@@ -65,12 +67,17 @@ class ChatController extends GetxController implements GetxService {
   /// Pictures sitting in the composer, chosen but not sent.
   final List<PickedImage> pendingAttachments = [];
 
-  /// Pictures being uploaded, drawn at the end of the thread as their own
-  /// bubbles. Oldest first — the queue works through them in order so the
-  /// thread reads in the order they were picked.
-  final List<OutgoingImage> outgoingImages = [];
+  /// Messages sent but not yet in the thread — waiting for a connection, or
+  /// mid-upload — drawn at the end of the thread as their own bubbles.
+  /// Oldest first, the order they will go out in.
+  List<OutgoingMessage> get outgoing => _outbox.items;
 
-  bool _draining = false;
+  /// Whether the outbox is working right now, as opposed to waiting for a
+  /// connection — the bubbles say "sending" for one and "waiting" for the
+  /// other.
+  bool get isDelivering => _outbox.isDelivering;
+
+  bool get isOnline => _connectivity.isOnline;
 
   @override
   void onInit() {
@@ -84,7 +91,12 @@ class ChatController extends GetxController implements GetxService {
     _subscribeToTopic();
 
     messageController.addListener(_onTextChanged);
+    // The outgoing bubbles are drawn from the outbox; redraw as it moves.
+    _outbox.addListener(_onOutboxChanged);
+    _connectivity.addListener(_onOutboxChanged);
   }
+
+  void _onOutboxChanged() => update();
 
   void _subscribeToTopic() async {
     // Always ensure subscribed to group chat
@@ -102,6 +114,8 @@ class ChatController extends GetxController implements GetxService {
   void onClose() {
     _messagesSubscription?.cancel();
     _seenStatusSubscription?.cancel();
+    _outbox.removeListener(_onOutboxChanged);
+    _connectivity.removeListener(_onOutboxChanged);
     messageController.removeListener(_onTextChanged);
     messageController.dispose();
     messageFocusNode.dispose();
@@ -287,6 +301,18 @@ class ChatController extends GetxController implements GetxService {
   bool _withinWindow(ChatMessageModel message) =>
       DateTime.now().difference(message.createdAt) < editWindow;
 
+  /// Whether an edit or delete can go through right now. The five-minute
+  /// window is measured by the server's clock when the write *arrives*, so a
+  /// member's change queued offline and delivered twenty minutes later would
+  /// be refused — and the message would quietly come back. Better to say so
+  /// up front. Admins are not on the clock, so theirs simply queue.
+  bool _canReviseNow() => isAdminUser || isOnline;
+
+  void _explainReviseNeedsConnection() {
+    CustomSnackbar.show(
+        type: SnackbarType.warning, message: 'revise_needs_connection'.tr);
+  }
+
   /// Own messages for five minutes; anything, any time, for an admin.
   ///
   /// A message still on its way out has no id yet, so there is nothing to
@@ -307,6 +333,10 @@ class ChatController extends GetxController implements GetxService {
     if (!canEdit(message)) {
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'edit_window_expired'.tr);
+      return;
+    }
+    if (!_canReviseNow()) {
+      _explainReviseNeedsConnection();
       return;
     }
 
@@ -336,6 +366,10 @@ class ChatController extends GetxController implements GetxService {
           type: SnackbarType.error, message: 'delete_window_expired'.tr);
       return;
     }
+    if (!_canReviseNow()) {
+      _explainReviseNeedsConnection();
+      return;
+    }
 
     try {
       await repository.deleteMessage(
@@ -344,7 +378,9 @@ class ChatController extends GetxController implements GetxService {
         actorPhone: userPhone,
       );
 
-      if (message.hasImage) {
+      // Best effort, and only with a connection — offline the object is
+      // left behind rather than the delete held up on it.
+      if (message.hasImage && isOnline) {
         await _storage.deleteByPublicUrl(message.imageUrl);
       }
 
@@ -529,8 +565,11 @@ class ChatController extends GetxController implements GetxService {
 
     _scrollToLatest();
 
+    // Everything goes through the outbox — see ChatOutboxService. Online it
+    // is delivered a moment later; offline it waits, on disk, and goes out
+    // with the next connection whether or not the app is open by then.
     if (attachments.isEmpty) {
-      await _deliver(text: text, replyTo: replyTo);
+      await _enqueue(text: text, replyTo: replyTo);
       return;
     }
 
@@ -538,16 +577,55 @@ class ChatController extends GetxController implements GetxService {
     // app does it; the rest go out as bare images.
     final String batch = DateTime.now().microsecondsSinceEpoch.toString();
     for (int i = 0; i < attachments.length; i++) {
-      outgoingImages.add(OutgoingImage(
+      await _enqueue(
         localId: '${batch}_$i',
-        picked: attachments[i],
-        caption: i == 0 ? text : '',
+        text: i == 0 ? text : '',
         replyTo: i == 0 ? replyTo : null,
-      ));
+        image: attachments[i],
+      );
     }
-    update();
-    _drainOutgoing();
   }
+
+  /// Hands one message to the outbox, with its notification already worked
+  /// out — the job that finally sends it may be running in the background,
+  /// with no mention list to consult.
+  Future<void> _enqueue({
+    String? localId,
+    required String text,
+    ChatMessageModel? replyTo,
+    PickedImage? image,
+  }) async {
+    final _PushPlan push = _planPush(text, replyTo: replyTo, hasImage: image != null);
+    try {
+      await _outbox.enqueue(
+        localId: localId ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        text: text,
+        image: image?.file,
+        imageWidth: image?.width,
+        imageHeight: image?.height,
+        replyToId: replyTo?.id,
+        replyToText: replyTo?.preview,
+        replyToSenderName: replyTo?.senderName,
+        replyToSenderPhone: replyTo?.senderPhone,
+        replyToImage: replyTo?.imageUrl,
+        senderName: userName,
+        senderPhone: userPhone,
+        senderImage: userProfileImage,
+        pushTitle: push.title,
+        pushBody: push.body,
+        pushTargets: push.targets,
+        pushData: push.data,
+      );
+    } catch (e) {
+      debugPrint('Error queueing message: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_send_message'.tr);
+    }
+  }
+
+  void retryOutgoing(OutgoingMessage item) => _outbox.retry(item);
+
+  void discardOutgoing(OutgoingMessage item) => _outbox.discard(item);
 
   Future<void> _submitEdit(ChatMessageModel message, String text) async {
     // Clearing the words off a text-only message is a delete wearing a
@@ -579,136 +657,6 @@ class ChatController extends GetxController implements GetxService {
     }
   }
 
-  /// Works the upload queue one picture at a time, so a batch lands in the
-  /// order it was picked instead of in whatever order the network returns.
-  Future<void> _drainOutgoing() async {
-    if (_draining) return;
-    _draining = true;
-
-    try {
-      while (true) {
-        final OutgoingImage? next =
-            outgoingImages.firstWhereOrNull((image) => !image.failed);
-        if (next == null) return;
-        await _uploadAndDeliver(next);
-      }
-    } finally {
-      _draining = false;
-    }
-  }
-
-  Future<void> _uploadAndDeliver(OutgoingImage image) async {
-    try {
-      final Uint8List bytes = await image.file.readAsBytes();
-
-      final String url = await _storage.uploadBytes(
-        bytes,
-        folder: SupabaseConfig.folderChat,
-        extension: _storage.extensionOf(image.file.path),
-      );
-
-      // Dropped before the write: from here on Firestore's own local echo puts
-      // the message on screen, and two copies of the same picture would show.
-      outgoingImages.remove(image);
-      update();
-
-      await _deliver(
-        text: image.caption,
-        replyTo: image.replyTo,
-        imageUrl: url,
-        // Measured when the picture was picked, so the receiving side can lay
-        // the bubble out before a single byte has downloaded.
-        imageWidth: image.picked.width,
-        imageHeight: image.picked.height,
-      );
-    } catch (e) {
-      debugPrint('Error uploading chat image: $e');
-      // Stays in the list, marked — the sender decides whether to retry or
-      // drop it, and the queue moves on to the next one meanwhile.
-      image.failed = true;
-      update();
-      CustomSnackbar.show(
-          type: SnackbarType.error, message: 'failed_send_image'.tr);
-    }
-  }
-
-  void retryOutgoingImage(OutgoingImage image) {
-    image.failed = false;
-    update();
-    _drainOutgoing();
-  }
-
-  void discardOutgoingImage(OutgoingImage image) {
-    outgoingImages.remove(image);
-    update();
-  }
-
-  /// Writes one message and notifies whoever it concerns.
-  Future<void> _deliver({
-    required String text,
-    ChatMessageModel? replyTo,
-    String? imageUrl,
-    double? imageWidth,
-    double? imageHeight,
-  }) async {
-    try {
-      await repository.sendMessage(
-        text,
-        userName,
-        userPhone,
-        senderImage: userProfileImage,
-        replyTo: replyTo,
-        imageUrl: imageUrl,
-        imageWidth: imageWidth,
-        imageHeight: imageHeight,
-      );
-
-      // Determine notification targets
-      final RegExp mentionRegExp = RegExp(r'@(\w+)');
-      final Iterable<RegExpMatch> matches = mentionRegExp.allMatches(text);
-      final List<String> mentionList =
-          matches.map((m) => m.group(1) ?? '').toList();
-      final bool hasEveryone = mentionList.contains('everyone');
-
-      List<String>? targetPhones;
-      if (mentionList.isNotEmpty && !hasEveryone) {
-        // Targeted mentions
-        targetPhones = [];
-        for (final mention in mentionList) {
-          final user = allUsers.firstWhereOrNull((u) =>
-              (u['name'] ?? '').toString().replaceAll(' ', '') == mention);
-          if (user != null && user['phone'] != null) {
-            targetPhones.add(user['phone']);
-          }
-        }
-        // Also notify the person being replied to
-        if (replyTo != null && !targetPhones.contains(replyTo.senderPhone)) {
-          targetPhones.add(replyTo.senderPhone);
-        }
-      } else if (replyTo != null) {
-        // No mentions but it's a reply
-        targetPhones = [replyTo.senderPhone];
-      }
-
-      // If mentions is empty AND replyTo is null, targetPhones stays null (sends to group_chat)
-      // If mentions has everyone, targetPhones stays null (sends to group_chat)
-
-      _sendPushNotification(
-        // A bare picture has no words to push, so the notification says what
-        // arrived instead of arriving empty.
-        text.isEmpty ? '📷 ${'photo'.tr}' : text,
-        userName,
-        replyTo: replyTo,
-        targetPhones: targetPhones,
-        imageUrl: imageUrl,
-      );
-    } catch (e) {
-      print('Error sending message: $e');
-      CustomSnackbar.show(
-          type: SnackbarType.error, message: 'failed_send_message'.tr);
-    }
-  }
-
   /// The list is reversed, so the newest message sits at offset zero.
   void _scrollToLatest() {
     if (!scrollController.hasClients) return;
@@ -724,63 +672,108 @@ class ChatController extends GetxController implements GetxService {
     if (message.deleted || message.id.isEmpty) return;
 
     try {
-      await repository.toggleReaction(message.id, userPhone, emoji);
+      // Decided here from the message on screen, so it is one plain write —
+      // a transaction needs the server and would fail offline.
+      final bool removing = _current(message).reactions?[userPhone] == emoji;
+      await repository.setReaction(message.id, userPhone, removing ? null : emoji);
 
-      // Notify the message sender about the reaction
-      if (message.senderPhone != userPhone) {
-        _sendPushNotification(
-          '$userName reacted $emoji to your message',
-          userName,
-          targetPhones: [message.senderPhone],
-          isReaction: true,
-        );
+      // Notify the message sender about the reaction — only with a
+      // connection; a reaction is not worth queueing a notification for.
+      if (!removing && message.senderPhone != userPhone && isOnline) {
+        _notifyReaction(message, emoji);
       }
     } catch (e) {
       print('Error reacting to message: $e');
     }
   }
 
-  Future<void> _sendPushNotification(String text, String senderName,
-      {ChatMessageModel? replyTo,
-      List<String>? targetPhones,
-      bool isReaction = false,
-      String? imageUrl}) async {
-    String notificationTitle = 'New message from $senderName';
-
+  /// Works out who a message's notification goes to and what it says. Kept
+  /// as data rather than sent, so the outbox can fire it once the message is
+  /// really in — from the app or from the background job.
+  _PushPlan _planPush(String text,
+      {ChatMessageModel? replyTo, bool hasImage = false}) {
     final RegExp mentionRegExp = RegExp(r'@(\w+)');
-    final Iterable<RegExpMatch> matches = mentionRegExp.allMatches(text);
-    final List<String> mentionList =
-        matches.map((m) => m.group(1) ?? '').toList();
+    final List<String> mentionList = mentionRegExp
+        .allMatches(text)
+        .map((m) => m.group(1) ?? '')
+        .toList();
     final bool hasEveryone = mentionList.contains('everyone');
-    final String mentions = mentionList.join(',');
 
-    if (isReaction) {
-      notificationTitle = 'Reaction from $senderName';
-    } else if (imageUrl != null && mentionList.isEmpty && replyTo == null) {
-      notificationTitle = '📷 $senderName sent a photo';
-    } else if (hasEveryone) {
-      notificationTitle = '📢 @everyone: New message from $senderName';
-    } else if (mentionList.isNotEmpty) {
-      notificationTitle = '👋 You were mentioned by $senderName';
+    // Targets. Named people, plus whoever is being replied to; nobody named
+    // means the whole group, and so does @everyone.
+    List<String>? targets;
+    if (mentionList.isNotEmpty && !hasEveryone) {
+      targets = [];
+      for (final mention in mentionList) {
+        final user = allUsers.firstWhereOrNull((u) =>
+            (u['name'] ?? '').toString().replaceAll(' ', '') == mention);
+        if (user != null && user['phone'] != null) {
+          targets.add(user['phone']);
+        }
+      }
+      if (replyTo != null && !targets.contains(replyTo.senderPhone)) {
+        targets.add(replyTo.senderPhone);
+      }
     } else if (replyTo != null) {
-      notificationTitle = '💬 $senderName replied to you';
+      targets = [replyTo.senderPhone];
     }
 
-    await PushNotificationService().sendPushNotification(
-      title: notificationTitle,
-      body: text,
-      targetPhones: targetPhones,
-      // Rides along as the notification's big picture, so a photo is visible
-      // from the shade without opening the app.
-      imageUrl: imageUrl,
+    String title = 'New message from $userName';
+    if (hasImage && mentionList.isEmpty && replyTo == null) {
+      title = '📷 $userName sent a photo';
+    } else if (hasEveryone) {
+      title = '📢 @everyone: New message from $userName';
+    } else if (mentionList.isNotEmpty) {
+      title = '👋 You were mentioned by $userName';
+    } else if (replyTo != null) {
+      title = '💬 $userName replied to you';
+    }
+
+    return _PushPlan(
+      title: title,
+      // A bare picture has no words to push, so the notification says what
+      // arrived instead of arriving empty.
+      body: text.isEmpty ? '📷 ${'photo'.tr}' : text,
+      targets: targets,
       data: {
-        'senderName': senderName,
+        'senderName': userName,
         'senderPhone': userPhone,
         'replyToSenderName': replyTo?.senderName ?? '',
-        'mentions': mentions,
+        'mentions': mentionList.join(','),
         'isEveryone': hasEveryone.toString(),
         'type': 'chat_message',
       },
     );
   }
+
+  Future<void> _notifyReaction(ChatMessageModel message, String emoji) async {
+    await PushNotificationService().sendPushNotification(
+      title: 'Reaction from $userName',
+      body: '$userName reacted $emoji to your message',
+      targetPhones: [message.senderPhone],
+      data: {
+        'senderName': userName,
+        'senderPhone': userPhone,
+        'replyToSenderName': '',
+        'mentions': '',
+        'isEveryone': 'false',
+        'type': 'chat_message',
+      },
+    );
+  }
+}
+
+/// A notification worked out but not yet sent.
+class _PushPlan {
+  final String title;
+  final String body;
+  final List<String>? targets;
+  final Map<String, String> data;
+
+  const _PushPlan({
+    required this.title,
+    required this.body,
+    required this.targets,
+    required this.data,
+  });
 }

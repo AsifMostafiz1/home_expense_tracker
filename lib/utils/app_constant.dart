@@ -26,6 +26,18 @@ class AppConstant {
   /// not to the session.
   static String keyProfilePhotoPromptDismissed(String phone) => 'profilePhotoPromptDismissed_$phone';
 
+  /// The last `config/business_config` document that was read, as JSON. The
+  /// splash screen falls back to it when the read fails, so an offline launch
+  /// still gets through the version gate instead of stalling on it.
+  static const String keyCachedAppConfig = 'cachedAppConfig';
+
+  /// Receipts picked while offline, keyed by expense id, waiting to be
+  /// uploaded — see `ReceiptOutboxService`.
+  static const String keyPendingReceipts = 'pendingReceipts';
+
+  /// Chat messages sent but not yet delivered — see `ChatOutboxService`.
+  static const String keyChatOutbox = 'chatOutbox';
+
 
   // Firestore Collection Names
   static const String collectionUsers = 'users';

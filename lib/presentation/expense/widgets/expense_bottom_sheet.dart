@@ -1,9 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../../../common/widgets/avatar_picker.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../../../common/widgets/custom_button.dart';
+import '../../../common/widgets/image_viewer_screen.dart';
+import '../../../utils/app_ui.dart';
 import '../controller/expense_controller.dart';
 import '../model/expense_model.dart';
 
@@ -11,6 +16,133 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
   final ExpenseModel? item;
 
   const ExpenseBottomSheet({super.key, this.item});
+
+  /// Optional throughout: most entries are typed from memory and never get a
+  /// picture, so this is an empty slot to fill rather than a field to clear.
+  Widget _buildReceiptField(BuildContext context, ExpenseController controller) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+
+    void openPicker() => showPhotoSourceSheet(
+          context,
+          onPick: controller.pickReceipt,
+          onRemove:
+              controller.hasReceipt ? controller.removeReceiptImage : null,
+        );
+
+    if (!controller.hasReceipt) {
+      return InkWell(
+        onTap: openPicker,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppUi.hairline(context)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.add_a_photo_outlined, size: 20, color: primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'add_receipt_photo'.tr,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppUi.body(context),
+                  ),
+                ),
+              ),
+              Text(
+                'optional'.tr,
+                style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final File? picked = controller.pickedReceipt;
+    final String? url = controller.existingReceiptUrl;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppUi.hairline(context)),
+      ),
+      child: Row(
+        children: [
+          // Tapping the thumbnail opens the receipt full screen — the point of
+          // keeping one is being able to read it.
+          GestureDetector(
+            onTap: () => Get.to(() => ImageViewerScreen(
+                  imageFile: picked,
+                  imageUrl: picked == null ? url : null,
+                  title: 'receipt'.tr,
+                )),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: picked != null
+                  ? Image.file(picked, width: 54, height: 54, fit: BoxFit.cover)
+                  : Image.network(
+                      url!,
+                      width: 54,
+                      height: 54,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 54,
+                        height: 54,
+                        color: AppUi.tint(context, Colors.grey),
+                        child: Icon(Icons.broken_image_outlined,
+                            size: 20, color: AppUi.muted(context)),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'receipt'.tr,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppUi.body(context),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  picked == null
+                      ? 'tap_to_view'.tr
+                      : controller.receiptWaitingUpload
+                          ? 'receipt_waiting_upload'.tr
+                          : 'not_saved_yet'.tr,
+                  style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'change_photo'.tr,
+            icon: Icon(Icons.edit_outlined, size: 18, color: primary),
+            onPressed: openPicker,
+          ),
+          IconButton(
+            tooltip: 'remove_photo'.tr,
+            icon: Icon(Icons.close_rounded,
+                size: 18, color: Theme.of(context).colorScheme.error),
+            onPressed: controller.removeReceiptImage,
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +340,8 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                   hintText: 'description'.tr,
                   prefixIcon: Icons.receipt_long,
                 ),
+                const SizedBox(height: 20),
+                _buildReceiptField(context, controller),
                 const SizedBox(height: 32),
                 CustomButton(
                   text: item == null ? 'add'.tr : 'update'.tr,

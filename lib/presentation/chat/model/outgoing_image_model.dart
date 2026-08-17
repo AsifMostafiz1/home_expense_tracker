@@ -18,40 +18,158 @@ class PickedImage {
     required this.height,
   });
 
-  double get aspectRatio =>
-      (width <= 0 || height <= 0) ? 1 : width / height;
+  double get aspectRatio => (width <= 0 || height <= 0) ? 1 : width / height;
 }
 
-/// A picture on its way out: queued, uploading, not yet in the thread.
+/// A message on its way out: queued on this device, not yet in the thread.
 ///
-/// It exists so the chat can show the photo the moment it is sent instead of
-/// after the upload. Text messages need no equivalent — Firestore's local
-/// write puts those on screen immediately, while an upload genuinely takes
-/// seconds.
-class OutgoingImage {
+/// Every message the composer sends becomes one of these first — text or
+/// picture, online or not — and the outbox delivers it as soon as it can. It
+/// exists so a send feels immediate whatever the network is doing: the bubble
+/// is on screen the moment the button is tapped, and stays there, across
+/// restarts, until the message is really in Firestore.
+///
+/// Carries everything delivery needs, so nothing has to be looked up later —
+/// in particular the push notification, worked out at send time from the
+/// mentions and the reply, because the job that finally sends it may run in
+/// the background with no controller around to ask.
+class OutgoingMessage {
   /// Identity for the list and the retry buttons. Not a Firestore id — this
   /// message does not exist on the server yet.
   final String localId;
 
-  final PickedImage picked;
+  /// The words — a message on its own, or the caption under a picture. Only
+  /// the first picture of a batch carries one, the way every chat app does it.
+  final String text;
 
-  /// Caption typed alongside the picture. Only the first of a batch carries
-  /// one, the way every chat app does it.
-  final String caption;
+  /// The outbox's own copy of the picture, when there is one. Null for text.
+  final String? imagePath;
+  final double? imageWidth;
+  final double? imageHeight;
 
-  final ChatMessageModel? replyTo;
+  // Snapshot of the message being replied to, denormalised the same way the
+  // real message will store it.
+  final String? replyToId;
+  final String? replyToText;
+  final String? replyToSenderName;
+  final String? replyToSenderPhone;
+  final String? replyToImage;
 
-  /// Set when the upload failed. A failed item stays in the list, out of the
-  /// queue's way, until the sender retries or drops it.
+  // Who is sending, as of the moment they sent — a later name change must
+  // not rewrite history.
+  final String senderName;
+  final String senderPhone;
+  final String? senderImage;
+
+  // The push notification to fire once the message is in.
+  final String pushTitle;
+  final String pushBody;
+  final List<String>? pushTargets;
+  final Map<String, String> pushData;
+
+  /// Set when delivery hit an error that is not going to fix itself — a
+  /// storage rejection, a file that has gone. A failed item stays in the list,
+  /// out of the queue's way, until the sender retries or drops it. Network
+  /// trouble is not a failure: those simply wait.
   bool failed;
 
-  OutgoingImage({
+  final DateTime queuedAt;
+
+  OutgoingMessage({
     required this.localId,
-    required this.picked,
-    this.caption = '',
-    this.replyTo,
+    required this.text,
+    this.imagePath,
+    this.imageWidth,
+    this.imageHeight,
+    this.replyToId,
+    this.replyToText,
+    this.replyToSenderName,
+    this.replyToSenderPhone,
+    this.replyToImage,
+    required this.senderName,
+    required this.senderPhone,
+    this.senderImage,
+    required this.pushTitle,
+    required this.pushBody,
+    this.pushTargets,
+    this.pushData = const {},
     this.failed = false,
+    required this.queuedAt,
   });
 
-  File get file => picked.file;
+  bool get hasImage => imagePath != null && imagePath!.isNotEmpty;
+
+  File? get file => hasImage ? File(imagePath!) : null;
+
+  /// Width over height; a square for anything that could not be measured.
+  double get aspectRatio {
+    final double? w = imageWidth;
+    final double? h = imageHeight;
+    if (w == null || h == null || w <= 0 || h <= 0) return 1;
+    return w / h;
+  }
+
+  bool get hasReply => replyToId != null;
+
+  /// The reply, rebuilt as the model the repository expects. Only the fields
+  /// the message will quote are real; the rest are placeholders.
+  ChatMessageModel? get replyTo {
+    if (!hasReply) return null;
+    return ChatMessageModel(
+      id: replyToId!,
+      text: replyToText ?? '',
+      senderName: replyToSenderName ?? '',
+      senderPhone: replyToSenderPhone ?? '',
+      createdAt: queuedAt,
+      imageUrl: replyToImage,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'localId': localId,
+        'text': text,
+        'imagePath': imagePath,
+        'imageWidth': imageWidth,
+        'imageHeight': imageHeight,
+        'replyToId': replyToId,
+        'replyToText': replyToText,
+        'replyToSenderName': replyToSenderName,
+        'replyToSenderPhone': replyToSenderPhone,
+        'replyToImage': replyToImage,
+        'senderName': senderName,
+        'senderPhone': senderPhone,
+        'senderImage': senderImage,
+        'pushTitle': pushTitle,
+        'pushBody': pushBody,
+        'pushTargets': pushTargets,
+        'pushData': pushData,
+        'failed': failed,
+        'queuedAt': queuedAt.toIso8601String(),
+      };
+
+  factory OutgoingMessage.fromJson(Map<String, dynamic> json) {
+    return OutgoingMessage(
+      localId: json['localId'] as String,
+      text: (json['text'] ?? '') as String,
+      imagePath: json['imagePath'] as String?,
+      imageWidth: (json['imageWidth'] as num?)?.toDouble(),
+      imageHeight: (json['imageHeight'] as num?)?.toDouble(),
+      replyToId: json['replyToId'] as String?,
+      replyToText: json['replyToText'] as String?,
+      replyToSenderName: json['replyToSenderName'] as String?,
+      replyToSenderPhone: json['replyToSenderPhone'] as String?,
+      replyToImage: json['replyToImage'] as String?,
+      senderName: (json['senderName'] ?? '') as String,
+      senderPhone: (json['senderPhone'] ?? '') as String,
+      senderImage: json['senderImage'] as String?,
+      pushTitle: (json['pushTitle'] ?? '') as String,
+      pushBody: (json['pushBody'] ?? '') as String,
+      pushTargets: (json['pushTargets'] as List?)?.cast<String>(),
+      pushData: Map<String, String>.from(
+          (json['pushData'] as Map?) ?? const <String, String>{}),
+      failed: json['failed'] == true,
+      queuedAt: DateTime.tryParse((json['queuedAt'] ?? '') as String) ??
+          DateTime.now(),
+    );
+  }
 }

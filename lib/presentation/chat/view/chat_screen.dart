@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -6,12 +8,12 @@ import '../../../common/widgets/avatar_picker.dart';
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_snackbar.dart';
+import '../../../common/widgets/image_viewer_screen.dart';
 import '../../../common/widgets/profile_avatar.dart';
 import '../../../utils/app_enums.dart';
 import '../controller/chat_controller.dart';
 import '../model/chat_message_model.dart';
 import '../model/outgoing_image_model.dart';
-import 'chat_image_viewer.dart';
 
 class ChatScreen extends GetView<ChatController> {
   const ChatScreen({super.key});
@@ -29,9 +31,10 @@ class ChatScreen extends GetView<ChatController> {
           Expanded(
             child: GetBuilder<ChatController>(
               builder: (controller) {
-                // Pictures still uploading sit past the newest message, at the
+                // Messages still on their way out — uploading, or waiting
+                // for a connection — sit past the newest message, at the
                 // bottom of a reversed list.
-                final int pending = controller.outgoingImages.length;
+                final int pending = controller.outgoing.length;
 
                 if (controller.messages.isEmpty && pending == 0) {
                   return Center(
@@ -62,9 +65,8 @@ class ChatScreen extends GetView<ChatController> {
                   itemBuilder: (context, position) {
                     if (position < pending) {
                       // Newest first, like everything else in a reversed list.
-                      return _PendingImageBubble(
-                        image:
-                            controller.outgoingImages[pending - 1 - position],
+                      return _OutgoingBubble(
+                        item: controller.outgoing[pending - 1 - position],
                         controller: controller,
                       );
                     }
@@ -670,6 +672,8 @@ class _MessageBubble extends StatelessWidget {
                                           ),
                                         ),
                                       if (message.isEdited) _buildEditedMark(context),
+                                      if (isMe && message.isPending)
+                                        _buildPendingMark(context),
                                     ],
                                   ),
                                 ),
@@ -714,6 +718,34 @@ class _MessageBubble extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+
+  /// A small clock under the words while the message is on this device only
+  /// — Firestore has it, the server does not yet. Gone the moment it lands.
+  Widget _buildPendingMark(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 3,
+        left: message.hasImage ? 8 : 0,
+        right: message.hasImage ? 8 : 0,
+        bottom: message.hasImage ? 4 : 0,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.schedule_rounded,
+              size: 11, color: Colors.white.withOpacity(0.75)),
+          const SizedBox(width: 3),
+          Text(
+            'waiting_to_sync'.tr,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.white.withOpacity(0.75),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -773,6 +805,10 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
+  /// Ties the bubble's picture to the full-screen one so they fly into each
+  /// other. Unique per message, which is all a hero tag has to be.
+  String get _imageHeroTag => 'chat_image_${message.id}';
+
   /// The picture inside a bubble.
   ///
   /// Laid out from the dimensions stamped on the message, so the thread keeps
@@ -780,7 +816,13 @@ class _MessageBubble extends StatelessWidget {
   /// under a reader's thumb. A tap opens it full screen.
   Widget _buildImage(BuildContext context) {
     return GestureDetector(
-      onTap: () => Get.to(() => ChatImageViewer(message: message)),
+      onTap: () => Get.to(() => ImageViewerScreen(
+            imageUrl: message.imageUrl!,
+            title: message.senderName,
+            subtitle: DateFormat('dd MMM, hh:mm a').format(message.createdAt),
+            caption: message.text,
+            heroTag: _imageHeroTag,
+          )),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 240, maxHeight: 320),
         child: ClipRRect(
@@ -788,7 +830,7 @@ class _MessageBubble extends StatelessWidget {
           child: AspectRatio(
             aspectRatio: message.imageAspectRatio,
             child: Hero(
-              tag: ChatImageViewer.heroTag(message),
+              tag: _imageHeroTag,
               child: Image.network(
                 message.imageUrl!,
                 fit: BoxFit.cover,
@@ -1352,21 +1394,24 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-/// A picture that has been sent but is still uploading.
+/// A message that has been sent but is not in the thread yet — uploading,
+/// or waiting for a connection.
 ///
 /// Drawn as the sender's own bubble at the end of the thread so the send feels
-/// immediate; it is replaced by the real message the moment the upload lands.
-/// A failed one stays put with a way back — dropping the picture on a flaky
+/// immediate; it is replaced by the real message the moment delivery lands.
+/// A failed one stays put with a way back — dropping a message on a flaky
 /// connection would be the worst possible answer.
-class _PendingImageBubble extends StatelessWidget {
-  final OutgoingImage image;
+class _OutgoingBubble extends StatelessWidget {
+  final OutgoingMessage item;
   final ChatController controller;
 
-  const _PendingImageBubble({required this.image, required this.controller});
+  const _OutgoingBubble({required this.item, required this.controller});
 
   @override
   Widget build(BuildContext context) {
     final Color primary = Theme.of(context).colorScheme.primary;
+    final bool hasImage = item.hasImage;
+    final File? file = item.file;
 
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 8, left: 50),
@@ -1375,87 +1420,154 @@ class _PendingImageBubble extends StatelessWidget {
         children: [
           Flexible(
             child: Container(
-              padding: const EdgeInsets.all(4),
+              padding: hasImage
+                  ? const EdgeInsets.all(4)
+                  : const EdgeInsets.fromLTRB(16, 10, 16, 8),
               decoration: BoxDecoration(
-                color: primary.withOpacity(image.failed ? 0.5 : 1),
+                color: primary.withOpacity(item.failed ? 0.5 : 1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(maxWidth: 240, maxHeight: 320),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      // Same shape the finished bubble will have, so nothing
-                      // shifts when the upload lands and the real message
-                      // takes this one's place.
-                      child: AspectRatio(
-                        aspectRatio: image.picked.aspectRatio,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Image.file(image.file, fit: BoxFit.cover),
-                            Container(
-                              color: Colors.black.withOpacity(0.35),
-                              alignment: Alignment.center,
-                              child: image.failed
-                                  ? const Icon(Icons.error_outline_rounded,
-                                      color: Colors.white, size: 30)
-                                  : const SizedBox(
-                                      width: 30,
-                                      height: 30,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                            ),
-                          ],
+                  if (item.hasReply)
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                          hasImage ? 4 : 0, hasImage ? 4 : 0, hasImage ? 4 : 0, 6),
+                      child: _quote(context),
+                    ),
+                  if (hasImage && file != null)
+                    ConstrainedBox(
+                      constraints:
+                          const BoxConstraints(maxWidth: 240, maxHeight: 320),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        // Same shape the finished bubble will have, so nothing
+                        // shifts when the upload lands and the real message
+                        // takes this one's place.
+                        child: AspectRatio(
+                          aspectRatio: item.aspectRatio,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.file(file, fit: BoxFit.cover),
+                              Container(
+                                color: Colors.black.withOpacity(0.35),
+                                alignment: Alignment.center,
+                                child: item.failed
+                                    ? const Icon(Icons.error_outline_rounded,
+                                        color: Colors.white, size: 30)
+                                    : controller.isDelivering
+                                        ? const SizedBox(
+                                            width: 30,
+                                            height: 30,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.5,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(Icons.schedule_rounded,
+                                            color: Colors.white, size: 30),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  if (image.caption.isNotEmpty)
+                  if (item.text.isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                      padding: hasImage
+                          ? const EdgeInsets.fromLTRB(8, 8, 8, 4)
+                          : EdgeInsets.zero,
                       child: Text(
-                        image.caption,
+                        item.text,
                         style: const TextStyle(
                             color: Colors.white, fontSize: 15, height: 1.3),
                       ),
                     ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                    child: image.failed
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'send_failed'.tr,
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 11),
-                              ),
-                              const SizedBox(width: 10),
-                              _action(context, Icons.refresh_rounded,
-                                  'retry'.tr, () => controller.retryOutgoingImage(image)),
-                              const SizedBox(width: 6),
-                              _action(context, Icons.close_rounded,
-                                  'cancel'.tr, () => controller.discardOutgoingImage(image)),
-                            ],
-                          )
-                        : Text(
-                            'sending'.tr,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.85),
-                              fontSize: 11,
-                            ),
-                          ),
+                    padding: hasImage
+                        ? const EdgeInsets.fromLTRB(8, 4, 8, 4)
+                        : const EdgeInsets.only(top: 4),
+                    child: item.failed ? _failedRow(context) : _statusRow(context),
                   ),
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "Sending" while the outbox is working, "waiting for connection" while
+  /// there is none to work with — so the sender knows which it is.
+  Widget _statusRow(BuildContext context) {
+    final bool delivering = controller.isDelivering && controller.isOnline;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          delivering ? Icons.cloud_upload_outlined : Icons.schedule_rounded,
+          size: 11,
+          color: Colors.white.withOpacity(0.85),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          delivering ? 'sending'.tr : 'waiting_for_connection'.tr,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.85),
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _failedRow(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'send_failed'.tr,
+          style: const TextStyle(color: Colors.white, fontSize: 11),
+        ),
+        const SizedBox(width: 10),
+        _action(context, Icons.refresh_rounded, 'retry'.tr,
+            () => controller.retryOutgoing(item)),
+        const SizedBox(width: 6),
+        _action(context, Icons.close_rounded, 'cancel'.tr,
+            () => controller.discardOutgoing(item)),
+      ],
+    );
+  }
+
+  /// The message being replied to, the way the finished bubble will quote it.
+  Widget _quote(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(10),
+        border: const Border(left: BorderSide(color: Colors.white, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            item.replyToSenderName ?? '',
+            style: const TextStyle(
+                color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            item.replyToText ?? '',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.85), fontSize: 12),
           ),
         ],
       ),

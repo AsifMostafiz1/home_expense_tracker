@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // Narrowed import: the package also exports `User`, `AuthState` and friends,
 // which would collide with the firebase_auth symbols above.
@@ -13,6 +14,8 @@ import 'package:demo_project/presentation/dashboard/view/dashboard_screen.dart';
 import 'package:demo_project/utils/app_constant.dart';
 import 'package:demo_project/utils/app_theme.dart';
 import 'package:demo_project/common/binding/initial_binding.dart';
+import 'package:demo_project/common/widgets/connection_banner.dart';
+import 'package:demo_project/services/background_sync_service.dart';
 import 'package:demo_project/services/push_notification_service.dart';
 import 'package:demo_project/services/notification_permission_service.dart';
 import 'package:demo_project/utils/app_translations.dart';
@@ -23,6 +26,17 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp();
+
+    // Offline support rests on this. Firestore keeps a local copy of what it
+    // has read and a queue of what it has not yet delivered, so the app opens
+    // and expenses can be entered with no connection; the queue drains on its
+    // own once one returns. It is on by default on mobile — set explicitly so
+    // nobody has to guess, and so it stays on if the default ever changes.
+    // Must come before the first Firestore call.
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+    );
+
     print('FCM: Activating Firebase App Check...');
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.debug,
@@ -36,9 +50,18 @@ void main() async {
     // throws `admin-restricted-operation`, and sharing a catch with the push
     // setup below meant one disabled toggle silently took notifications down
     // with it — no listeners, no topic subscriptions, no messages.
+    //
+    // Bounded: this too runs before runApp(), and a link that is up but not
+    // answering would otherwise hold the whole launch. An offline launch is
+    // never the first one — signing in to the app needs the network — so the
+    // anonymous session from that earlier launch is still on the device and
+    // `currentUser` is already set; this branch is only ever skipped, not
+    // needed, without a connection.
     if (FirebaseAuth.instance.currentUser == null) {
       try {
-        await FirebaseAuth.instance.signInAnonymously();
+        await FirebaseAuth.instance
+            .signInAnonymously()
+            .timeout(const Duration(seconds: 8));
       } catch (e) {
         debugPrint('Anonymous sign-in failed: $e');
       }
@@ -67,6 +90,11 @@ void main() async {
   } else {
     debugPrint('Supabase not configured — uploads are disabled.');
   }
+
+  // The OS job that delivers offline saves when the app is not reopened.
+  // Only registers the callback; nothing is scheduled until a save is left
+  // waiting.
+  await BackgroundSyncService.init();
 
   SharedPreferences prefs = await SharedPreferences.getInstance();
   
@@ -126,6 +154,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       darkTheme: AppTheme.darkTheme,
       themeMode: widget.themeMode,
       initialBinding: InitialBinding(),
+      // Every screen sits under the connection strip — see ConnectionBanner.
+      builder: (context, child) =>
+          ConnectionBanner(child: child ?? const SizedBox.shrink()),
       home: const SplashScreen(),
     );
   }

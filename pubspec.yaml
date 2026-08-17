@@ -55,6 +55,15 @@ dependencies:
   firebase_app_check: any
   firebase_auth: any
   permission_handler: ^11.3.1
+  # Offline support: knowing when the connection comes back (queued expenses
+  # and receipts are flushed then), and a persistent folder for receipts
+  # picked while offline, whose upload has to wait.
+  connectivity_plus: ^7.0.0
+  path_provider: ^2.1.5
+  # Delivers what was saved offline even if the app is not opened again: a
+  # one-off job the OS runs once there is a network, in a headless isolate,
+  # that drains Firestore's queue and uploads the waiting receipts.
+  workmanager: ^0.10.5
 
 dev_dependencies:
   flutter_test:

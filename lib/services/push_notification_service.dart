@@ -170,14 +170,20 @@ class PushNotificationService {
       _handleNotificationClick(initialMessage.data);
     }
 
-    // Subscribe to topics
-    await subscribeToGroupTopic();
+    // Subscribe to topics.
+    //
+    // Not awaited: this runs before runApp(), and FCM only completes a topic
+    // subscription once the server has confirmed it — with no connection that
+    // is never, and the app would sit on the native splash for as long as it
+    // stayed offline. The SDK persists the request and retries by itself, so
+    // nothing is lost by moving on.
+    subscribeToGroupTopic();
 
     // Subscribe to personal topic based on phone number
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
     if (userPhone.isNotEmpty) {
-      await subscribeToUserTopic(userPhone);
+      subscribeToUserTopic(userPhone);
     } else {
       print(
           'FCM: No phone number found in SharedPreferences, skipping personal topic subscription');

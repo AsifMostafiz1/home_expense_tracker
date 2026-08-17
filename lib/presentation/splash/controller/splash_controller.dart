@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,9 +10,21 @@ import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../../dashboard/view/dashboard_screen.dart';
 import '../../auth/view/sign_in_screen.dart';
+import '../../settings/model/app_config_model.dart';
+import '../../settings/repository/settings_repository.dart';
 import '../../update/view/update_screen.dart';
 
 class SplashController extends GetxController {
+  final SettingsRepository _settings = Get.find<SettingsRepository>();
+
+  /// The longest a network read may hold the splash. Firestore can take a
+  /// while to conclude that a link which is up but goes nowhere is in fact
+  /// offline; nobody should sit through that on a logo.
+  static const Duration _networkTimeout = Duration(seconds: 6);
+
+  /// Splash aesthetic — the logo animation is timed to finish inside it.
+  static const Duration _minimumSplash = Duration(seconds: 2);
+
   @override
   void onInit() {
     super.onInit();
@@ -18,21 +33,20 @@ class SplashController extends GetxController {
 
   Future<void> _checkAppVersion() async {
     try {
-      // Small delay for splash aesthetic
-      await Future.delayed(const Duration(seconds: 2));
+      // The read runs while the logo is still animating, rather than after.
+      final List<dynamic> results = await Future.wait<dynamic>([
+        Future.delayed(_minimumSplash),
+        _loadConfig(),
+      ]);
+      final AppConfigModel? config = results[1] as AppConfigModel?;
 
-      DocumentSnapshot doc = await FirebaseFirestore.instance
-          .collection(AppConstant.collectionConfig)
-          .doc(AppConstant.docBusinessConfig)
-          .get();
+      if (config != null && !config.isEmpty) {
+        final double requiredVersion = config.versionValue;
+        final String downloadUrl = config.downloadLink.isNotEmpty
+            ? config.downloadLink
+            : "https://facebook.com";
 
-      if (doc.exists) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        String firestoreVersionStr = data['app_version'] ?? "1.0";
-        double firestoreVersion = double.tryParse(firestoreVersionStr) ?? 1.0;
-        String downloadUrl = data['app_download_link'] ?? "https://facebook.com";
-
-        if (AppConstant.appVersion < firestoreVersion) {
+        if (requiredVersion > 0 && AppConstant.appVersion < requiredVersion) {
           Get.offAll(() => UpdateScreen(downloadUrl: downloadUrl));
           return;
         }
@@ -40,11 +54,23 @@ class SplashController extends GetxController {
 
       await _navigateToNext();
     } catch (e) {
-      print("Error checking app version: $e");
+      debugPrint("Error checking app version: $e");
       await _navigateToNext();
     }
 
     await _promptForNotificationPermission();
+  }
+
+  /// The live config, or the last one this device saw when the network does
+  /// not answer, or null on a first launch with no connection — in which case
+  /// there is nothing to gate on and the app simply opens.
+  Future<AppConfigModel?> _loadConfig() async {
+    try {
+      return await _settings.fetchAppConfig().timeout(_networkTimeout);
+    } catch (e) {
+      debugPrint('Config: live read failed ($e) — using cached copy');
+      return _settings.loadCachedAppConfig();
+    }
   }
 
   /// Asks for the notification permission on every launch that gets past the
@@ -99,10 +125,13 @@ class SplashController extends GetxController {
     if (phone == null || phone.isEmpty) return null;
 
     try {
+      // Bounded for the same reason the config read is: an offline launch
+      // must reach the dashboard, not wait on Firestore to give up.
       final DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection(AppConstant.collectionUsers)
           .doc(phone)
-          .get();
+          .get()
+          .timeout(_networkTimeout);
 
       if (!doc.exists) return const {};
       return doc.data() as Map<String, dynamic>? ?? const {};

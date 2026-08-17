@@ -6,6 +6,9 @@ class CustomSnackbar {
   static void show({
     required String message,
     required SnackbarType type,
+
+    /// Longer for a message that has to be read rather than glanced at.
+    Duration duration = const Duration(seconds: 3),
   }) {
     Color backgroundColor;
     IconData iconData;
@@ -43,7 +46,7 @@ class CustomSnackbar {
       margin: const EdgeInsets.all(16),
       borderRadius: 12,
       icon: Icon(iconData, color: Colors.white),
-      duration: const Duration(seconds: 3),
+      duration: duration,
       snackStyle: SnackStyle.FLOATING,
     );
   }

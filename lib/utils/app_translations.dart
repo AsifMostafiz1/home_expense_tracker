@@ -449,6 +449,34 @@ class AppTranslations extends Translations {
               'Your own messages can only be deleted within 5 minutes',
           'failed_edit_message': 'Could not edit the message',
           'failed_delete_message': 'Could not delete the message',
+          'add_receipt_photo': 'Add receipt photo',
+          'receipt': 'Receipt',
+          'optional': 'Optional',
+          'tap_to_view': 'Tap to view',
+          'not_saved_yet': 'Tap to view · not saved yet',
+          'receipt_waiting_upload': 'Tap to view · uploads when online',
+          'expense_saved_offline':
+              'Saved on this device — it will sync once you are back online',
+          'expense_deleted_offline':
+              'Deleted on this device — it will sync once you are back online',
+          'receipt_upload_deferred':
+              'Expense saved. The receipt will upload once you are back online',
+          'offline_sync_hint':
+              'New entries are saved on this device and sync when you are back online',
+          'pending_sync_count': '@count waiting to sync',
+          'syncing_count': 'Syncing @count…',
+          'waiting_to_sync': 'Waiting to sync',
+          'not_synced': 'NOT SYNCED',
+          'banner_offline_title': 'You are offline',
+          'banner_no_internet_title': 'No internet connection',
+          'banner_offline_body':
+              'Anything you add or delete is saved on this device and syncs by itself once you are back online.',
+          'banner_back_online_title': 'Back online',
+          'banner_back_online_syncing': 'Syncing your changes…',
+          'banner_back_online_body': 'Everything is up to date.',
+          'waiting_for_connection': 'Waiting for connection',
+          'revise_needs_connection':
+              'You are offline. Messages can only be edited or deleted within 5 minutes, so this needs a connection.',
         },
         'bn_BD': {
           'app_name': 'মিল ট্র্যাকার',
@@ -893,6 +921,34 @@ class AppTranslations extends Translations {
               'নিজের মেসেজ শুধু ৫ মিনিটের মধ্যে মুছে ফেলা যায়',
           'failed_edit_message': 'মেসেজটি সম্পাদনা করা যায়নি',
           'failed_delete_message': 'মেসেজটি মুছে ফেলা যায়নি',
+          'add_receipt_photo': 'রসিদের ছবি যোগ করুন',
+          'receipt': 'রসিদ',
+          'optional': 'ঐচ্ছিক',
+          'tap_to_view': 'দেখতে ট্যাপ করুন',
+          'not_saved_yet': 'দেখতে ট্যাপ করুন · এখনো সেভ হয়নি',
+          'receipt_waiting_upload': 'দেখতে ট্যাপ করুন · অনলাইনে এলে আপলোড হবে',
+          'expense_saved_offline':
+              'এই ডিভাইসে সেভ হয়েছে — অনলাইনে এলে সিঙ্ক হয়ে যাবে',
+          'expense_deleted_offline':
+              'এই ডিভাইস থেকে মুছে ফেলা হয়েছে — অনলাইনে এলে সিঙ্ক হয়ে যাবে',
+          'receipt_upload_deferred':
+              'খরচ সেভ হয়েছে। রসিদটি অনলাইনে এলে আপলোড হবে',
+          'offline_sync_hint':
+              'নতুন এন্ট্রি এই ডিভাইসে সেভ থাকবে, অনলাইনে এলে সিঙ্ক হয়ে যাবে',
+          'pending_sync_count': '@count টি সিঙ্কের অপেক্ষায়',
+          'syncing_count': '@count টি সিঙ্ক হচ্ছে…',
+          'waiting_to_sync': 'সিঙ্কের অপেক্ষায়',
+          'not_synced': 'সিঙ্ক হয়নি',
+          'banner_offline_title': 'আপনি অফলাইনে আছেন',
+          'banner_no_internet_title': 'ইন্টারনেট সংযোগ নেই',
+          'banner_offline_body':
+              'যা যোগ বা মুছে ফেলবেন তা এই ডিভাইসে সেভ থাকবে — অনলাইনে ফিরলে অ্যাপ নিজে থেকেই সিঙ্ক হয়ে যাবে।',
+          'banner_back_online_title': 'আবার অনলাইনে',
+          'banner_back_online_syncing': 'আপনার পরিবর্তনগুলো সিঙ্ক হচ্ছে…',
+          'banner_back_online_body': 'সবকিছু আপ টু ডেট।',
+          'waiting_for_connection': 'সংযোগের অপেক্ষায়',
+          'revise_needs_connection':
+              'আপনি অফলাইনে আছেন। মেসেজ শুধু ৫ মিনিটের মধ্যে সম্পাদনা বা মুছে ফেলা যায়, তাই এর জন্য ইন্টারনেট সংযোগ লাগবে।',
         },
       };
 }

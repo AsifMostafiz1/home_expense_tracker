@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/hiding_fab.dart';
+import '../../../common/widgets/image_viewer_screen.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/expense_controller.dart';
 import '../model/expense_model.dart';
@@ -59,6 +60,12 @@ class ExpenseScreen extends GetView<ExpenseController> {
                 slivers: [
                   SliverToBoxAdapter(
                     child: _buildSummaryCard(context, isLoading: isFirstLoad),
+                  ),
+                  SliverToBoxAdapter(
+                    child: _SyncStrip(
+                      online: controller.isOnline,
+                      pending: controller.pendingCount,
+                    ),
                   ),
                   if (isFirstLoad)
                     const SliverToBoxAdapter(child: _ListSkeleton())
@@ -419,6 +426,32 @@ class ExpenseScreen extends GetView<ExpenseController> {
                             ),
                           ),
                         ),
+                        // A receipt is worth advertising on the row: it is the
+                        // difference between "trust me" and "here it is". One
+                        // still waiting to upload opens from the device.
+                        if (item.hasAnyReceipt) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => Get.to(() => ImageViewerScreen(
+                                  imageFile: item.pendingReceiptFile,
+                                  imageUrl: item.hasPendingReceipt
+                                      ? null
+                                      : item.imageUrl,
+                                  title: item.description,
+                                  subtitle: AppUi.money(item.amount),
+                                )),
+                            child: Icon(Icons.attachment_rounded,
+                                size: 14, color: AppUi.accent(context, color)),
+                          ),
+                        ],
+                        // Saved here, not yet on the server — a labelled
+                        // chip, not just an icon, so it reads at a glance. It
+                        // clears by itself once the connection delivers the
+                        // entry (and its receipt, if one is waiting too).
+                        if (item.isPending || item.hasPendingReceipt) ...[
+                          const SizedBox(width: 8),
+                          const _PendingChip(),
+                        ],
                       ],
                     ),
                   ],
@@ -543,12 +576,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
 
   void _showExpenseBottomSheet(BuildContext context, {ExpenseModel? item}) {
     if (item != null) {
-      controller.amountController.text = item.amount.toString();
-      controller.descriptionController.text = item.description;
-      controller.selectedDate = item.date;
-      controller.selectedTime = item.time;
-      controller.selectedType = item.type;
-      controller.update(); // Manual update to reflect changes in UI
+      controller.loadForEdit(item);
     } else {
       controller.clearForm();
     }
@@ -556,6 +584,125 @@ class ExpenseScreen extends GetView<ExpenseController> {
     Get.bottomSheet(
       ExpenseBottomSheet(item: item),
       isScrollControlled: true,
+    ).whenComplete(
+      // Backing out of the sheet abandons an unsaved receipt: nothing was
+      // uploaded, the picked file only ever lived in the controller.
+      controller.clearReceiptSelection,
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// "Waiting to sync" — the mark on a row that exists on this device only.
+/// Orange to match the app bar's offline badge, so the two read as one story.
+/// ---------------------------------------------------------------------------
+
+class _PendingChip extends StatelessWidget {
+  const _PendingChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final Color fg = AppUi.accent(context, Colors.orange);
+
+    return Tooltip(
+      message: 'waiting_to_sync'.tr,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppUi.tint(context, Colors.orange),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_upload_outlined, size: 11, color: fg),
+            const SizedBox(width: 3),
+            Text(
+              'not_synced'.tr,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.3,
+                color: fg,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// Sync status — a slim strip under the summary that only appears while
+/// entries saved on this device are still on their way to the server: how many
+/// are waiting (offline) or going out (online). "Offline" itself is said by
+/// the strip across the top of the app (`ConnectionBanner`), so this one stays
+/// quiet with nothing pending.
+/// ---------------------------------------------------------------------------
+
+class _SyncStrip extends StatelessWidget {
+  final bool online;
+
+  /// Entries saved on this device that the server does not have yet.
+  final int pending;
+
+  const _SyncStrip({required this.online, required this.pending});
+
+  @override
+  Widget build(BuildContext context) {
+    final int waiting = pending;
+    if (waiting == 0) return const SizedBox.shrink();
+
+    final MaterialColor color = online ? Colors.blue : Colors.orange;
+    final IconData icon = online ? Icons.sync_rounded : Icons.cloud_off_rounded;
+    final String title = online
+        ? 'syncing_count'.trParams({'count': '$waiting'})
+        : 'pending_sync_count'.trParams({'count': '$waiting'});
+    final String? detail = online ? null : 'offline_sync_hint'.tr;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppUi.tint(context, color),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppUi.accent(context, color)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppUi.accent(context, color),
+                    ),
+                  ),
+                  if (detail != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      detail,
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.35,
+                        color: AppUi.body(context).withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

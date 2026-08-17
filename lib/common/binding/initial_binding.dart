@@ -1,5 +1,8 @@
 import 'package:get/get.dart';
+import '../../services/chat_outbox_service.dart';
+import '../../services/connectivity_service.dart';
 import '../../services/member_avatar_service.dart';
+import '../../services/receipt_outbox_service.dart';
 import '../../presentation/auth/binding/auth_binding.dart';
 import '../../presentation/meal/binding/meal_binding.dart';
 import '../../presentation/expense/binding/expense_binding.dart';
@@ -12,8 +15,19 @@ import '../../presentation/settings/binding/settings_binding.dart';
 class InitialBinding extends Bindings {
   @override
   void dependencies() {
-    // Registered first, and permanent: every screen's avatars resolve against
-    // it, so it has to outlive the controller that happens to be on screen.
+    // Permanent, and ahead of everything else: the expense repository reads
+    // the connection flag on every write, and the outbox flushes itself when
+    // the connection comes back. Neither may vanish with a route.
+    final ConnectivityService connectivity =
+        Get.put(ConnectivityService(), permanent: true);
+    connectivity.init();
+    Get.put(ReceiptOutboxService(), permanent: true).init(connectivity);
+    Get.put(ChatOutboxService(connectivity: connectivity), permanent: true)
+        .init(connectivity);
+
+    // Registered before the feature bindings, and permanent: every screen's
+    // avatars resolve against it, so it has to outlive the controller that
+    // happens to be on screen.
     Get.put(MemberAvatarService(), permanent: true).load();
 
     AuthBinding().dependencies();

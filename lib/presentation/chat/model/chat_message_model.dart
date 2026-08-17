@@ -39,6 +39,11 @@ class ChatMessageModel {
 
   final Map<String, String>? reactions;
 
+  /// True while this message — or an edit, a reaction, a delete on it — is
+  /// stored on this device only, waiting for a connection to reach the
+  /// server. Read off Firestore's own queue; clears by itself once delivered.
+  final bool isPending;
+
   ChatMessageModel({
     required this.id,
     required this.text,
@@ -58,6 +63,7 @@ class ChatMessageModel {
     this.editedAt,
     this.editedByPhone,
     this.reactions,
+    this.isPending = false,
   });
 
   bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
@@ -85,7 +91,11 @@ class ChatMessageModel {
     return text.trim().isNotEmpty ? text.trim() : '📷 ${'photo'.tr}';
   }
 
-  factory ChatMessageModel.fromMap(String id, Map<String, dynamic> map) {
+  factory ChatMessageModel.fromMap(
+    String id,
+    Map<String, dynamic> map, {
+    bool isPending = false,
+  }) {
     return ChatMessageModel(
       id: id,
       text: map['text'] ?? '',
@@ -105,6 +115,7 @@ class ChatMessageModel {
       editedAt: (map['edited_at'] as Timestamp?)?.toDate(),
       editedByPhone: map['edited_by'],
       reactions: map['reactions'] != null ? Map<String, String>.from(map['reactions']) : null,
+      isPending: isPending,
     );
   }
 

@@ -49,5 +49,15 @@
 	<string>Meal Tracker needs access to your photos so you can set a profile picture and send photos in the group chat.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Meal Tracker needs access to your camera so you can take a profile picture or send a photo to the group chat.</string>
+	<!-- Background sync of what was saved offline, when the app is not reopened.
+	     The identifier must match BackgroundSyncService.uniqueName. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.mostafizur.expense.tracker.sync</string>
+	</array>
 </dict>
 </plist>
