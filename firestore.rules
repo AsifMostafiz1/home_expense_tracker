@@ -1,0 +1,185 @@
+rules_version = '2';
+
+// =============================================================================
+// Firestore security rules — Meal Tracker
+// =============================================================================
+//
+// BEFORE YOU DEPLOY, READ THESE THREE THINGS.
+//
+// 1. Anonymous sign-in must be ON.
+//    The app calls `signInAnonymously()` in `main()` and *swallows the error*
+//    if it fails, so today the app still works when the toggle is off. Under
+//    these rules it would not: every read and write would be denied and the app
+//    would come up empty. Turn it on at
+//    Firebase console → Authentication → Sign-in method → Anonymous.
+//    If you would rather not, change `client()` below to `return true;` — you
+//    keep the five-minute rule and lose the "must be a signed-in app" floor.
+//
+// 2. Identity here is a claim, not proof.
+//    Every install signs in anonymously, so Firebase cannot tell one member
+//    from another: `request.auth.uid` is a fresh anonymous id, while the app's
+//    real identity is the phone number in `users/{phone}`. So when a write says
+//    "I am 01712345678", these rules can check what that phone is allowed to do
+//    but cannot verify that the sender really is that phone. What this buys you:
+//      • the five-minute window is enforced by the SERVER CLOCK, not the
+//        device's — moving the phone's clock forward no longer helps;
+//      • an edit cannot rewrite authorship, timestamps or somebody else's
+//        fields, whatever the client sends;
+//      • messages can never be hard-deleted, so the thread cannot be holed;
+//      • ordinary tampering through a modified client is stopped.
+//    What it does not buy you: a determined person who reads the app bundle can
+//    still claim an admin's phone number. Closing that needs real per-member
+//    auth — see the note at the bottom of this file.
+//
+// 3. Only `chats` is locked down.
+//    Every other collection keeps exactly the access it has today. They are
+//    listed one by one on purpose: a catch-all `match /{document=**}` would
+//    also match `chats/{id}`, and because Firestore grants access when ANY
+//    matching rule allows it, that single line would quietly undo everything
+//    below. If you add a collection to the app, add it here too or it will be
+//    denied.
+//
+// Deploy:  firebase deploy --only firestore:rules
+//    or:   Firebase console → Firestore Database → Rules → paste → Publish
+// Test:    Firebase console → Rules Playground, or `firebase emulators:start`
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /// Anyone running the app. See note 1.
+    function client() {
+      return request.auth != null;
+    }
+
+    /// Whether [phone] belongs to an admin. Costs one document read per
+    /// evaluation, which is why it is only reached on edits and deletes.
+    function isAdmin(phone) {
+      return phone is string
+          && exists(/databases/$(database)/documents/users/$(phone))
+          && get(/databases/$(database)/documents/users/$(phone)).data.isAdmin == '1';
+    }
+
+    /// True when a write touches nothing outside [keys] — added, removed and
+    /// changed fields all count.
+    function touchesOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // -------------------------------------------------------------------------
+    // Group chat.
+    //
+    // A member may correct or withdraw what they said for five minutes. An
+    // admin may correct or withdraw anything at any time. Nobody may rewrite
+    // who said it or when.
+    // -------------------------------------------------------------------------
+    match /chats/{messageId} {
+
+      /// Measured against the server's own clock and the server-stamped
+      /// `createdAt`, so neither end of the window is the client's to move.
+      function withinWindow() {
+        return resource.data.createdAt is timestamp
+            && request.time < resource.data.createdAt + duration.value(5, 'm');
+      }
+
+      function isAuthor(phone) {
+        return resource.data.sender_phone == phone;
+      }
+
+      function mayRevise(actor) {
+        return isAdmin(actor) || (isAuthor(actor) && withinWindow());
+      }
+
+      /// Reacting is not revising: any member, any message, any time — except
+      /// a deleted one, where the write would put the field back.
+      function isReaction() {
+        return touchesOnly(['reactions']) && resource.data.get('deleted', false) != true;
+      }
+
+      /// Rewriting the words. The text is all that may move — not the sender,
+      /// not `createdAt`, not the picture, not somebody's reactions.
+      function isEdit() {
+        return touchesOnly(['text', 'edited_at', 'edited_by'])
+            && resource.data.get('deleted', false) != true
+            && request.resource.data.text is string
+            && request.resource.data.text.size() <= 5000
+            && request.resource.data.edited_at == request.time
+            && mayRevise(request.resource.data.edited_by);
+      }
+
+      /// Emptying a message in place. The tombstone must actually be empty —
+      /// a "delete" that leaves the text behind is not a delete.
+      function isSoftDelete() {
+        return touchesOnly([
+                 'deleted', 'deleted_by_admin', 'deleted_by', 'text',
+                 'image_url', 'image_width', 'image_height', 'reactions'
+               ])
+            && resource.data.get('deleted', false) != true
+            && request.resource.data.deleted == true
+            && request.resource.data.text == ''
+            && !('image_url' in request.resource.data)
+            && mayRevise(request.resource.data.deleted_by);
+      }
+
+      allow read: if client();
+
+      /// `createdAt == request.time` is what makes the window trustworthy: it
+      /// forces `FieldValue.serverTimestamp()` and rejects a client-chosen
+      /// date that would hand the sender an endless five minutes.
+      allow create: if client()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.sender_phone is string
+          && request.resource.data.sender_name is string
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 5000
+          && !('deleted' in request.resource.data)
+          && !('edited_at' in request.resource.data);
+
+      allow update: if client() && (isReaction() || isEdit() || isSoftDelete());
+
+      /// Messages are emptied, never removed — replies quote them by id and
+      /// the thread still scrolls to them.
+      allow delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Everything else — unchanged behaviour, signed-in clients only.
+    //
+    // Each of these deserves the same treatment as `chats` eventually: members
+    // should not be able to edit another member's meals, and only an admin
+    // should be able to publish a house bill or flip `isAdmin`. That is a
+    // bigger change than the one asked for here, so for now they are simply
+    // gated on being the app.
+    // -------------------------------------------------------------------------
+    match /users/{phone}          { allow read, write: if client(); }
+    match /meals/{mealId}         { allow read, write: if client(); }
+    match /expenses/{expenseId}   { allow read, write: if client(); }
+    match /announcements/{id}     { allow read, write: if client(); }
+    match /seen_status/{phone}    { allow read, write: if client(); }
+    match /edit_logs/{logId}      { allow read, write: if client(); }
+    match /monthly_bills/{month}  { allow read, write: if client(); }
+    match /config/{docId}         { allow read, write: if client(); }
+  }
+}
+
+// =============================================================================
+// Making identity real, when you want it
+// =============================================================================
+//
+// The gap in note 2 closes the moment Firebase itself knows which member is
+// calling. Two ways in, in increasing order of work:
+//
+// A. Firebase Phone Auth. Members already sign in with a phone number, so the
+//    number becomes the verified identity instead of a claimed one. Every
+//    `mayRevise(request.resource.data.edited_by)` above becomes
+//    `mayRevise(request.auth.token.phone_number)`, and the claim fields become
+//    audit trail rather than input. Costs: an SMS per sign-in, and a migration
+//    for the current password-in-Firestore accounts.
+//
+// B. Custom claims via a Cloud Function. Keep the current sign-in, mint a
+//    custom token carrying `{phone, admin}`, and check `request.auth.token.phone`
+//    and `request.auth.token.admin` here. No SMS, and `isAdmin()` stops costing
+//    a document read — but it needs a function, so a paid plan.
+//
+// Either way these rules barely change: only the definition of "who is asking".
+// =============================================================================

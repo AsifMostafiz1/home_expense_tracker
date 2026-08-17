@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
+import '../../../common/widgets/avatar_picker.dart';
+import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
+import '../../../common/widgets/custom_snackbar.dart';
 import '../../../common/widgets/profile_avatar.dart';
+import '../../../utils/app_enums.dart';
 import '../controller/chat_controller.dart';
 import '../model/chat_message_model.dart';
+import '../model/outgoing_image_model.dart';
+import 'chat_image_viewer.dart';
 
 class ChatScreen extends GetView<ChatController> {
   const ChatScreen({super.key});
@@ -23,7 +29,11 @@ class ChatScreen extends GetView<ChatController> {
           Expanded(
             child: GetBuilder<ChatController>(
               builder: (controller) {
-                if (controller.messages.isEmpty) {
+                // Pictures still uploading sit past the newest message, at the
+                // bottom of a reversed list.
+                final int pending = controller.outgoingImages.length;
+
+                if (controller.messages.isEmpty && pending == 0) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -48,11 +58,21 @@ class ChatScreen extends GetView<ChatController> {
                   controller: controller.scrollController,
                   reverse: true,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                  itemCount: controller.messages.length,
-                  itemBuilder: (context, index) {
+                  itemCount: controller.messages.length + pending,
+                  itemBuilder: (context, position) {
+                    if (position < pending) {
+                      // Newest first, like everything else in a reversed list.
+                      return _PendingImageBubble(
+                        image:
+                            controller.outgoingImages[pending - 1 - position],
+                        controller: controller,
+                      );
+                    }
+
+                    final int index = position - pending;
                     final message = controller.messages[index];
                     final isMe = message.senderPhone == controller.userPhone;
-                    
+
                     bool isFirstInGroup = true;
                     bool isLastInGroup = true;
                     bool showDateHeader = false;
@@ -62,7 +82,7 @@ class ChatScreen extends GetView<ChatController> {
                       if (nextMessage.senderPhone == message.senderPhone) {
                         isFirstInGroup = false;
                       }
-                      
+
                       final messageDate = DateFormat('yyyy-MM-dd').format(message.createdAt);
                       final nextMessageDate = DateFormat('yyyy-MM-dd').format(nextMessage.createdAt);
                       if (messageDate != nextMessageDate) {
@@ -123,6 +143,9 @@ class ChatScreen extends GetView<ChatController> {
                   children: [
                     if (controller.isMentioning) _buildMentionSuggestionBox(context),
                     if (controller.replyingToMessage != null) _buildReplyPreview(context),
+                    if (controller.editingMessage != null) _buildEditPreview(context),
+                    if (controller.pendingAttachments.isNotEmpty)
+                      _buildAttachmentStrip(context),
                   ],
                 );
               },
@@ -140,21 +163,51 @@ class ChatScreen extends GetView<ChatController> {
                       ),
                       child: Row(
                         children: [
+                          // Camera or gallery — the same menu the profile
+                          // screen uses, minus the "remove" entry. Hidden
+                          // while editing: a picture cannot join a message
+                          // that has already been sent.
+                          GetBuilder<ChatController>(
+                            builder: (controller) =>
+                                controller.editingMessage != null
+                                    ? const SizedBox(width: 16)
+                                    : IconButton(
+                                        tooltip: 'send_photo'.tr,
+                                        icon: Icon(
+                                          Icons.add_photo_alternate_outlined,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        ),
+                                        onPressed: () => showPhotoSourceSheet(
+                                          context,
+                                          onPick: controller.pickChatImages,
+                                        ),
+                                      ),
+                          ),
                           Expanded(
-                            child: TextField(
-                              controller: controller.messageController,
-                              textCapitalization: TextCapitalization.sentences,
-                              minLines: 1,
-                              maxLines: 4,
+                            child: GetBuilder<ChatController>(
+                              builder: (controller) => TextField(
+                                controller: controller.messageController,
+                                focusNode: controller.messageFocusNode,
+                                textCapitalization: TextCapitalization.sentences,
+                                minLines: 1,
+                                maxLines: 4,
                                 decoration: InputDecoration(
-                                  hintText: 'type_message'.tr,
+                                  // Once a picture is attached, whatever is
+                                  // typed becomes its caption.
+                                  hintText: controller.pendingAttachments.isEmpty
+                                      ? 'type_message'.tr
+                                      : 'add_caption'.tr,
                                   hintStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
                                   border: InputBorder.none,
                                   filled: false,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
                                 ),
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 12),
                         ],
                       ),
                     ),
@@ -175,10 +228,16 @@ class ChatScreen extends GetView<ChatController> {
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.send_rounded,
-                        color: Colors.white,
-                        size: 24,
+                      // A tick rather than a paper plane while editing —
+                      // nothing is being sent, something is being corrected.
+                      child: GetBuilder<ChatController>(
+                        builder: (controller) => Icon(
+                          controller.editingMessage != null
+                              ? Icons.check_rounded
+                              : Icons.send_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
                     ),
                   ),
@@ -187,6 +246,131 @@ class ChatScreen extends GetView<ChatController> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Sits where the reply preview sits, for the same reason: the composer has
+  /// stopped being a blank sheet and the sender should be able to see that at
+  /// a glance.
+  Widget _buildEditPreview(BuildContext context) {
+    final message = controller.editingMessage!;
+    final Color primary = Theme.of(context).colorScheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.edit_rounded, color: primary, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'editing_message'.tr,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: primary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message.preview,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 20),
+            onPressed: () => controller.cancelEditing(clearText: true),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            color: Colors.grey.shade600,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The pictures waiting in the composer. Scrolls sideways, and each one can
+  /// be dropped before the send.
+  Widget _buildAttachmentStrip(BuildContext context) {
+    final List<PickedImage> attachments = controller.pendingAttachments;
+
+    return Container(
+      height: 92,
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: attachments.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.file(
+                        attachments[index].file,
+                        width: 68,
+                        height: 68,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned(
+                      top: -6,
+                      right: -6,
+                      child: GestureDetector(
+                        onTap: () => controller.removeAttachment(index),
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.65),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).cardColor,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Icon(Icons.close_rounded,
+                              size: 13, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          IconButton(
+            tooltip: 'cancel'.tr,
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            color: Theme.of(context).colorScheme.error,
+            onPressed: controller.clearAttachments,
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
     );
   }
@@ -218,7 +402,8 @@ class ChatScreen extends GetView<ChatController> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  message.text,
+                  // A picture with no caption still needs something to quote.
+                  message.preview,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7), fontSize: 13),
@@ -226,6 +411,19 @@ class ChatScreen extends GetView<ChatController> {
               ],
             ),
           ),
+          if (message.hasImage) ...[
+            const SizedBox(width: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                message.imageUrl!,
+                width: 38,
+                height: 38,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+          ],
           IconButton(
             icon: const Icon(Icons.close_rounded, size: 20),
             onPressed: controller.cancelReply,
@@ -345,7 +543,10 @@ class _MessageBubble extends StatelessWidget {
           ),
         Dismissible(
           key: Key(message.id.isEmpty ? message.hashCode.toString() : message.id),
-          direction: DismissDirection.startToEnd,
+          // Nothing to quote once a message is gone.
+          direction: message.deleted
+              ? DismissDirection.none
+              : DismissDirection.startToEnd,
           confirmDismiss: (direction) async {
             controller.setReply(message);
             return false;
@@ -402,18 +603,31 @@ class _MessageBubble extends StatelessWidget {
                             CompositedTransformTarget(
                               link: _layerLink,
                               child: GestureDetector(
-                                onLongPress: () {
-                                  HapticFeedback.mediumImpact();
-                                  _showReactionPicker(context, controller, message, _layerLink, isMe);
-                                },
+                                // A deleted message has nothing left to react
+                                // to, reply to or copy.
+                                onLongPress: message.deleted
+                                    ? null
+                                    : () {
+                                        HapticFeedback.mediumImpact();
+                                        _showReactionPicker(context, controller, message, _layerLink, isMe);
+                                      },
                                 onTap: () => controller.toggleTimeDisplay(message.id),
                                 child: Container(
-                                  padding: EdgeInsets.only(
-                                    left: 16, 
-                                    right: 16, 
-                                    top: 12, 
-                                    bottom: (message.reactions != null && message.reactions!.isNotEmpty) ? 20 : 12,
-                                  ),
+                                  // A picture sits tight against the bubble
+                                  // edge; only text needs the roomy padding.
+                                  padding: message.hasImage
+                                      ? EdgeInsets.only(
+                                          left: 4,
+                                          right: 4,
+                                          top: 4,
+                                          bottom: (message.reactions != null && message.reactions!.isNotEmpty) ? 16 : 4,
+                                        )
+                                      : EdgeInsets.only(
+                                          left: 16,
+                                          right: 16,
+                                          top: 12,
+                                          bottom: (message.reactions != null && message.reactions!.isNotEmpty) ? 20 : 12,
+                                        ),
                                   decoration: BoxDecoration(
                                     color: isMe 
                                         ? Theme.of(context).colorScheme.primary 
@@ -427,21 +641,35 @@ class _MessageBubble extends StatelessWidget {
                                       bottomRight: Radius.circular(isMe ? (isLastInGroup ? 20 : 4) : 20),
                                     ),
                                   ),
-                                  child: Column(
+                                  child: message.deleted
+                                      ? _buildDeletedContent(context)
+                                      : Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       if (message.replyToText != null)
-                                        _buildReplyContent(context),
-                                      RichText(
-                                        text: TextSpan(
-                                          children: _parseMentionText(message.text, context, isMe),
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            height: 1.3,
-                                            color: isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: message.hasImage ? 4 : 0),
+                                          child: _buildReplyContent(context),
+                                        ),
+                                      if (message.hasImage) _buildImage(context),
+                                      if (message.text.trim().isNotEmpty)
+                                        Padding(
+                                          padding: message.hasImage
+                                              ? const EdgeInsets.fromLTRB(8, 8, 8, 4)
+                                              : EdgeInsets.zero,
+                                          child: RichText(
+                                            text: TextSpan(
+                                              children: _parseMentionText(message.text, context, isMe),
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                height: 1.3,
+                                                color: isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                      ),
+                                      if (message.isEdited) _buildEditedMark(context),
                                     ],
                                   ),
                                 ),
@@ -486,6 +714,130 @@ class _MessageBubble extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+
+  /// What is left of a deleted message. The bubble stays so replies pointing
+  /// at it still land somewhere, and so the gap is explained rather than
+  /// mysterious.
+  Widget _buildDeletedContent(BuildContext context) {
+    final Color color = isMe
+        ? Colors.white.withOpacity(0.75)
+        : (Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey)
+            .withOpacity(0.8);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.block_rounded, size: 15, color: color),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            message.deletedByAdmin
+                ? 'message_deleted_by_admin'.tr
+                : 'message_deleted'.tr,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.3,
+              fontStyle: FontStyle.italic,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// `edited` — and who by, when that was not the person who wrote it.
+  Widget _buildEditedMark(BuildContext context) {
+    final Color color = isMe
+        ? Colors.white.withOpacity(0.7)
+        : (Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey)
+            .withOpacity(0.7);
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 3,
+        left: message.hasImage ? 8 : 0,
+        right: message.hasImage ? 8 : 0,
+        bottom: message.hasImage ? 4 : 0,
+      ),
+      child: Text(
+        message.editedByOther ? 'edited_by_admin'.tr : 'edited'.tr,
+        style: TextStyle(
+          fontSize: 10,
+          fontStyle: FontStyle.italic,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  /// The picture inside a bubble.
+  ///
+  /// Laid out from the dimensions stamped on the message, so the thread keeps
+  /// its shape while the bytes are still coming down — the bubble never jumps
+  /// under a reader's thumb. A tap opens it full screen.
+  Widget _buildImage(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Get.to(() => ChatImageViewer(message: message)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 240, maxHeight: 320),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: AspectRatio(
+            aspectRatio: message.imageAspectRatio,
+            child: Hero(
+              tag: ChatImageViewer.heroTag(message),
+              child: Image.network(
+                message.imageUrl!,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    color: Colors.black.withOpacity(0.06),
+                    alignment: Alignment.center,
+                    child: SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: isMe
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.primary,
+                        value: progress.expectedTotalBytes == null
+                            ? null
+                            : progress.cumulativeBytesLoaded /
+                                progress.expectedTotalBytes!,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.black.withOpacity(0.06),
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image_outlined,
+                          color: isMe ? Colors.white70 : Colors.grey, size: 28),
+                      const SizedBox(height: 6),
+                      Text(
+                        'image_load_failed'.tr,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isMe ? Colors.white70 : Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -556,27 +908,50 @@ class _MessageBubble extends StatelessWidget {
             ),
           ),
         ),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              message.replyToSenderName ?? 'unknown'.tr,
-              style: TextStyle(
-                fontWeight: FontWeight.bold, 
-                fontSize: 11, 
-                color: isMe ? Colors.white : Theme.of(context).colorScheme.primary
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message.replyToSenderName ?? 'unknown'.tr,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      color: isMe ? Colors.white : Theme.of(context).colorScheme.primary
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    message.replyToText!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isMe ? Colors.white.withOpacity(0.9) : Theme.of(context).textTheme.bodyMedium?.color
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              message.replyToText!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12, 
-                color: isMe ? Colors.white.withOpacity(0.9) : Theme.of(context).textTheme.bodyMedium?.color
+            // A quoted picture shows itself, the way a quoted line shows its
+            // words.
+            if (message.replyToImage != null) ...[
+              const SizedBox(width: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Image.network(
+                  message.replyToImage!,
+                  width: 34,
+                  height: 34,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -606,6 +981,10 @@ class _MessageBubble extends StatelessWidget {
                   controller.reactToMessage(message, emoji);
                   overlayEntry.remove();
                 },
+                onMoreTapped: () {
+                  overlayEntry.remove();
+                  _showMessageActions(context, controller, message);
+                },
               ),
             ),
           ),
@@ -614,6 +993,86 @@ class _MessageBubble extends StatelessWidget {
     );
 
     Overlay.of(context).insert(overlayEntry);
+  }
+
+  /// Everything that can be done to a message that is not a reaction.
+  ///
+  /// Reached from the "⋯" at the end of the reaction row rather than a second
+  /// long-press: a sheet can grow entries without ever running off the top of
+  /// the screen, which an anchored menu above the bubble would.
+  void _showMessageActions(
+    BuildContext context,
+    ChatController controller,
+    ChatMessageModel message,
+  ) {
+    final bool canEdit = controller.canEdit(message);
+    final bool canDelete = controller.canDelete(message);
+    final bool hasText = message.text.trim().isNotEmpty;
+    final Color error = Theme.of(context).colorScheme.error;
+
+    Get.bottomSheet(
+      SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply_rounded),
+              title: Text('reply'.tr),
+              onTap: () {
+                closeOverlayRoute();
+                controller.setReply(message);
+              },
+            ),
+            if (hasText)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: Text('copy'.tr),
+                onTap: () {
+                  closeOverlayRoute();
+                  Clipboard.setData(ClipboardData(text: message.text));
+                  CustomSnackbar.show(
+                      type: SnackbarType.success, message: 'copied'.tr);
+                },
+              ),
+            if (canEdit)
+              ListTile(
+                leading: const Icon(Icons.edit_rounded),
+                title: Text('edit_message'.tr),
+                // Spelled out, because editing another member's words is not
+                // something to do by accident.
+                subtitle: message.senderPhone != controller.userPhone
+                    ? Text('as_admin'.tr, style: const TextStyle(fontSize: 11))
+                    : null,
+                onTap: () {
+                  closeOverlayRoute();
+                  controller.startEditing(message);
+                },
+              ),
+            if (canDelete)
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded, color: error),
+                title: Text('delete_message'.tr, style: TextStyle(color: error)),
+                subtitle: message.senderPhone != controller.userPhone
+                    ? Text('as_admin'.tr, style: const TextStyle(fontSize: 11))
+                    : null,
+                onTap: () {
+                  closeOverlayRoute();
+                  showConfirmDialog(
+                    title: 'delete_message'.tr,
+                    message: 'confirm_delete_message'.tr,
+                    detail: message.preview,
+                    confirmText: 'delete'.tr,
+                    onConfirm: () => controller.deleteMessage(message),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+    );
   }
 
   Widget _buildReactions(BuildContext context, ChatMessageModel message, bool isMe) {
@@ -893,10 +1352,150 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
+/// A picture that has been sent but is still uploading.
+///
+/// Drawn as the sender's own bubble at the end of the thread so the send feels
+/// immediate; it is replaced by the real message the moment the upload lands.
+/// A failed one stays put with a way back — dropping the picture on a flaky
+/// connection would be the worst possible answer.
+class _PendingImageBubble extends StatelessWidget {
+  final OutgoingImage image;
+  final ChatController controller;
+
+  const _PendingImageBubble({required this.image, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8, left: 50),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: primary.withOpacity(image.failed ? 0.5 : 1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  ConstrainedBox(
+                    constraints:
+                        const BoxConstraints(maxWidth: 240, maxHeight: 320),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      // Same shape the finished bubble will have, so nothing
+                      // shifts when the upload lands and the real message
+                      // takes this one's place.
+                      child: AspectRatio(
+                        aspectRatio: image.picked.aspectRatio,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.file(image.file, fit: BoxFit.cover),
+                            Container(
+                              color: Colors.black.withOpacity(0.35),
+                              alignment: Alignment.center,
+                              child: image.failed
+                                  ? const Icon(Icons.error_outline_rounded,
+                                      color: Colors.white, size: 30)
+                                  : const SizedBox(
+                                      width: 30,
+                                      height: 30,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (image.caption.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                      child: Text(
+                        image.caption,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 15, height: 1.3),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                    child: image.failed
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'send_failed'.tr,
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 11),
+                              ),
+                              const SizedBox(width: 10),
+                              _action(context, Icons.refresh_rounded,
+                                  'retry'.tr, () => controller.retryOutgoingImage(image)),
+                              const SizedBox(width: 6),
+                              _action(context, Icons.close_rounded,
+                                  'cancel'.tr, () => controller.discardOutgoingImage(image)),
+                            ],
+                          )
+                        : Text(
+                            'sending'.tr,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.85),
+                              fontSize: 11,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _action(
+      BuildContext context, IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: Colors.white),
+            const SizedBox(width: 4),
+            Text(label,
+                style: const TextStyle(color: Colors.white, fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ReactionPickerWidget extends StatefulWidget {
   final Function(String) onEmojiSelected;
 
-  const _ReactionPickerWidget({required this.onEmojiSelected});
+  /// Opens the rest of the actions — reply, copy, edit, delete.
+  final VoidCallback onMoreTapped;
+
+  const _ReactionPickerWidget({
+    required this.onEmojiSelected,
+    required this.onMoreTapped,
+  });
 
   @override
   State<_ReactionPickerWidget> createState() => _ReactionPickerWidgetState();
@@ -942,7 +1541,26 @@ class _ReactionPickerWidgetState extends State<_ReactionPickerWidget> with Singl
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: _emojis.map((emoji) => _buildEmojiItem(emoji)).toList(),
+          children: [
+            ..._emojis.map((emoji) => _buildEmojiItem(emoji)),
+            Container(
+              width: 1,
+              height: 22,
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              color: Theme.of(context).dividerColor,
+            ),
+            GestureDetector(
+              onTap: widget.onMoreTapped,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Icon(
+                  Icons.more_horiz_rounded,
+                  size: 22,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

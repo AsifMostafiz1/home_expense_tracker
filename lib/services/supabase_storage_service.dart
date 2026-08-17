@@ -28,7 +28,7 @@ class SupabaseStorageService {
     return uploadBytes(
       bytes,
       folder: folder,
-      extension: _extensionOf(file.path),
+      extension: extensionOf(file.path),
       namePrefix: namePrefix,
     );
   }
@@ -99,7 +99,10 @@ class SupabaseStorageService {
     return afterMarker.substring(prefix.length).split('?').first;
   }
 
-  String _extensionOf(String path) {
+  /// `.jpg` for anything it cannot read off [path]. Public because callers
+  /// that already hold the bytes — the chat, which needs them to measure the
+  /// picture — go through [uploadBytes] and have to name the extension.
+  String extensionOf(String path) {
     final int dotAt = path.lastIndexOf('.');
     if (dotAt == -1 || dotAt == path.length - 1) return '.jpg';
     return path.substring(dotAt).toLowerCase();

@@ -1,10 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../view/sign_in_screen.dart';
 import '../../dashboard/view/dashboard_screen.dart';
+import '../../../services/supabase_storage_service.dart';
 import '../../../utils/app_constant.dart';
+import '../../../utils/supabase_config.dart';
 import '../model/user_model.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
@@ -24,6 +29,13 @@ class AuthController extends GetxController implements GetxService {
   bool isLoading = false;
   bool isPasswordVisible = false;
   bool isRememberMe = true;
+
+  final SupabaseStorageService _storage = SupabaseStorageService();
+
+  /// Picture chosen on the sign-up form. Held as a plain file until the
+  /// account is actually created — abandoning the form must not leave an
+  /// orphaned object sitting in storage.
+  File? pickedProfileImage;
 
   @override
   void onInit() {
@@ -48,6 +60,33 @@ class AuthController extends GetxController implements GetxService {
 
   void toggleRememberMe(bool? value) {
     isRememberMe = value ?? false;
+    update();
+  }
+
+  /// Picks the sign-up avatar from [source]. Downscaled before it ever leaves
+  /// the device — a full-resolution camera shot is several MB, and nothing in
+  /// the app renders larger than a circle avatar.
+  Future<void> pickProfileImage(ImageSource source) async {
+    try {
+      final XFile? picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (picked == null) return;
+
+      pickedProfileImage = File(picked.path);
+      update();
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_pick_image'.tr);
+    }
+  }
+
+  void removePickedProfileImage() {
+    pickedProfileImage = null;
     update();
   }
 
@@ -90,10 +129,29 @@ class AuthController extends GetxController implements GetxService {
         return;
       }
 
+      // Uploaded before the account is written, so a storage failure cannot
+      // leave a user record pointing at an object that never arrived. A
+      // failure here is not fatal either: the account is still created, and
+      // the picture can be added from the edit screen afterwards.
+      String? imageUrl;
+      if (pickedProfileImage != null) {
+        try {
+          imageUrl = await _storage.uploadFile(
+            pickedProfileImage!,
+            folder: SupabaseConfig.folderProfile,
+          );
+        } catch (e) {
+          debugPrint('Sign-up: profile image upload failed — $e');
+          CustomSnackbar.show(
+              type: SnackbarType.error, message: 'failed_upload_photo'.tr);
+        }
+      }
+
       UserModel newUser = UserModel(
         name: name,
         phone: phone,
         password: password,
+        profileImage: imageUrl,
       );
 
       await repository.signUp(newUser);
@@ -103,6 +161,17 @@ class AuthController extends GetxController implements GetxService {
       await prefs.setString(AppConstant.keyUserPhone, phone);
       await prefs.setString(AppConstant.keyUserName, name);
       await prefs.setString(AppConstant.keyIsAdmin, newUser.isAdmin);
+      // The chat controller stamps outgoing messages with this.
+      if (imageUrl != null) {
+        await prefs.setString(AppConstant.keyUserProfileImage, imageUrl);
+      } else {
+        await prefs.remove(AppConstant.keyUserProfileImage);
+        // The picker was right there on the form and they passed on it —
+        // the home screen has no business asking again on the next frame.
+        await prefs.setBool(
+            AppConstant.keyProfilePhotoPromptDismissed(phone), true);
+      }
+      pickedProfileImage = null;
 
       isLoading = false;
       update();

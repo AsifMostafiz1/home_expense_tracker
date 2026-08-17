@@ -44,3 +44,9 @@ app.*.map.json
 /android/app/release
 
 assets/service_account.json
+
+# Firestore rules tests + emulator
+firestore_test/node_modules/
+firestore_test/package-lock.json
+*-debug.log
+.firebase/

@@ -19,6 +19,13 @@ class AppConstant {
   static const String keyNotificationPermissionAsked =
       'notificationPermissionAsked';
 
+  /// Set once the member has closed the "add a profile photo" sheet the home
+  /// screen raises. Keyed by phone number rather than kept global: a shared
+  /// device can hold more than one account, and each of them is asked once.
+  /// Deliberately left behind by sign-out — the answer belongs to the account,
+  /// not to the session.
+  static String keyProfilePhotoPromptDismissed(String phone) => 'profilePhotoPromptDismissed_$phone';
+
 
   // Firestore Collection Names
   static const String collectionUsers = 'users';

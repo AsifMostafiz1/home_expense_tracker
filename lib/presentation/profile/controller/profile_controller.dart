@@ -275,7 +275,9 @@ class ProfileController extends GetxController implements GetxService {
     clearProfileImage = false;
   }
 
-  Future<void> updateProfile({required String name, required String password}) async {
+  /// Saves the profile. [password] blank means "leave it as it is" — the form
+  /// starts empty, so most saves never touch it.
+  Future<void> updateProfile({required String name, String password = ''}) async {
     try {
       isUpdating = true;
       update();
@@ -292,14 +294,21 @@ class ProfileController extends GetxController implements GetxService {
         );
       }
 
+      final Map<String, dynamic> changes = {
+        'name': name,
+        'profileImage': imageUrl,
+      };
+      // Only written when the form actually carried one. Falling back to the
+      // record in memory would write an empty password — and lock the account
+      // out — on any save that ran before that record finished loading.
+      if (password.trim().isNotEmpty) {
+        changes['password'] = password.trim();
+      }
+
       await FirebaseFirestore.instance
           .collection(AppConstant.collectionUsers)
           .doc(userPhone)
-          .update({
-        'name': name,
-        'password': password,
-        'profileImage': imageUrl,
-      });
+          .update(changes);
 
       // Only after Firestore points at the new object. Deleting first would
       // leave the avatar broken for good if the write then failed.

@@ -46,8 +46,8 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Meal Tracker needs access to your photos so you can set a profile picture.</string>
+	<string>Meal Tracker needs access to your photos so you can set a profile picture and send photos in the group chat.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Meal Tracker needs access to your camera so you can take a profile picture.</string>
+	<string>Meal Tracker needs access to your camera so you can take a profile picture or send a photo to the group chat.</string>
 </dict>
 </plist>

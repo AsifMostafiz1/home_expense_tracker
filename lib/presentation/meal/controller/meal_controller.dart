@@ -27,6 +27,18 @@ class MealController extends GetxController implements GetxService {
   bool isLoading = false;
   bool isFetchingMeals = true;
   bool isFetchingStats = true;
+
+  /// False until a meal read has actually landed. An offline launch leaves
+  /// [dailyMeals] empty, which must not be mistaken for a month nobody has
+  /// filled in yet — the bulk-meal prompt checks this before it asks.
+  bool hasLoadedMeals = false;
+
+  Future<void>? _mealsFetch;
+
+  /// Completes once the meal map holds a read. Anything that has to reason
+  /// about the month on launch waits on this instead of polling
+  /// [isFetchingMeals].
+  Future<void> get mealsReady => _mealsFetch ?? Future.value();
   bool isAdminUser = false;
   Map<String, int> dailyMeals = {};
   Map<String, int> totalDailyMeals = {};
@@ -171,6 +183,10 @@ class MealController extends GetxController implements GetxService {
     return dailyMeals.keys.any((key) => key.startsWith(prefix));
   }
 
+  /// The month the app is actually in, whatever month the calendar happens to
+  /// be showing — what the launch-time prompt asks about.
+  bool get hasCurrentMonthMeals => hasMealsForMonth(DateTime.now());
+
   /// Day-by-day editing is a correction to a month that has been filled in.
   /// Before that, the month has no rows to correct.
   bool get canEditDays => hasMealsForMonth(focusedDay);
@@ -207,7 +223,10 @@ class MealController extends GetxController implements GetxService {
   }
 
   /// [background] keeps what is on screen while a pull-to-refresh runs.
-  Future<void> fetchMeals({bool background = false}) async {
+  Future<void> fetchMeals({bool background = false}) =>
+      _mealsFetch = _fetchMeals(background: background);
+
+  Future<void> _fetchMeals({required bool background}) async {
     try {
       isFetchingMeals = !background;
       update();
@@ -215,6 +234,7 @@ class MealController extends GetxController implements GetxService {
       String? userPhone = prefs.getString(AppConstant.keyUserPhone);
       if (userPhone == null) return;
       dailyMeals = await repository.fetchDailyMeals(userPhone);
+      hasLoadedMeals = true;
     } catch (e) {
       print('Error fetching meals: $e');
     } finally {
@@ -295,7 +315,13 @@ class MealController extends GetxController implements GetxService {
           ? 2
           : 1;
 
-  Future<void> addBulkMeal() async {
+  /// Fills [month] — the month on screen unless a caller names another, which
+  /// the launch-time prompt does: it always means the current month, whatever
+  /// the calendar happens to be showing.
+  ///
+  /// Answers whether the month was actually written, so a caller can close
+  /// itself only on success.
+  Future<bool> addBulkMeal({DateTime? month}) async {
     try {
       isLoading = true;
       update();
@@ -305,16 +331,18 @@ class MealController extends GetxController implements GetxService {
       if (userName == null || userPhone == null) {
         CustomSnackbar.show(
             type: SnackbarType.error, message: 'user_info_not_found'.tr);
-        return;
+        return false;
       }
-      await repository.addBulkMeal(userName, userPhone, focusedDay);
+      await repository.addBulkMeal(userName, userPhone, month ?? focusedDay);
       await fetchMeals();
       await fetchMonthlyStats();
       CustomSnackbar.show(
           type: SnackbarType.success, message: 'bulk_meals_added'.tr);
+      return true;
     } catch (e) {
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_add_bulk_meals'.tr);
+      return false;
     } finally {
       isLoading = false;
       update();

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart';
+import '../../../common/widgets/avatar_picker.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../../../common/widgets/custom_button.dart';
@@ -29,7 +30,38 @@ class SignUpScreen extends GetView<AuthController> {
                 'setup_profile'.tr,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
+
+              // Optional on purpose — a missing picture must never be the
+              // reason someone cannot open an account. Whoever skips here is
+              // asked once more from the home screen.
+              Center(
+                child: GetBuilder<AuthController>(
+                  builder: (controller) => Column(
+                    children: [
+                      AvatarPicker(
+                        radius: 44,
+                        image: controller.pickedProfileImage == null
+                            ? null
+                            : FileImage(controller.pickedProfileImage!),
+                        fallback: const Icon(Icons.person_outline,
+                            size: 40, color: Colors.white),
+                        onPick: controller.pickProfileImage,
+                        onRemove: controller.pickedProfileImage == null
+                            ? null
+                            : controller.removePickedProfileImage,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'profile_photo_optional'.tr,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+
               CustomTextField(
                 labelText: 'full_name'.tr,
                 controller: controller.nameController,

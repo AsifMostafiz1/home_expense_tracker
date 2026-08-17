@@ -6,6 +6,7 @@ import '../../profile/view/profile_screen.dart';
 import 'package:get/get.dart';
 import '../../profile/controller/profile_controller.dart';
 import '../../chat/controller/chat_controller.dart';
+import '../widgets/home_prompts.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int initialIndex;
@@ -26,6 +27,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Get.find<ProfileController>();
     final chatController = Get.find<ChatController>();
     chatController.setChatScreenVisible(_selectedIndex == 2);
+
+    // Setting up the month's meals, then the profile picture — see [HomePrompts].
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      HomePrompts.run();
+    });
   }
 
   static const List<Widget> _screens = <Widget>[

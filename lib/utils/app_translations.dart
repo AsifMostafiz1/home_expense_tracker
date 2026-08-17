@@ -399,6 +399,56 @@ class AppTranslations extends Translations {
               'Notifications are turned off, so you will miss new messages, announcements and meal updates. Enable them in Settings > Notifications.',
           'open_settings': 'Open Settings',
           'not_now': 'Not Now',
+          'profile_photo_optional': 'Add a photo (optional)',
+          'failed_upload_photo':
+              'Could not upload the photo — you can add it later from Edit Profile',
+          'add_profile_photo_title': 'Add a profile photo',
+          'add_profile_photo_message':
+              'You have not set a picture yet. It takes a moment, and it is how the rest of the house tells you apart.',
+          'photo_benefit_chat':
+              'Your face rides along with every message in group chat',
+          'photo_benefit_members':
+              'Easier to spot in the member, meal and monthly lists',
+          'photo_benefit_change_anytime':
+              'Set it once — you can change or remove it any time',
+          'add_photo_now': 'Add Photo',
+          'bulk_meal_prompt_title': '@month is not set up yet',
+          'bulk_meal_prompt_message':
+              'Your meals for this month have not been added. Fill the month in from here, then adjust whichever days need it.',
+          'bulk_meal_point_defaults':
+              'Every day starts at 1 meal — Friday and Saturday at 2',
+          'bulk_meal_point_edit':
+              'Tap any upcoming day on the calendar to change it afterwards',
+          'bulk_meal_point_locked':
+              'Single-day edits and your month totals only work once this is done',
+          'photo': 'Photo',
+          'send_photo': 'Send a photo',
+          'add_caption': 'Add a caption…',
+          'sending': 'Sending…',
+          'send_failed': 'Not sent',
+          'failed_send_message': 'Could not send the message',
+          'failed_send_image': 'Could not send the photo',
+          'image_load_failed': 'Could not load the image',
+          'attachment_limit_reached': 'Up to @count photos at a time',
+          'reply': 'Reply',
+          'copy': 'Copy',
+          'edit_message': 'Edit message',
+          'editing_message': 'Editing message',
+          'delete_message': 'Delete message',
+          'confirm_delete_message':
+              'Delete this message for everyone? This cannot be undone.',
+          'as_admin': 'As admin',
+          'edited': 'edited',
+          'edited_by_admin': 'edited by admin',
+          'message_deleted': 'This message was deleted',
+          'message_deleted_by_admin': 'This message was deleted by an admin',
+          'message_cannot_be_empty': 'A message needs something in it',
+          'edit_window_expired':
+              'Your own messages can only be edited within 5 minutes',
+          'delete_window_expired':
+              'Your own messages can only be deleted within 5 minutes',
+          'failed_edit_message': 'Could not edit the message',
+          'failed_delete_message': 'Could not delete the message',
         },
         'bn_BD': {
           'app_name': 'মিল ট্র্যাকার',
@@ -794,6 +844,55 @@ class AppTranslations extends Translations {
               'নোটিফিকেশন বন্ধ আছে, তাই নতুন মেসেজ, ঘোষণা ও মিল আপডেট আপনি পাবেন না। সেটিংস > নোটিফিকেশন থেকে চালু করুন।',
           'open_settings': 'সেটিংস খুলুন',
           'not_now': 'এখন নয়',
+          'profile_photo_optional': 'ছবি যোগ করুন (ঐচ্ছিক)',
+          'failed_upload_photo':
+              'ছবিটি আপলোড করা যায়নি — পরে এডিট প্রোফাইল থেকে যোগ করতে পারবেন',
+          'add_profile_photo_title': 'প্রোফাইল ছবি যোগ করুন',
+          'add_profile_photo_message':
+              'আপনি এখনো কোনো ছবি দেননি। এক মুহূর্তের কাজ, আর এতেই বাসার সবাই আপনাকে সহজে চিনতে পারবে।',
+          'photo_benefit_chat': 'গ্রুপ চ্যাটে প্রতিটি মেসেজের পাশে ছবিটি দেখা যাবে',
+          'photo_benefit_members':
+              'মেম্বার, মিল ও মাসিক তালিকায় আপনাকে চেনা সহজ হবে',
+          'photo_benefit_change_anytime':
+              'একবার দিলেই হলো — যখন খুশি বদলাতে বা সরাতে পারবেন',
+          'add_photo_now': 'ছবি যোগ করুন',
+          'bulk_meal_prompt_title': '@month এর মিল এখনো যোগ করা হয়নি',
+          'bulk_meal_prompt_message':
+              'এই মাসের মিল এখনো যোগ করা হয়নি। এখান থেকেই পুরো মাসের মিল যোগ করে নিন, পরে প্রয়োজনমতো যেকোনো দিন বদলে নিতে পারবেন।',
+          'bulk_meal_point_defaults':
+              'প্রতিদিন ১টি মিল — শুক্র ও শনিবারে ২টি',
+          'bulk_meal_point_edit':
+              'পরে ক্যালেন্ডারে আসন্ন যেকোনো দিনে ট্যাপ করে বদলাতে পারবেন',
+          'bulk_meal_point_locked':
+              'এটি না করা পর্যন্ত আলাদা দিনের সম্পাদনা ও মাসের হিসাব কাজ করবে না',
+          'photo': 'ছবি',
+          'send_photo': 'ছবি পাঠান',
+          'add_caption': 'ক্যাপশন লিখুন…',
+          'sending': 'পাঠানো হচ্ছে…',
+          'send_failed': 'পাঠানো যায়নি',
+          'failed_send_message': 'মেসেজটি পাঠানো যায়নি',
+          'failed_send_image': 'ছবিটি পাঠানো যায়নি',
+          'image_load_failed': 'ছবিটি লোড করা যায়নি',
+          'attachment_limit_reached': 'একসাথে সর্বোচ্চ @count টি ছবি',
+          'reply': 'রিপ্লাই',
+          'copy': 'কপি করুন',
+          'edit_message': 'মেসেজ সম্পাদনা',
+          'editing_message': 'মেসেজ সম্পাদনা করা হচ্ছে',
+          'delete_message': 'মেসেজ মুছুন',
+          'confirm_delete_message':
+              'মেসেজটি সবার জন্য মুছে ফেলবেন? এটি আর ফেরানো যাবে না।',
+          'as_admin': 'অ্যাডমিন হিসেবে',
+          'edited': 'সম্পাদিত',
+          'edited_by_admin': 'অ্যাডমিন সম্পাদনা করেছেন',
+          'message_deleted': 'মেসেজটি মুছে ফেলা হয়েছে',
+          'message_deleted_by_admin': 'অ্যাডমিন মেসেজটি মুছে ফেলেছেন',
+          'message_cannot_be_empty': 'মেসেজ খালি রাখা যাবে না',
+          'edit_window_expired':
+              'নিজের মেসেজ শুধু ৫ মিনিটের মধ্যে সম্পাদনা করা যায়',
+          'delete_window_expired':
+              'নিজের মেসেজ শুধু ৫ মিনিটের মধ্যে মুছে ফেলা যায়',
+          'failed_edit_message': 'মেসেজটি সম্পাদনা করা যায়নি',
+          'failed_delete_message': 'মেসেজটি মুছে ফেলা যায়নি',
         },
       };
 }

@@ -24,6 +24,13 @@ class MemberAvatarService extends GetxController implements GetxService {
   String? _myImage;
 
   bool _loaded = false;
+  Future<void>? _inFlight;
+
+  /// Whether the directory is actually backed by a Firestore read. It stays
+  /// false when the read failed, which is what lets a caller tell "this member
+  /// has no picture" apart from "we never got to look" — the home-screen photo
+  /// prompt must not nag someone on the strength of an offline launch.
+  bool get isLoaded => _loaded;
 
   /// The signed-in user's own picture. Kept separate because the screens that
   /// show it label the row "My Meals" or "You" rather than by name, so there
@@ -49,9 +56,16 @@ class MemberAvatarService extends GetxController implements GetxService {
 
   /// Fills the directory. Cheap to call repeatedly — it no-ops once loaded
   /// unless [force] is set, which is what a profile save does.
-  Future<void> load({bool force = false}) async {
-    if (_loaded && !force) return;
+  ///
+  /// Callers that arrive while a read is already running wait on that one
+  /// rather than firing a second: on launch the initial binding and the
+  /// home-screen photo prompt both ask for this within a frame of each other.
+  Future<void> load({bool force = false}) {
+    if (_loaded && !force) return Future.value();
+    return _inFlight ??= _load().whenComplete(() => _inFlight = null);
+  }
 
+  Future<void> _load() async {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       _myPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';

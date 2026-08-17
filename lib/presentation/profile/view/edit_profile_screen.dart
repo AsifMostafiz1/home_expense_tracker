@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:image_picker/image_picker.dart';
 import '../controller/profile_controller.dart';
-import '../../../common/widgets/profile_avatar.dart';
+import '../../../common/widgets/avatar_picker.dart';
 import '../../../common/widgets/custom_button.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../../../common/widgets/custom_snackbar.dart';
@@ -24,8 +23,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController.text = _controller.userModel?.name ?? '';
-    _phoneController.text = _controller.userModel?.phone ?? '';
+    // The cached name and phone stand in while the Firestore record is still
+    // loading — this screen is reachable from the home-screen photo prompt,
+    // which can land seconds after launch.
+    _nameController.text = _controller.userModel?.name ?? _controller.userName;
+    _phoneController.text = _controller.userModel?.phone ?? _controller.userPhone;
     _passwordController.text = ''; // Keep password field empty by default
   }
 
@@ -51,93 +53,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return null;
   }
 
-  void _openPhotoSheet(BuildContext context, ProfileController controller) {
-    final bool hasPhoto = _avatarImage(controller) != null;
+  /// Null while the circle is empty — there is nothing to remove yet.
+  VoidCallback? _removeAction(ProfileController controller) =>
+      _avatarImage(controller) == null ? null : controller.removeProfileImage;
 
-    Get.bottomSheet(
-      SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: Text('take_photo'.tr),
-              onTap: () {
-                Get.back();
-                controller.pickProfileImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: Text('choose_from_gallery'.tr),
-              onTap: () {
-                Get.back();
-                controller.pickProfileImage(ImageSource.gallery);
-              },
-            ),
-            if (hasPhoto)
-              ListTile(
-                leading: Icon(Icons.delete_outline,
-                    color: Theme.of(context).colorScheme.error),
-                title: Text(
-                  'remove_photo'.tr,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onTap: () {
-                  Get.back();
-                  controller.removeProfileImage();
-                },
-              ),
-          ],
-        ),
-      ),
-      backgroundColor: Theme.of(context).cardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+  void _openPhotoSheet(BuildContext context, ProfileController controller) {
+    showPhotoSourceSheet(
+      context,
+      onPick: controller.pickProfileImage,
+      onRemove: _removeAction(controller),
     );
   }
 
   Widget _buildAvatarPicker(BuildContext context, ProfileController controller) {
-    final ImageProvider? image = _avatarImage(controller);
-
-    return GestureDetector(
-      onTap: () => _openPhotoSheet(context, controller),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            backgroundImage: image,
-            child: image == null
-                ? Text(
-                    initialsOf(controller.userModel?.name ?? controller.userName),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  width: 2,
-                ),
-              ),
-              child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
+    return AvatarPicker(
+      image: _avatarImage(controller),
+      name: controller.userModel?.name ?? controller.userName,
+      onPick: controller.pickProfileImage,
+      onRemove: _removeAction(controller),
     );
   }
 
@@ -212,21 +145,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   isLoading: controller.isUpdating,
                   onPressed: () {
                     String name = _nameController.text.trim();
-                    String password = _passwordController.text.trim();
-                    
+
                     if (name.isEmpty) {
                       CustomSnackbar.show(type: SnackbarType.error, message: 'please_fill_all_fields'.tr);
                       return;
                     }
-                    
-                    // If password is empty, use the existing one
-                    String finalPassword = password.isEmpty 
-                        ? (controller.userModel?.password ?? '') 
-                        : password;
 
+                    // Left blank means "keep the current one" — the controller
+                    // simply leaves the field out of the write.
                     controller.updateProfile(
                       name: name,
-                      password: finalPassword,
+                      password: _passwordController.text.trim(),
                     );
                   },
                 ),

@@ -211,6 +211,10 @@ class PushNotificationService {
     required String body,
     List<String>? targetPhones,
     Map<String, dynamic>? data,
+
+    /// Public URL of a picture to show inside the notification — a chat photo
+    /// is worth seeing from the shade.
+    String? imageUrl,
   }) async {
     try {
       final String accessToken = await FcmV1Service().getAccessToken();
@@ -249,17 +253,20 @@ class PushNotificationService {
             'notification': {
               'title': title,
               'body': body,
+              if (imageUrl != null) 'image': imageUrl,
             },
             'data': {
               'title': title,
               'body': body,
               'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+              if (imageUrl != null) 'imageUrl': imageUrl,
               ...?data,
             },
             'android': {
               'priority': 'high',
               'notification': {
                 'channel_id': 'high_importance_channel',
+                if (imageUrl != null) 'image': imageUrl,
               }
             },
             'apns': {
@@ -267,11 +274,14 @@ class PushNotificationService {
                 'aps': {
                   'content-available': 1,
                   'sound': 'default',
+                  if (imageUrl != null) 'mutable-content': 1,
                 }
               },
               'headers': {
                 'apns-priority': '10',
-              }
+              },
+              if (imageUrl != null)
+                'fcm_options': {'image': imageUrl},
             }
           }
         };
