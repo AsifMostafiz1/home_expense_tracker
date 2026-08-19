@@ -6,6 +6,7 @@ import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/hiding_fab.dart';
 import '../../../common/widgets/image_viewer_screen.dart';
 import '../../../utils/app_ui.dart';
+import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../controller/expense_controller.dart';
 import '../model/expense_model.dart';
 import '../widgets/expense_bottom_sheet.dart';
@@ -54,7 +55,11 @@ class ExpenseScreen extends GetView<ExpenseController> {
 
             return RefreshIndicator(
               color: Theme.of(context).colorScheme.primary,
-              onRefresh: () => controller.fetchExpenses(background: true),
+              onRefresh: () async {
+                await controller.fetchExpenses(background: true);
+                // The strip above this screen reads a month nothing here owns.
+                await MonthlyStatsController.refreshDuesIfLoaded();
+              },
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
 import '../../../common/widgets/profile_avatar.dart';
 import '../../member/view/member_screen.dart';
+import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/view/monthly_stats_screen.dart';
 import '../../settings/view/settings_screen.dart';
 import '../widgets/profile_skeleton.dart';
@@ -142,7 +143,13 @@ class ProfileScreen extends StatelessWidget {
                           icon: Icons.insights_rounded,
                           title: 'monthly_statistics'.tr,
                           subtitle: 'monthly_statistics_subtitle'.tr,
-                          onTap: () => Get.to(() => const MonthlyStatsScreen()),
+                          // The saved months there carry a figure each; the
+                          // launch only worked out this one — see
+                          // MonthlyStatsController.ensureHistory.
+                          onTap: () {
+                            Get.find<MonthlyStatsController>().ensureHistory();
+                            Get.to(() => const MonthlyStatsScreen());
+                          },
                         ),
                       ),
                       const SizedBox(height: 24),

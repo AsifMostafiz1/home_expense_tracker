@@ -6,6 +6,8 @@ import '../../profile/view/profile_screen.dart';
 import 'package:get/get.dart';
 import '../../profile/controller/profile_controller.dart';
 import '../../chat/controller/chat_controller.dart';
+import '../../monthly_stats/controller/monthly_stats_controller.dart';
+import '../../monthly_stats/widgets/due_banner.dart';
 import '../widgets/home_prompts.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -25,6 +27,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _selectedIndex = widget.initialIndex;
     // Pre-load data for other tabs
     Get.find<ProfileController>();
+    // Built here rather than left to the banner's own GetBuilder: whichever
+    // widget first resolves a lazy dependency owns it, and would take it down
+    // with itself on dispose. It also works out this month's figure, which is
+    // what the banner is waiting on.
+    Get.find<MonthlyStatsController>();
     final chatController = Get.find<ChatController>();
     chatController.setChatScreenVisible(_selectedIndex == 2);
 
@@ -123,7 +130,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_selectedIndex],
+      // Above all four tabs' app bars, in the place the offline strip uses.
+      body: DueBanner(child: _screens[_selectedIndex]),
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.only(bottom: 12),

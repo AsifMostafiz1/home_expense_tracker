@@ -300,6 +300,7 @@ class AppTranslations extends Translations {
           'paid_amount': 'Paid @amount',
           'your_share_hint':
               'House bills for this month plus @meals meals from @month.',
+          'due_banner_title': 'You need to pay @amount for @month',
           'your_breakdown': 'Your breakdown',
           'more_info': 'More info',
           'you_not_in_month': 'You are not on this month\'s bill yet.',
@@ -802,6 +803,8 @@ class AppTranslations extends Translations {
           'paid_amount': '@amount পরিশোধিত',
           'your_share_hint':
               'এই মাসের বাসার বিল ও @month এর @meals টি মিল মিলিয়ে।',
+          'due_banner_title':
+              '@month এর জন্য আপনাকে @amount দিতে হবে',
           'your_breakdown': 'আপনার হিসাব',
           'more_info': 'বিস্তারিত',
           'you_not_in_month': 'আপনি এখনো এই মাসের বিলে নেই।',

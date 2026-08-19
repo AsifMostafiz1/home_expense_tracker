@@ -55,12 +55,20 @@ class MonthlyStatsController extends GetxController implements GetxService {
 
   /// This month worked out for whoever is looking, so a member sees what they
   /// owe instead of the whole house's accounts. Built only for members: the
-  /// admin card already shows the house totals.
+  /// admin card already shows the house totals, and the reminder strip on the
+  /// home screen is not an admin's to act on either.
   MonthCostSummary? myMonthSummary;
 
   /// One figure per listed month: what this member owes, or paid.
   Map<String, double> myAmountByMonth = {};
   bool isMyCostLoading = false;
+
+  /// Whether anything has asked for [myAmountByMonth] yet.
+  ///
+  /// Every month in it costs three Firestore reads to work out, and a launch
+  /// needs none of them: the reminder strip on the home screen reads this
+  /// month and nothing else. The rest waits for [ensureHistory].
+  bool _wantsHistory = false;
 
   MemberCostSummary? get myCost {
     final MonthCostSummary? summary = myMonthSummary;
@@ -162,8 +170,30 @@ class MonthlyStatsController extends GetxController implements GetxService {
   /// Pull-to-refresh: swap the data in underneath, quietly.
   Future<void> refreshStats() => loadStats(background: true);
 
-  /// Works out what the signed-in member owes — this month in full, and one
-  /// figure for every other month in the list.
+  /// Re-reads the month behind the home screen's reminder strip, from wherever
+  /// the user happened to pull.
+  ///
+  /// The strip sits above every home tab but is fed by a controller none of
+  /// them own, and nothing here listens to the bills live — so an admin
+  /// marking a month collected, or correcting what it comes to, would
+  /// otherwise not reach that member's screen until the next launch. Hanging
+  /// this off the pulls those tabs already have is what makes the strip
+  /// honest without a relaunch.
+  ///
+  /// Silent when nothing has built the controller yet: `isRegistered` alone is
+  /// true for a lazy registration nobody has resolved, and resolving it here
+  /// would only duplicate the load its own `onInit` is about to run.
+  static Future<void> refreshDuesIfLoaded() async {
+    if (!Get.isRegistered<MonthlyStatsController>() ||
+        Get.isPrepared<MonthlyStatsController>()) {
+      return;
+    }
+    await Get.find<MonthlyStatsController>().refreshStats();
+  }
+
+  /// Works out what the signed-in member owes — this month in full, and, once
+  /// [ensureHistory] has been called, one figure for every other month in the
+  /// list.
   ///
   /// A month they have already been collected from needs no arithmetic at all:
   /// the settlement record holds the amount that changed hands. Only the
@@ -176,8 +206,13 @@ class MonthlyStatsController extends GetxController implements GetxService {
       isMyCostLoading = !background || myMonthSummary == null;
       update();
 
-      // Bounded: the list is a house's history, not an archive to trawl.
-      final List<MonthlyBillModel> targets = bills.take(12).toList();
+      // Bounded: the list is a house's history, not an archive to trawl — and
+      // empty until something asks to read it, see [ensureHistory]. Read once:
+      // a launch and an `ensureHistory` can be in flight together, and the two
+      // runs have to agree with themselves about what they are collecting.
+      final bool wantedHistory = _wantsHistory;
+      final List<MonthlyBillModel> targets =
+          wantedHistory ? bills.take(12).toList() : const <MonthlyBillModel>[];
       final Map<String, double> amounts = {};
       final Set<DateTime> mealMonths = {};
 
@@ -233,7 +268,9 @@ class MonthlyStatsController extends GetxController implements GetxService {
         }
       }
 
-      myAmountByMonth = amounts;
+      // The run that did not ask for the history must not wipe the one that
+      // did; both work out this month's summary the same way.
+      if (wantedHistory) myAmountByMonth = amounts;
       myMonthSummary = current == null ? null : summaryFor(current);
     } catch (e) {
       debugPrint('Error loading my month costs: $e');
@@ -251,6 +288,38 @@ class MonthlyStatsController extends GetxController implements GetxService {
 
   bool hasPaid(MonthlyBillModel bill) =>
       bill.settlements.containsKey(userPhone);
+
+  /// What the signed-in member still owes for this month, or null when there
+  /// is nothing to chase. Drives the reminder strip on the home screen.
+  ///
+  /// Null for an admin: collecting is their job, not paying up, and a strip
+  /// chasing them across the app for their own share reads as the app telling
+  /// them off. It is also null once the month is collected from them, before
+  /// the bills are set up, for someone not on this month's bill, and when the
+  /// house owes them instead.
+  double? get dueThisMonth {
+    if (isAdminUser) return null;
+
+    final MonthlyBillModel? bill = currentMonthBill;
+    if (bill == null || bill.isEmpty) return null;
+
+    final MemberCostSummary? mine = myCost;
+    if (mine == null || mine.settled) return null;
+
+    // Under half a taka is rounding, not a debt worth a banner.
+    return mine.grandTotal >= 0.5 ? mine.grandTotal : null;
+  }
+
+  /// Fills in the per-month figures the saved-months list shows, once.
+  ///
+  /// Called on the way into the statistics screen, so the reads are paid for
+  /// by someone about to look at them. A no-op for an admin, whose list
+  /// carries the house's totals rather than their own share.
+  Future<void> ensureHistory() async {
+    if (isAdminUser || _wantsHistory) return;
+    _wantsHistory = true;
+    await loadMyCost();
+  }
 
   Future<void> _fetchBills({bool background = false}) async {
     try {

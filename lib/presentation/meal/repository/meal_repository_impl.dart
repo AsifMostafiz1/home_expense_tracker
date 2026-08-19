@@ -103,11 +103,21 @@ class MealRepositoryImpl implements MealRepository {
       }
     }
 
-    // User Count
+    // How many people share the house.
+    //
+    // Removed accounts stay in Firestore as tombstones, so the raw document
+    // count is not the member count — the same `removed == true` rule the
+    // member and monthly-bill lists use has to be applied here too. It is not
+    // only a label: this is the divisor behind the "other" rate, so counting a
+    // tombstone spreads the house's spending one head too thin and everybody
+    // is charged too little.
     QuerySnapshot usersSnap = await FirebaseFirestore.instance
         .collection(AppConstant.collectionUsers)
         .get();
-    int userCount = usersSnap.docs.length;
+    int userCount = usersSnap.docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>?;
+      return data?['removed'] != true;
+    }).length;
 
     // Expenses
     QuerySnapshot expenseSnap = await FirebaseFirestore.instance

@@ -13,6 +13,7 @@ import '../../../common/widgets/profile_avatar.dart';
 import '../../expense/controller/expense_controller.dart';
 import '../../expense/model/expense_model.dart';
 import '../../expense/widgets/expense_bottom_sheet.dart';
+import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/meal_controller.dart';
 import 'announcement_history_screen.dart';
@@ -132,6 +133,8 @@ class MealScreen extends GetView<MealController> {
                 await controller.fetchMeals(background: true);
                 await controller.fetchMonthlyStats(background: true);
                 await controller.fetchAnnouncement();
+                // The strip above this screen reads a month nothing here owns.
+                await MonthlyStatsController.refreshDuesIfLoaded();
               },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -585,8 +588,6 @@ class MealScreen extends GetView<MealController> {
   /// --------------------------------------------------------------- summary
 
   Widget _buildSummarySection(BuildContext context, {required bool isLoading}) {
-    final int memberCount = controller.otherUsersMeals.length + 1;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
       child: Column(
@@ -630,8 +631,12 @@ class MealScreen extends GetView<MealController> {
                     Icon(Icons.people_alt_rounded,
                         size: 13, color: _mutedColor(context)),
                     const SizedBox(width: 5),
+                    // The same count the total card shows. It used to be
+                    // the length of the list below, which counts whoever
+                    // logged a meal or an expense this month rather than
+                    // whoever lives here — two figures for one question.
                     Text(
-                      '$memberCount',
+                      '${controller.userCount}',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -1326,78 +1331,77 @@ class MealScreen extends GetView<MealController> {
 
     Get.bottomSheet(
       Builder(
-        builder: (sheetContext) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+        // No keyboard inset here. Get.bottomSheet already pads its own route
+        // by `viewInsets.bottom`, so adding it again lifted the sheet a second
+        // keyboard-height off the bottom and left the gap between the two.
+        // The Builder stays — the close button pops with `sheetContext`.
+        builder: (sheetContext) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _sheetHandle(context),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: _tint(context, Colors.amber),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Icon(Icons.campaign_rounded,
-                                    color: _accentOn(context, Colors.amber),
-                                    size: 22),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sheetHandle(context),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: _tint(context, Colors.amber),
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'announcement'.tr,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleLarge
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () =>
-                                    Navigator.of(sheetContext).pop(),
-                                icon: Icon(Icons.close_rounded,
-                                    color: _mutedColor(context)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          CustomTextField(
-                            controller: controller.announcementController,
-                            hintText: 'enter_announcement'.tr,
-                            maxLines: 4,
-                          ),
-                          const SizedBox(height: 20),
-                          GetBuilder<MealController>(
-                            builder: (c) => CustomButton(
-                              text: 'submit'.tr,
-                              isLoading: c.isLoading,
-                              onPressed: () => c.submitAnnouncement(),
+                              child: Icon(Icons.campaign_rounded,
+                                  color: _accentOn(context, Colors.amber),
+                                  size: 22),
                             ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'announcement'.tr,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () =>
+                                  Navigator.of(sheetContext).pop(),
+                              icon: Icon(Icons.close_rounded,
+                                  color: _mutedColor(context)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        CustomTextField(
+                          controller: controller.announcementController,
+                          hintText: 'enter_announcement'.tr,
+                          maxLines: 4,
+                        ),
+                        const SizedBox(height: 20),
+                        GetBuilder<MealController>(
+                          builder: (c) => CustomButton(
+                            text: 'submit'.tr,
+                            isLoading: c.isLoading,
+                            onPressed: () => c.submitAnnouncement(),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
