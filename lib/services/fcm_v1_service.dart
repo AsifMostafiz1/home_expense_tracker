@@ -13,7 +13,7 @@ class FcmV1Service {
 
   Future<String> getAccessToken() async {
     try {
-      final jsonString = await rootBundle.loadString('assets/service_account.json');
+      final jsonString = await rootBundle.loadString('service_account.json');
       final accountCredentials = ServiceAccountCredentials.fromJson(jsonString);
 
       final authClient = await clientViaServiceAccount(accountCredentials, _scopes);

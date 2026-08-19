@@ -87,9 +87,14 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-assets:
-  - assets/service_account.json
+  # The FCM v1 sender reads the Firebase service account key from here.
+  # Asset paths are relative to this file, so the key sits in the project
+  # root. It is a private key and is kept out of git on purpose (.gitignore),
+  # which means a fresh checkout has to be handed a copy — naming the file
+  # itself rather than a folder is deliberate, so a checkout without it fails
+  # the build instead of building an app that quietly sends no notifications.
+  assets:
+    - service_account.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
