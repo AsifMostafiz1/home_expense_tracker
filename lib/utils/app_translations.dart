@@ -247,9 +247,12 @@ class AppTranslations extends Translations {
           'role_takes_effect_hint': 'Changes apply on their device the next time they open the app.',
           // ---------------------------------------------------- house bills
           // ---------------------------------------------------- app settings
-          'settings': 'Settings',
-          'settings_subtitle': 'App version and download link',
-          'app_update': 'App update',
+          'app_version': 'App Version',
+          'app_version_subtitle': 'Latest version and download link',
+          'APP': 'APP',
+          'read_only_settings':
+              'You can see the app settings. Only an admin can change them.',
+          'version_and_link': 'Version & link',
           'app_update_hint':
               'Anyone running an older version is sent to the update screen when they open the app, with this download link.',
           'latest_version': 'Latest version',
@@ -751,9 +754,12 @@ class AppTranslations extends Translations {
           'role_takes_effect_hint': 'সদস্যের ডিভাইসে পরিবর্তনটি পরেরবার অ্যাপ খুললে কার্যকর হবে।',
           // ---------------------------------------------------- house bills
           // ---------------------------------------------------- app settings
-          'settings': 'সেটিংস',
-          'settings_subtitle': 'অ্যাপ ভার্সন ও ডাউনলোড লিংক',
-          'app_update': 'অ্যাপ আপডেট',
+          'app_version': 'অ্যাপ ভার্সন',
+          'app_version_subtitle': 'সর্বশেষ ভার্সন ও ডাউনলোড লিংক',
+          'APP': 'অ্যাপ',
+          'read_only_settings':
+              'আপনি অ্যাপ সেটিংস দেখতে পারবেন। শুধু অ্যাডমিন পরিবর্তন করতে পারেন।',
+          'version_and_link': 'ভার্সন ও লিংক',
           'app_update_hint':
               'পুরোনো ভার্সন চালানো যে কেউ অ্যাপ খুললেই আপডেট স্ক্রিনে যাবে, এই ডাউনলোড লিংকসহ।',
           'latest_version': 'সর্বশেষ ভার্সন',

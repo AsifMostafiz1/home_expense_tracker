@@ -13,8 +13,11 @@ import '../controller/settings_controller.dart';
 import '../model/app_config_model.dart';
 import '../widgets/settings_skeleton.dart';
 
-/// Admin-only app settings: the version every launch is checked against, and
-/// the link the update screen sends people to.
+/// App settings: the version every launch is checked against, and the link
+/// the update screen sends people to.
+///
+/// Everyone can read it — being told which version you are meant to be on is
+/// not privileged. Only an admin gets the form and the save bar.
 class SettingsScreen extends GetView<SettingsController> {
   const SettingsScreen({super.key});
 
@@ -24,14 +27,10 @@ class SettingsScreen extends GetView<SettingsController> {
       builder: (c) {
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          appBar: CustomAppBar(title: 'settings'.tr),
+          appBar: CustomAppBar(title: 'app_version'.tr),
           body: Builder(
             builder: (_) {
               if (c.isLoading) return const SettingsSkeleton();
-
-              // The tile that leads here is admin-only; this is the second
-              // lock, for a session whose role was revoked while it was open.
-              if (!c.isAdminUser) return _buildLockedState(context);
 
               if (c.errorMessage.isNotEmpty) return _buildErrorState(context, c);
 
@@ -42,8 +41,12 @@ class SettingsScreen extends GetView<SettingsController> {
                   children: [
                     _buildVersionCard(context, c),
                     const SizedBox(height: 22),
-                    _buildSectionLabel(context, 'app_update'.tr),
+                    _buildSectionLabel(context, 'version_and_link'.tr),
                     const SizedBox(height: 12),
+                    if (!c.isAdminUser) ...[
+                      _buildReadOnlyNote(context),
+                      const SizedBox(height: 12),
+                    ],
                     _buildForm(context, c),
                     const SizedBox(height: 16),
                     _buildFootnote(context, c),
@@ -193,6 +196,10 @@ class SettingsScreen extends GetView<SettingsController> {
   /// -------------------------------------------------------------------- form
 
   Widget _buildForm(BuildContext context, SettingsController c) {
+    // A member reads the same two values an admin types into — the fields
+    // stay, greyed, rather than becoming a second layout to keep in step.
+    final bool editable = c.isAdminUser;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
@@ -213,6 +220,7 @@ class SettingsScreen extends GetView<SettingsController> {
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
             ],
+            readOnly: !editable,
             onChanged: c.onFieldChanged,
           ),
           const SizedBox(height: 16),
@@ -223,7 +231,10 @@ class SettingsScreen extends GetView<SettingsController> {
             prefixIcon: Icons.link_rounded,
             errorText: c.linkError,
             keyboardType: TextInputType.url,
+            readOnly: !editable,
             onChanged: c.onFieldChanged,
+            // Left on for everyone: checking where the link lands is reading,
+            // not editing.
             suffixIcon: IconButton(
               tooltip: 'open_link'.tr,
               icon: const Icon(Icons.open_in_new_rounded, size: 19),
@@ -249,7 +260,7 @@ class SettingsScreen extends GetView<SettingsController> {
               ),
             ],
           ),
-          if (c.locksOutThisBuild) ...[
+          if (editable && c.locksOutThisBuild) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -349,13 +360,36 @@ class SettingsScreen extends GetView<SettingsController> {
 
   /// ------------------------------------------------------------------ states
 
-  Widget _buildLockedState(BuildContext context) => _centeredState(
-        context,
-        icon: Icons.lock_outline_rounded,
-        color: Colors.orange,
-        title: 'admin_only'.tr,
-        hint: 'admin_only_hint'.tr,
-      );
+  /// Says plainly why the fields below cannot be typed into, so a member does
+  /// not read the greyed form as something broken.
+  Widget _buildReadOnlyNote(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: AppUi.tint(context, Colors.blue),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_outline_rounded,
+              size: 15, color: AppUi.accent(context, Colors.blue)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'read_only_settings'.tr,
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.4,
+                fontWeight: FontWeight.w500,
+                color: AppUi.accent(context, Colors.blue),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildErrorState(BuildContext context, SettingsController c) =>
       _centeredState(

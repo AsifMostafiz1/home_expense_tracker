@@ -154,29 +154,29 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
 
-                      // Admin Section — app-wide settings, not house data, so
-                      // it stands apart and only for the people who own it.
-                      if (controller.isAdminUser) ...[
-                        _buildSectionLabel(context, 'ADMIN'.tr),
-                        const SizedBox(height: 12),
-                        Material(
-                          color: Theme.of(context).cardColor,
-                          clipBehavior: Clip.antiAlias,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                                color: Theme.of(context).dividerColor),
-                          ),
-                          child: _buildListTile(
-                            context,
-                            icon: Icons.settings_outlined,
-                            title: 'settings'.tr,
-                            subtitle: 'settings_subtitle'.tr,
-                            onTap: () => Get.to(() => const SettingsScreen()),
-                          ),
+                      // App Section — app-wide settings, not house data, so
+                      // it stands apart. Everyone gets in: which version the
+                      // house is meant to run is worth seeing. The screen
+                      // itself hands the form to admins only.
+                      _buildSectionLabel(context, 'APP'.tr),
+                      const SizedBox(height: 12),
+                      Material(
+                        color: Theme.of(context).cardColor,
+                        clipBehavior: Clip.antiAlias,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                              color: Theme.of(context).dividerColor),
                         ),
-                        const SizedBox(height: 24),
-                      ],
+                        child: _buildListTile(
+                          context,
+                          icon: Icons.settings_outlined,
+                          title: 'app_version'.tr,
+                          subtitle: 'app_version_subtitle'.tr,
+                          onTap: () => Get.to(() => const SettingsScreen()),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
                       // Account Section
                       _buildSectionLabel(context, 'ACCOUNT'.tr),
