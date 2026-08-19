@@ -158,6 +158,7 @@ service cloud.firestore {
     match /seen_status/{phone}    { allow read, write: if client(); }
     match /edit_logs/{logId}      { allow read, write: if client(); }
     match /monthly_bills/{month}  { allow read, write: if client(); }
+    match /house_rules/{ruleId}   { allow read, write: if client(); }
     match /config/{docId}         { allow read, write: if client(); }
   }
 }

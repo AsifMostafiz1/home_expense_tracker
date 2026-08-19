@@ -276,6 +276,44 @@ class AppTranslations extends Translations {
           'failed_save_config': 'Could not save the app settings',
           'failed_load_config': 'Could not load the app settings',
           'last_updated_by': 'Last updated by @name',
+          // ----------------------------------------------------- house rules
+          'house_rules': 'House Rules',
+          'house_rules_subtitle': 'What everyone in the house agrees to',
+          'rules_count': '@count rules',
+          'rules_admin_hint':
+              'Tap the menu on a rule to reword or remove it, and drag the handle to change the order.',
+          'read_only_rules':
+              'You can read the house rules. Only an admin can change them.',
+          'add_rule': 'Add rule',
+          'edit_rule': 'Edit rule',
+          'delete_rule': 'Delete rule',
+          'confirm_delete_rule':
+              'This rule will be removed for everyone in the house.',
+          'rule_editor_hint':
+              'Write the rule in both languages, so every member reads it in the one they use.',
+          'rule_in_english': 'Rule in English',
+          'rule_in_bangla': 'Rule in Bangla',
+          'rule_english_placeholder': 'Pay the house rent by the 10th.',
+          'rule_bangla_placeholder': '১০ তারিখের মধ্যে বাসা ভাড়া দিতে হবে।',
+          'rule_english_required': 'Write the English wording',
+          'rule_bangla_required': 'Write the Bangla wording',
+          'rule_needs_both_languages':
+              'A rule needs both the English and the Bangla wording',
+          'rule_saved': 'Rule saved',
+          'rule_deleted': 'Rule deleted',
+          'rules_saved_offline':
+              'Saved on this device — it will sync once you are back online',
+          'failed_save_rule': 'Could not save the rule',
+          'failed_delete_rule': 'Could not delete the rule',
+          'failed_load_rules': 'Could not load the house rules',
+          'no_house_rules': 'No house rules yet',
+          'no_house_rules_hint':
+              'Once an admin writes the rules down, they show up here for everyone.',
+          'no_house_rules_admin_hint':
+              'Start with the seven everyday rules and change them as you like, or write your own.',
+          'add_starter_rules': 'Add starter rules',
+          'starter_rules_added': 'Starter rules added',
+          'write_your_own': 'Write your own',
           'monthly_statistics': 'Monthly Statistics',
           'monthly_statistics_subtitle': 'Bills, meal costs and what each member pays',
           'HOUSE': 'HOUSE',
@@ -783,6 +821,42 @@ class AppTranslations extends Translations {
           'failed_save_config': 'অ্যাপ সেটিংস সংরক্ষণ করা যায়নি',
           'failed_load_config': 'অ্যাপ সেটিংস লোড করা যায়নি',
           'last_updated_by': 'সর্বশেষ আপডেট করেছেন @name',
+          // ----------------------------------------------------- house rules
+          'house_rules': 'বাসার নিয়ম',
+          'house_rules_subtitle': 'বাসার সবাই যে নিয়মগুলো মানবেন',
+          'rules_count': '@count টি নিয়ম',
+          'rules_admin_hint':
+              'যেকোনো নিয়মের মেনুতে চাপ দিয়ে সেটি বদলাতে বা মুছতে পারবেন, আর হাতল ধরে টেনে ক্রম পাল্টাতে পারবেন।',
+          'read_only_rules':
+              'আপনি বাসার নিয়মগুলো দেখতে পারবেন। শুধু অ্যাডমিন পরিবর্তন করতে পারেন।',
+          'add_rule': 'নিয়ম যোগ করুন',
+          'edit_rule': 'নিয়ম সম্পাদনা',
+          'delete_rule': 'নিয়ম মুছুন',
+          'confirm_delete_rule': 'নিয়মটি বাসার সবার জন্যই মুছে যাবে।',
+          'rule_editor_hint':
+              'নিয়মটি দুই ভাষাতেই লিখুন, যাতে প্রত্যেকে নিজের ভাষায় পড়তে পারেন।',
+          'rule_in_english': 'ইংরেজিতে নিয়ম',
+          'rule_in_bangla': 'বাংলায় নিয়ম',
+          'rule_english_placeholder': 'Pay the house rent by the 10th.',
+          'rule_bangla_placeholder': '১০ তারিখের মধ্যে বাসা ভাড়া দিতে হবে।',
+          'rule_english_required': 'ইংরেজি লেখাটি লিখুন',
+          'rule_bangla_required': 'বাংলা লেখাটি লিখুন',
+          'rule_needs_both_languages': 'নিয়মটি বাংলা ও ইংরেজি — দুই ভাষাতেই লিখতে হবে',
+          'rule_saved': 'নিয়ম সংরক্ষণ করা হয়েছে',
+          'rule_deleted': 'নিয়ম মুছে ফেলা হয়েছে',
+          'rules_saved_offline':
+              'এই ডিভাইসে সংরক্ষণ করা হয়েছে — অনলাইনে ফিরলেই সিঙ্ক হয়ে যাবে',
+          'failed_save_rule': 'নিয়মটি সংরক্ষণ করা যায়নি',
+          'failed_delete_rule': 'নিয়মটি মোছা যায়নি',
+          'failed_load_rules': 'বাসার নিয়ম লোড করা যায়নি',
+          'no_house_rules': 'এখনো কোনো নিয়ম নেই',
+          'no_house_rules_hint':
+              'অ্যাডমিন নিয়মগুলো লিখে দিলে সেগুলো এখানে সবার জন্য দেখা যাবে।',
+          'no_house_rules_admin_hint':
+              'সাতটি সাধারণ নিয়ম দিয়ে শুরু করুন, পরে নিজের মতো বদলে নিন — অথবা নিজেই লিখুন।',
+          'add_starter_rules': 'শুরুর নিয়মগুলো যোগ করুন',
+          'starter_rules_added': 'শুরুর নিয়মগুলো যোগ করা হয়েছে',
+          'write_your_own': 'নিজে লিখুন',
           'monthly_statistics': 'মাসিক পরিসংখ্যান',
           'monthly_statistics_subtitle': 'বিল, মিলের খরচ ও কে কত দেবেন',
           'HOUSE': 'বাসা',

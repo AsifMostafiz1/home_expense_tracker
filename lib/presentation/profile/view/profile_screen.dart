@@ -5,6 +5,7 @@ import '../../../common/widgets/profile_avatar.dart';
 import '../../member/view/member_screen.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/view/monthly_stats_screen.dart';
+import '../../house_rules/view/house_rules_screen.dart';
 import '../../settings/view/settings_screen.dart';
 import '../widgets/profile_skeleton.dart';
 import 'edit_profile_screen.dart';
@@ -138,18 +139,32 @@ class ProfileScreen extends StatelessWidget {
                           side: BorderSide(
                               color: Theme.of(context).dividerColor),
                         ),
-                        child: _buildListTile(
-                          context,
-                          icon: Icons.insights_rounded,
-                          title: 'monthly_statistics'.tr,
-                          subtitle: 'monthly_statistics_subtitle'.tr,
-                          // The saved months there carry a figure each; the
-                          // launch only worked out this one — see
-                          // MonthlyStatsController.ensureHistory.
-                          onTap: () {
-                            Get.find<MonthlyStatsController>().ensureHistory();
-                            Get.to(() => const MonthlyStatsScreen());
-                          },
+                        child: Column(
+                          children: [
+                            _buildListTile(
+                              context,
+                              icon: Icons.insights_rounded,
+                              title: 'monthly_statistics'.tr,
+                              subtitle: 'monthly_statistics_subtitle'.tr,
+                              // The saved months there carry a figure each;
+                              // the launch only worked out this one — see
+                              // MonthlyStatsController.ensureHistory.
+                              onTap: () {
+                                Get.find<MonthlyStatsController>()
+                                    .ensureHistory();
+                                Get.to(() => const MonthlyStatsScreen());
+                              },
+                            ),
+                            _buildDivider(context),
+                            _buildListTile(
+                              context,
+                              icon: Icons.gavel_rounded,
+                              title: 'house_rules'.tr,
+                              subtitle: 'house_rules_subtitle'.tr,
+                              onTap: () =>
+                                  Get.to(() => const HouseRulesScreen()),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 24),

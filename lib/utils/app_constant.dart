@@ -55,6 +55,10 @@ class AppConstant {
   /// One document per month, keyed `YYYY-MM` — the house bills an admin sets
   /// up from the monthly statistics screen.
   static const String collectionMonthlyBills = 'monthly_bills';
+
+  /// One document per house rule, each holding both languages — see
+  /// `HouseRuleModel`.
+  static const String collectionHouseRules = 'house_rules';
   
   static const double appVersion = 1.0;
   static const String docBusinessConfig = 'business_config';

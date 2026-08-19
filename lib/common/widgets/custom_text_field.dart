@@ -16,6 +16,7 @@ class CustomTextField extends StatelessWidget {
   final void Function(String)? onChanged;
   final bool readOnly;
   final VoidCallback? onTap;
+  final TextCapitalization textCapitalization;
 
   const CustomTextField({
     super.key,
@@ -33,6 +34,7 @@ class CustomTextField extends StatelessWidget {
     this.onChanged,
     this.readOnly = false,
     this.onTap,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -61,6 +63,7 @@ class CustomTextField extends StatelessWidget {
           onChanged: onChanged,
           readOnly: readOnly,
           onTap: onTap,
+          textCapitalization: textCapitalization,
           style: TextStyle(
             fontSize: 15,
             color: readOnly ? Colors.grey : null,
