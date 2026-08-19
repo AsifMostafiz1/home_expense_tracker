@@ -288,6 +288,51 @@ class MealRepositoryImpl implements MealRepository {
     }).toList();
   }
 
+  @override
+  Stream<List<Map<String, dynamic>>> watchAnnouncements() {
+    return _announcements
+        .orderBy('updatedAt', descending: true)
+        // Metadata too, for the reason the chat stream includes it: an
+        // announcement going from "on this device" to "on the server" changes
+        // nothing in its data, and the "waiting to sync" mark on it has to
+        // clear all the same.
+        .snapshots(includeMetadataChanges: true)
+        .map(_announcementsOf);
+  }
+
+  List<Map<String, dynamic>> _announcementsOf(
+      QuerySnapshot<Map<String, dynamic>> snapshot) {
+    // A snapshot the server answered is proof the internet is reachable, and
+    // one arrives far more often than the connectivity probe would ask.
+    if (!snapshot.metadata.isFromCache) connectivity?.reportReachable();
+
+    final List<Map<String, dynamic>> items = snapshot.docs.map((doc) {
+      final Map<String, dynamic> data = doc.data();
+      data['id'] = doc.id;
+      data['pending'] = doc.metadata.hasPendingWrites;
+      // `snapshots()` takes no `serverTimestampBehavior`, unlike a one-shot
+      // read, so the estimate [fetchAnnouncement] asks for is filled in here
+      // instead: an announcement written on this device happened just now,
+      // and left with no time it would show no date at all.
+      data['updatedAt'] ??= Timestamp.now();
+      return data;
+    }).toList();
+
+    // Sorted again on this side, because the one the server did cannot place
+    // an announcement whose timestamp it has not stamped yet — a post made
+    // offline would sink under every older one.
+    items.sort((a, b) => _postedAt(b).compareTo(_postedAt(a)));
+    return items;
+  }
+
+  /// When an announcement was posted, whatever shape its stamp is in.
+  static DateTime _postedAt(Map<String, dynamic> announcement) {
+    final Object? at = announcement['updatedAt'];
+    if (at is Timestamp) return at.toDate();
+    if (at is String) return DateTime.tryParse(at) ?? DateTime.now();
+    return DateTime.now();
+  }
+
   /// Marks the announcement resolved for everyone — the flag lives on the
   /// server, so the card disappears from every member's meal screen.
   @override

@@ -59,6 +59,7 @@ class MealController extends GetxController implements GetxService {
   double myOtherExpense = 0.0;
   int userCount = 1;
   List<Map<String, dynamic>> announcements = [];
+  StreamSubscription<List<Map<String, dynamic>>>? _announcementsSubscription;
   List<ExpenseModel> myExpenses = [];
   final announcementController = TextEditingController();
 
@@ -106,7 +107,35 @@ class MealController extends GetxController implements GetxService {
     _loadDismissedAnnouncement();
     fetchMeals();
     fetchMonthlyStats();
-    fetchAnnouncement();
+    _watchAnnouncements();
+  }
+
+  /// Keeps [announcements] live, the way the chat thread is kept live.
+  ///
+  /// Both screens that show them — the card on this one and the timeline on
+  /// the history screen — read this one list through `GetBuilder`, so a post,
+  /// a resolve or a delete on anybody's phone lands on both without a pull.
+  /// Firestore hands back a local snapshot the moment this device writes,
+  /// too, so the user's own action shows up at once rather than after a
+  /// round trip.
+  void _watchAnnouncements() {
+    _announcementsSubscription?.cancel();
+    _announcementsSubscription = repository.watchAnnouncements().listen(
+      (list) {
+        announcements = list;
+        update();
+      },
+      onError: (error) {
+        debugPrint('Error listening to announcements: $error');
+        _connectivity.probe();
+      },
+    );
+  }
+
+  @override
+  void onClose() {
+    _announcementsSubscription?.cancel();
+    super.onClose();
   }
 
   Future<void> _loadAdminStatus() async {
@@ -147,10 +176,7 @@ class MealController extends GetxController implements GetxService {
 
       // Local-first: back at once offline, queued for the next connection.
       await repository.resolveAnnouncement(id, userName ?? 'unknown'.tr);
-      // Not awaited: the cache step shows the change at once, and the server
-      // read that follows can take a while to give up offline — the button
-      // must not spin for it.
-      unawaited(fetchAnnouncement());
+      // No refetch: the live stream carries the change back, offline included.
       CustomSnackbar.show(
           type: isOnline ? SnackbarType.success : SnackbarType.info,
           message: isOnline
@@ -177,7 +203,7 @@ class MealController extends GetxController implements GetxService {
         await (await SharedPreferences.getInstance())
             .remove(AppConstant.keyDismissedAnnouncementId);
       }
-      unawaited(fetchAnnouncement());
+      // No refetch: the live stream carries the removal back.
       CustomSnackbar.show(
           type: isOnline ? SnackbarType.success : SnackbarType.info,
           message: isOnline
@@ -718,10 +744,6 @@ class MealController extends GetxController implements GetxService {
           message: online
               ? 'announcement_updated'.tr
               : 'announcement_saved_offline'.tr);
-      // Not awaited: the cache step puts the new announcement on screen at
-      // once; offline, the server read that follows has to give up first, and
-      // neither the toast nor the button should wait for that.
-      unawaited(fetchAnnouncement());
     } catch (e) {
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_update_announcement'.tr);

@@ -12,6 +12,11 @@ abstract class MealRepository {
   /// reads what the device holds, instantly and with no network; the default
   /// goes to the server and fails when it cannot be reached.
   Future<List<Map<String, dynamic>>> fetchAnnouncement({bool fromCache = false});
+
+  /// The same list, live. Every announcement posted, resolved or deleted —
+  /// on this phone or anyone else's — reaches the screen on its own, the way
+  /// chat messages do, so nobody has to pull or reopen the app to see it.
+  Stream<List<Map<String, dynamic>>> watchAnnouncements();
   Future<void> resolveAnnouncement(String id, String userName);
   Future<void> deleteAnnouncement(String id);
 }
