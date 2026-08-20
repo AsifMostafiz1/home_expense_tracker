@@ -205,6 +205,7 @@ class HouseRulesScreen extends StatelessWidget {
     int index,
   ) {
     final Color primary = Theme.of(context).colorScheme.primary;
+    final String secondary = rule.secondaryText(c.languageCode);
 
     return Container(
       padding: EdgeInsets.fromLTRB(14, 14, c.isAdminUser ? 4 : 16, 14),
@@ -249,6 +250,19 @@ class HouseRulesScreen extends StatelessWidget {
                     color: AppUi.body(context),
                   ),
                 ),
+                if (secondary.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  // The other language underneath: the house speaks both, so
+                  // both wordings stay in front of everyone.
+                  Text(
+                    secondary,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: AppUi.muted(context),
+                    ),
+                  ),
+                ],
                 if (rule.pending) ...[
                   const SizedBox(height: 8),
                   _buildPendingChip(context),

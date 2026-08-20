@@ -64,6 +64,20 @@ class HouseRuleModel {
     return (languageCode == 'bn' ? textEn : textBn).trim();
   }
 
+  /// The same rule in the other language, for the muted second line — empty
+  /// when there is nothing to add, including when both texts are identical.
+  String secondaryText(String languageCode) {
+    final String other = languageCode == 'bn' ? textEn : textBn;
+    if (other.trim().isEmpty) return '';
+    if (other.trim() == text(languageCode).trim()) return '';
+    return other;
+  }
+
+  /// When this wording was last changed, as the number an acknowledgement is
+  /// compared against. A rule whose stamp has not landed yet reads as 0, so
+  /// nobody is asked to agree to a version the server has not confirmed.
+  int get version => updatedAt?.millisecondsSinceEpoch ?? 0;
+
   HouseRuleModel copyWith({
     String? id,
     String? textEn,

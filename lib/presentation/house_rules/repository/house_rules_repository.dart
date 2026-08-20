@@ -26,4 +26,16 @@ abstract class HouseRulesRepository {
   /// Writes the starter set at fixed ids, so running it twice cannot leave
   /// the house with two copies of every rule.
   Future<void> seedRules(List<HouseRuleModel> rules, {required String by});
+
+  /// What [phone] has agreed to: rule id → the wording version they saw, as
+  /// milliseconds since the epoch. An empty map means they have agreed to
+  /// nothing yet — which is also what a failed read returns, so the gate errs
+  /// towards asking rather than towards letting somebody past.
+  Future<Map<String, int>> fetchAcks(String phone);
+
+  Future<void> saveAcks(
+    String phone,
+    Map<String, int> acks, {
+    required String name,
+  });
 }

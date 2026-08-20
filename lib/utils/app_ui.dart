@@ -85,4 +85,23 @@ class AppUi {
   /// in English here, since only the app's own strings are translated.
   static String monthLabel(DateTime month) =>
       '${_monthKeys[month.month - 1].tr} ${month.year}';
+
+  static const List<String> _shortMonthKeys = [
+    'mon_jan',
+    'mon_feb',
+    'mon_mar',
+    'mon_apr',
+    'mon_may',
+    'mon_jun',
+    'mon_jul',
+    'mon_aug',
+    'mon_sep',
+    'mon_oct',
+    'mon_nov',
+    'mon_dec',
+  ];
+
+  /// `Aug` — for axis labels and anywhere else the full name would not fit.
+  static String shortMonth(DateTime month) =>
+      _shortMonthKeys[month.month - 1].tr;
 }

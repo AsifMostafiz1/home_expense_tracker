@@ -13,6 +13,7 @@ import '../../presentation/profile/binding/profile_binding.dart';
 import '../../presentation/monthly_stats/binding/monthly_stats_binding.dart';
 import '../../presentation/settings/binding/settings_binding.dart';
 import '../../presentation/house_rules/binding/house_rules_binding.dart';
+import '../../presentation/personal/binding/personal_binding.dart';
 
 class InitialBinding extends Bindings {
   @override
@@ -43,5 +44,6 @@ class InitialBinding extends Bindings {
     MonthlyStatsBinding().dependencies();
     SettingsBinding().dependencies();
     HouseRulesBinding().dependencies();
+    PersonalBinding().dependencies();
   }
 }

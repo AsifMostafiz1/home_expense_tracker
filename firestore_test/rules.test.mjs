@@ -185,6 +185,22 @@ const cases = [
   ['app can delete house rules', 'pass', () => deleteDoc(doc(app, 'house_rules/seed_rent'))],
   ['a signed-out client cannot read house rules', 'fail', () =>
     getDoc(doc(guest, 'house_rules/seed_rent'))],
+  ['app can record a rule acknowledgement', 'pass', () =>
+    setDoc(doc(app, `house_rule_acks/${MEMBER}`), {
+      acks: { seed_rent: 1755590400000 }, user_name: 'Member',
+    })],
+  ['a signed-out client cannot read acknowledgements', 'fail', () =>
+    getDoc(doc(guest, `house_rule_acks/${MEMBER}`))],
+  ['app can write a personal transaction', 'pass', () =>
+    setDoc(doc(app, 'personal_transactions/t1'), {
+      owner_phone: MEMBER, type: 'expense', amount: 250, category: 'food', date: '2026-08-19',
+    })],
+  ['app can write a personal due', 'pass', () =>
+    setDoc(doc(app, 'personal_debts/d1'), {
+      owner_phone: MEMBER, person_name: 'Rakib', direction: 'gave', amount: 500, date: '2026-08-19',
+    })],
+  ['a signed-out client cannot read a personal ledger', 'fail', () =>
+    getDoc(doc(guest, 'personal_transactions/t1'))],
   ['app can delete announcements', 'pass', () => deleteDoc(doc(app, 'announcements/x'))],
   ['app can read config', 'pass', () => getDoc(doc(app, 'config/business_config'))],
   ['app can sign a member up', 'pass', () =>

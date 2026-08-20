@@ -18,12 +18,14 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   late int _selectedIndex;
-  
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selectedIndex = widget.initialIndex;
     // Pre-load data for other tabs
     Get.find<ProfileController>();
@@ -35,10 +37,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final chatController = Get.find<ChatController>();
     chatController.setChatScreenVisible(_selectedIndex == 2);
 
-    // Setting up the month's meals, then the profile picture — see [HomePrompts].
+    // Setting up the month's meals, the house rules, then the profile
+    // picture — see [HomePrompts].
     WidgetsBinding.instance.addPostFrameCallback((_) {
       HomePrompts.run();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Only the rules are re-checked on the way back in. The other two asks
+  /// belong to a launch — repeating them after every glance at another app
+  /// would be nagging — but a rule published while the app sat in the
+  /// background has to be agreed to before the house carries on.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) HomePrompts.runRulesGate();
   }
 
   static const List<Widget> _screens = <Widget>[

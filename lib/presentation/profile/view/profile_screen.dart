@@ -6,6 +6,7 @@ import '../../member/view/member_screen.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/view/monthly_stats_screen.dart';
 import '../../house_rules/view/house_rules_screen.dart';
+import '../../personal/view/personal_finance_screen.dart';
 import '../../settings/view/settings_screen.dart';
 import '../widgets/profile_skeleton.dart';
 import 'edit_profile_screen.dart';
@@ -165,6 +166,31 @@ class ProfileScreen extends StatelessWidget {
                                   Get.to(() => const HouseRulesScreen()),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Personal Section — one member's own money: their
+                      // income, their spending, and what is owed between them
+                      // and people outside the app. Nothing in here is shared
+                      // with the house, and nothing in it reads a meal.
+                      _buildSectionLabel(context, 'PERSONAL'.tr),
+                      const SizedBox(height: 12),
+                      Material(
+                        color: Theme.of(context).cardColor,
+                        clipBehavior: Clip.antiAlias,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                              color: Theme.of(context).dividerColor),
+                        ),
+                        child: _buildListTile(
+                          context,
+                          icon: Icons.account_balance_wallet_outlined,
+                          title: 'my_ledger'.tr,
+                          subtitle: 'my_ledger_subtitle'.tr,
+                          onTap: () =>
+                              Get.to(() => const PersonalFinanceScreen()),
                         ),
                       ),
                       const SizedBox(height: 24),

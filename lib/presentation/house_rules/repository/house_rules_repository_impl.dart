@@ -23,6 +23,10 @@ class HouseRulesRepositoryImpl implements HouseRulesRepository {
   CollectionReference<Map<String, dynamic>> get _rules =>
       FirebaseFirestore.instance.collection(AppConstant.collectionHouseRules);
 
+  CollectionReference<Map<String, dynamic>> get _acks =>
+      FirebaseFirestore.instance
+          .collection(AppConstant.collectionHouseRuleAcks);
+
   @override
   Stream<List<HouseRuleModel>> watchRules() {
     return _rules
@@ -123,6 +127,41 @@ class HouseRulesRepositoryImpl implements HouseRulesRepository {
       });
     }
     return _commit(batch.commit());
+  }
+
+  @override
+  Future<Map<String, int>> fetchAcks(String phone) async {
+    if (phone.isEmpty) return {};
+
+    // No source pinned: Firestore answers from its local copy when there is
+    // no connection, which is exactly what a launch offline needs.
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _acks.doc(phone).get();
+    final Object? stored = snapshot.data()?['acks'];
+    if (stored is! Map) return {};
+
+    return {
+      for (final MapEntry<Object?, Object?> entry in stored.entries)
+        if (entry.key is String && entry.value is num)
+          entry.key as String: (entry.value as num).toInt(),
+    };
+  }
+
+  @override
+  Future<void> saveAcks(
+    String phone,
+    Map<String, int> acks, {
+    required String name,
+  }) {
+    if (phone.isEmpty) return Future<void>.value();
+
+    // Replaced rather than merged: the map is the whole answer, and a rule
+    // that has been deleted should not keep a row here forever.
+    return _commit(_acks.doc(phone).set({
+      'acks': acks,
+      'user_name': name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }));
   }
 
   /// Waits for the server's acknowledgement while online — a rejected write

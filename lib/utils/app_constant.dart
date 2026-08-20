@@ -38,6 +38,12 @@ class AppConstant {
   /// Chat messages sent but not yet delivered — see `ChatOutboxService`.
   static const String keyChatOutbox = 'chatOutbox';
 
+  /// This account's house-rule acknowledgements, mirrored from Firestore as
+  /// `{ruleId: version}` JSON. The launch gate reads it before the network
+  /// answers, so an offline start does not ask again for rules already
+  /// agreed to.
+  static String keyHouseRuleAcks(String phone) => 'houseRuleAcks_$phone';
+
   /// Push notifications that could not go out yet — see `PushOutboxService`.
   static const String keyPushOutbox = 'pushOutbox';
 
@@ -59,6 +65,18 @@ class AppConstant {
   /// One document per house rule, each holding both languages — see
   /// `HouseRuleModel`.
   static const String collectionHouseRules = 'house_rules';
+
+  /// One document per member, keyed by phone: which rule they have agreed to,
+  /// and at which wording — see `HouseRulesRepository.fetchAcks`.
+  static const String collectionHouseRuleAcks = 'house_rule_acks';
+
+  /// A member's own income and spending — nothing to do with the house's
+  /// meals or shared expenses. Every document carries `owner_phone` and is
+  /// only ever read back filtered by it.
+  static const String collectionPersonalTransactions = 'personal_transactions';
+
+  /// A member's private dues with people outside the app — see `DebtEntry`.
+  static const String collectionPersonalDebts = 'personal_debts';
   
   static const double appVersion = 1.0;
   static const String docBusinessConfig = 'business_config';

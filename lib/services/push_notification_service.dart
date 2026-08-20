@@ -318,6 +318,13 @@ class PushNotificationService {
     if (data['type'] == 'chat_message' || data['type'] == 'announcement') {
       Get.offAll(() => const DashboardScreen(initialIndex: 2),
           binding: InitialBinding());
+      return;
+    }
+
+    // Nothing to open for a rule change: the home screen raises the rules
+    // itself when any of them are still unagreed — see [HouseRulesGate].
+    if (data['type'] == 'house_rules') {
+      Get.offAll(() => const DashboardScreen(), binding: InitialBinding());
     }
   }
 }
