@@ -217,9 +217,22 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            (ahead ? 'saved_this_month' : 'overspent_this_month').tr,
-            style: TextStyle(fontSize: 11.5, color: AppUi.muted(context)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  (ahead ? 'saved_this_month' : 'overspent_this_month').tr,
+                  style: TextStyle(fontSize: 11.5, color: AppUi.muted(context)),
+                ),
+              ),
+              Icon(Icons.lock_outline_rounded,
+                  size: 12, color: AppUi.muted(context)),
+              const SizedBox(width: 4),
+              Text(
+                'private_to_you'.tr,
+                style: TextStyle(fontSize: 10.5, color: AppUi.muted(context)),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(

@@ -7,7 +7,6 @@ import '../../../common/widgets/hiding_fab.dart';
 import '../../../common/widgets/image_viewer_screen.dart';
 import '../../../utils/app_ui.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
-import '../../personal/widgets/ledger_app_bar_button.dart';
 import '../controller/expense_controller.dart';
 import '../model/expense_model.dart';
 import '../widgets/expense_bottom_sheet.dart';
@@ -43,11 +42,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
       builder: (context, fab) => Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: CustomAppBar(
-          title: 'expense'.tr,
-          actions: const [
-            LedgerAppBarButton(),
-            SizedBox(width: 8),
-          ],
+          title: 'house_expense'.tr,
           bottom: const _MonthSwitcher(),
         ),
         floatingActionButton: fab,
@@ -187,13 +182,33 @@ class ExpenseScreen extends GetView<ExpenseController> {
                   ),
                 ),
           const SizedBox(height: 2),
-          Text(
-            'total_paid'.tr,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            children: [
+              Text(
+                'total_paid'.tr,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.groups_rounded,
+                  size: 13, color: Colors.white70),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  'shared_with_house'.tr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 18),
           // Where the money actually went — value contrast reads cleanly on a

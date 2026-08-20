@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../meal/view/meal_screen.dart';
 import '../../expense/view/expense_screen.dart';
 import '../../chat/view/chat_screen.dart';
+import '../../personal/view/personal_finance_screen.dart';
 import '../../profile/view/profile_screen.dart';
 import 'package:get/get.dart';
 import '../../profile/controller/profile_controller.dart';
@@ -59,10 +60,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (state == AppLifecycleState.resumed) HomePrompts.runRulesGate();
   }
 
+  /// The ledger sits after the chat rather than before it, so the index a
+  /// notification tap already asks for — 2, the chat — still means the chat.
   static const List<Widget> _screens = <Widget>[
     MealScreen(),
     ExpenseScreen(),
     ChatScreen(),
+    PersonalFinanceScreen(),
     ProfileScreen(),
   ];
 
@@ -77,11 +81,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     bool isSelected = _selectedIndex == index;
     final color = isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.shade400;
 
-    return GestureDetector(
-      onTap: () => _onItemTapped(index),
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 70,
+    // Expanded rather than a fixed width: five destinations have to share
+    // whatever the phone is, and a Bangla label is longer than an English one.
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _onItemTapped(index),
+        behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -131,12 +136,18 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                ),
               ),
             ),
           ],
@@ -148,7 +159,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Above all four tabs' app bars, in the place the offline strip uses.
+      // Above every tab's app bar, in the place the offline strip uses.
       body: DueBanner(child: _screens[_selectedIndex]),
       bottomNavigationBar: SafeArea(
         child: Container(
@@ -170,14 +181,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _buildNavItem(Icons.restaurant_outlined, 'meal'.tr, 0),
-                  _buildNavItem(Icons.account_balance_wallet_outlined, 'expense'.tr, 1),
                   _buildNavItem(
-                    Icons.chat_bubble_outline_rounded, 
-                    'chat'.tr, 
-                    2, 
+                      Icons.receipt_long_outlined, 'expense'.tr, 1),
+                  _buildNavItem(
+                    Icons.chat_bubble_outline_rounded,
+                    'chat'.tr,
+                    2,
                     badgeCount: chatController.unseenCount
                   ),
-                  _buildNavItem(Icons.person_outline, 'profile'.tr, 3),
+                  _buildNavItem(Icons.account_balance_wallet_outlined,
+                      'nav_personal'.tr, 3),
+                  _buildNavItem(Icons.person_outline, 'profile'.tr, 4),
                 ],
               );
             },
