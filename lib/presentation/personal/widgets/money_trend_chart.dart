@@ -9,11 +9,15 @@ import '../model/personal_summary.dart';
 /// Drawn rather than pulled in from a charting package: two bars a month and
 /// a baseline is the whole picture, and a hand-drawn one takes the app's own
 /// colors and text styles instead of fighting a library's.
-class MoneyTrendChart extends StatelessWidget {
+///
+/// Tapping a month reads it out underneath — bars answer "which month was
+/// heavy", but the actual taka is what anybody asks next, and a chart nobody
+/// can interrogate is decoration.
+class MoneyTrendChart extends StatefulWidget {
   final List<MonthMoney> months;
 
   /// The month the rest of the screen is showing — drawn brighter than the
-  /// ones on either side of it.
+  /// ones on either side of it while nothing is picked.
   final DateTime focused;
 
   const MoneyTrendChart({
@@ -22,12 +26,44 @@ class MoneyTrendChart extends StatelessWidget {
     required this.focused,
   });
 
-  static const Color _income = Color(0xFF2E9E6B);
-  static const Color _expense = Color(0xFFE2603F);
+  static const Color income = Color(0xFF2E9E6B);
+  static const Color expense = Color(0xFFE2603F);
+
+  @override
+  State<MoneyTrendChart> createState() => _MoneyTrendChartState();
+}
+
+class _MoneyTrendChartState extends State<MoneyTrendChart> {
+  /// Which column the user tapped, if any.
+  int? _selected;
+
+  @override
+  void didUpdateWidget(MoneyTrendChart old) {
+    super.didUpdateWidget(old);
+    // A month switch or a new entry redraws the six columns; a selection
+    // pointing at a column that may no longer mean the same thing goes.
+    if (old.focused != widget.focused ||
+        old.months.length != widget.months.length) {
+      _selected = null;
+    }
+  }
+
+  void _handleTap(Offset position, double width) {
+    if (widget.months.isEmpty || width <= 0) return;
+
+    final int index = (position.dx / (width / widget.months.length))
+        .floor()
+        .clamp(0, widget.months.length - 1);
+
+    // Tapping the open column again closes it.
+    setState(() => _selected = _selected == index ? null : index);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bool empty = months.every((month) => month.isEmpty);
+    final bool empty = widget.months.every((month) => month.isEmpty);
+    final MonthMoney? picked =
+        _selected == null ? null : widget.months[_selected!];
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
@@ -51,9 +87,9 @@ class MoneyTrendChart extends StatelessWidget {
                   ),
                 ),
               ),
-              _legendDot(context, _income, 'income'.tr),
+              _legendDot(context, MoneyTrendChart.income, 'income'.tr),
               const SizedBox(width: 12),
-              _legendDot(context, _expense, 'expense_word'.tr),
+              _legendDot(context, MoneyTrendChart.expense, 'expense_word'.tr),
             ],
           ),
           const SizedBox(height: 16),
@@ -63,24 +99,136 @@ class MoneyTrendChart extends StatelessWidget {
                 ? Center(
                     child: Text(
                       'nothing_to_chart'.tr,
-                      style: TextStyle(fontSize: 12, color: AppUi.muted(context)),
+                      style:
+                          TextStyle(fontSize: 12, color: AppUi.muted(context)),
                     ),
                   )
-                : CustomPaint(
-                    size: Size.infinite,
-                    painter: _TrendPainter(
-                      months: months,
-                      focused: focused,
-                      income: _income,
-                      expense: _expense,
-                      grid: AppUi.hairline(context),
-                      label: AppUi.muted(context),
-                      focusedLabel: AppUi.body(context),
+                : LayoutBuilder(
+                    builder: (context, constraints) => GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapDown: (details) => _handleTap(
+                          details.localPosition, constraints.maxWidth),
+                      child: CustomPaint(
+                        size: Size.infinite,
+                        painter: _TrendPainter(
+                          months: widget.months,
+                          focused: widget.focused,
+                          selected: _selected,
+                          income: MoneyTrendChart.income,
+                          expense: MoneyTrendChart.expense,
+                          grid: AppUi.hairline(context),
+                          label: AppUi.muted(context),
+                          focusedLabel: AppUi.body(context),
+                        ),
+                      ),
                     ),
                   ),
           ),
+          if (!empty) ...[
+            const SizedBox(height: 10),
+            picked == null
+                ? _buildHint(context)
+                : _buildReadout(context, picked),
+          ],
         ],
       ),
+    );
+  }
+
+  /// Tapping a chart is not obvious enough to leave unsaid.
+  Widget _buildHint(BuildContext context) {
+    return Row(
+      children: [
+        Icon(Icons.touch_app_outlined, size: 13, color: AppUi.muted(context)),
+        const SizedBox(width: 6),
+        Text(
+          'tap_a_month'.tr,
+          style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+        ),
+      ],
+    );
+  }
+
+  /// What the tapped column is worth, on both sides.
+  Widget _buildReadout(BuildContext context, MonthMoney month) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: AppUi.neutralSurface(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppUi.hairline(context)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppUi.monthLabel(month.month),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppUi.body(context),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 4,
+                  children: [
+                    _readoutValue(context, 'income'.tr, month.income,
+                        MoneyTrendChart.income),
+                    _readoutValue(context, 'expense_word'.tr, month.expense,
+                        MoneyTrendChart.expense),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => setState(() => _selected = null),
+            icon: const Icon(Icons.close_rounded, size: 16),
+            color: AppUi.muted(context),
+            visualDensity: VisualDensity.compact,
+            splashRadius: 16,
+            tooltip: 'close'.tr,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _readoutValue(
+    BuildContext context,
+    String label,
+    double amount,
+    Color color,
+  ) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$label ',
+          style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+        ),
+        Text(
+          AppUi.amount(amount),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: AppUi.body(context),
+          ),
+        ),
+      ],
     );
   }
 
@@ -106,6 +254,11 @@ class MoneyTrendChart extends StatelessWidget {
 class _TrendPainter extends CustomPainter {
   final List<MonthMoney> months;
   final DateTime focused;
+
+  /// The tapped column, when there is one — it takes the highlight over the
+  /// month the screen happens to be showing.
+  final int? selected;
+
   final Color income;
   final Color expense;
   final Color grid;
@@ -115,6 +268,7 @@ class _TrendPainter extends CustomPainter {
   _TrendPainter({
     required this.months,
     required this.focused,
+    required this.selected,
     required this.income,
     required this.expense,
     required this.grid,
@@ -159,14 +313,31 @@ class _TrendPainter extends CustomPainter {
       final MonthMoney month = months[i];
       final double centre = slot * i + slot / 2;
       final double left = centre - pairWidth / 2;
-      final bool isFocused = month.month.year == focused.year &&
-          month.month.month == focused.month;
 
-      _bar(canvas, left, chartHeight, month.income, peak, income, isFocused);
+      // With a column open it owns the highlight; with none, the month the
+      // screen is showing keeps it.
+      final bool lit = selected == null
+          ? (month.month.year == focused.year &&
+              month.month.month == focused.month)
+          : selected == i;
+
+      if (selected == i) {
+        // A quiet plate behind the picked column, so the readout below is
+        // visibly about this one.
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(centre - slot / 2 + 2, 0, slot - 4, chartHeight),
+            const Radius.circular(8),
+          ),
+          Paint()..color = grid.withOpacity(0.45),
+        );
+      }
+
+      _bar(canvas, left, chartHeight, month.income, peak, income, lit);
       _bar(canvas, left + _barWidth + _barGap, chartHeight, month.expense,
-          peak, expense, isFocused);
+          peak, expense, lit);
 
-      _monthLabel(canvas, centre, chartHeight, month.month, isFocused);
+      _monthLabel(canvas, centre, chartHeight, month.month, lit);
     }
   }
 
@@ -177,7 +348,7 @@ class _TrendPainter extends CustomPainter {
     double value,
     double peak,
     Color color,
-    bool isFocused,
+    bool lit,
   ) {
     if (value <= 0) return;
 
@@ -194,7 +365,7 @@ class _TrendPainter extends CustomPainter {
 
     canvas.drawRRect(
       bar,
-      Paint()..color = isFocused ? color : color.withOpacity(0.35),
+      Paint()..color = lit ? color : color.withOpacity(0.35),
     );
   }
 
@@ -203,15 +374,15 @@ class _TrendPainter extends CustomPainter {
     double centre,
     double chartHeight,
     DateTime month,
-    bool isFocused,
+    bool lit,
   ) {
     final TextPainter painter = TextPainter(
       text: TextSpan(
         text: AppUi.shortMonth(month),
         style: TextStyle(
           fontSize: 10,
-          fontWeight: isFocused ? FontWeight.w900 : FontWeight.w500,
-          color: isFocused ? focusedLabel : label,
+          fontWeight: lit ? FontWeight.w900 : FontWeight.w500,
+          color: lit ? focusedLabel : label,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -227,6 +398,7 @@ class _TrendPainter extends CustomPainter {
   bool shouldRepaint(_TrendPainter old) =>
       old.months != months ||
       old.focused != focused ||
+      old.selected != selected ||
       old.income != income ||
       old.expense != expense ||
       old.label != label;

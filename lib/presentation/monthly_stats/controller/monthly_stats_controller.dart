@@ -5,7 +5,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../common/widgets/custom_snackbar.dart';
-import '../../../services/push_notification_service.dart';
+import '../../../services/push_outbox_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../../../utils/app_ui.dart';
@@ -740,16 +740,12 @@ class MonthlyStatsController extends GetxController implements GetxService {
       editingBill = billForKey(bill.id);
 
       // Back-filling an old month is bookkeeping; nobody needs a push for it.
+      //
+      // Not awaited: it is one notification per member, each its own request,
+      // and the month is already saved — the form must not sit there spinning
+      // while they go out.
       if (!isPastMonth(formMonth)) {
-        await PushNotificationService().sendPushNotification(
-          title: 'bill_push_title'
-              .trParams({'month': AppUi.monthLabel(formMonth)}),
-          body: 'bill_push_body'.trParams({
-            'name': userName,
-            'total': AppUi.amount(bill.grandTotal),
-            'count': '${bill.memberCount}',
-          }),
-        );
+        unawaited(_notifyBillSaved(editingBill ?? bill));
       }
 
       CustomSnackbar.show(
@@ -798,6 +794,85 @@ class MonthlyStatsController extends GetxController implements GetxService {
     } finally {
       isDeleting = false;
       update();
+    }
+  }
+
+  /// Tells each member what the month comes to for them.
+  ///
+  /// One notification per person rather than one for the house: a house total
+  /// tells a member nothing about what they have to hand over, which is the
+  /// only figure the notification exists to carry. The amounts are the ones
+  /// their own screen is about to show — their rent, their share of the
+  /// utilities, last month's meals, less whatever they spent for the house —
+  /// so the push and the app cannot disagree about what is owed.
+  ///
+  /// Rides the push outbox rather than the network directly: the month is
+  /// already written, and a notification that cannot go out now goes out on
+  /// the next connection instead of being lost.
+  Future<void> _notifyBillSaved(MonthlyBillModel bill) async {
+    if (!Get.isRegistered<PushOutboxService>()) return;
+    final PushOutboxService outbox = Get.find<PushOutboxService>();
+    final String month = AppUi.monthLabel(bill.monthDate);
+
+    final List<MemberCostSummary> rows;
+    try {
+      // Everyone's meals come back in one read, so the per-member totals cost
+      // a single fetch no matter how many people share the house.
+      final MealStats stats = await mealRepository.fetchMonthlyStats(
+        userPhone,
+        MonthCostSummary.mealMonthOf(bill.monthDate),
+      );
+      rows = MonthCostSummary.build(
+        month: bill.monthDate,
+        bill: bill,
+        stats: stats,
+        currentUserPhone: userPhone,
+        currentUserName: userName,
+        activeMembers: members,
+      ).members;
+    } catch (e) {
+      // Without the meal figures there are no personal totals, and a
+      // house-bills-only number sent to someone as *their* amount would be
+      // wrong the moment they opened the app. Say what changed instead.
+      debugPrint('Error building per-member bill notifications: $e');
+      await outbox.send(
+        title: 'bill_push_title'.trParams({'month': month}),
+        body: 'bill_push_body'.trParams({
+          'name': userName,
+          'total': AppUi.amount(bill.grandTotal),
+          'count': '${bill.memberCount}',
+        }),
+      );
+      return;
+    }
+
+    for (final MemberCostSummary member in rows) {
+      if (member.phone.isEmpty) continue;
+
+      // The admin set these figures. Being pushed their own share reads as
+      // the app chasing them for money they are the one collecting — the
+      // reminder strip leaves them alone for the same reason.
+      if (member.phone == userPhone) continue;
+
+      // Nothing to chase: already collected, or under half a taka of
+      // rounding either way.
+      if (member.settled || member.grandTotal.abs() < 0.5) continue;
+
+      await outbox.send(
+        title: 'bill_due_push_title'.trParams({'month': month}),
+        body: (member.willGet ? 'bill_credit_push_body' : 'bill_due_push_body')
+            .trParams({
+          'month': month,
+          'amount': AppUi.amount(member.grandTotal.abs()),
+          'name': userName,
+        }),
+        targetPhones: [member.phone],
+        data: {
+          'senderName': userName,
+          'senderPhone': userPhone,
+          'type': 'monthly_bill',
+        },
+      );
     }
   }
 

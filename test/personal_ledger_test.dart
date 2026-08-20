@@ -78,6 +78,47 @@ void main() {
     expect(iOwe.owesMe, isFalse);
   });
 
+  test('the running balance walks the entries oldest first', () {
+    const lent = DebtEntry(
+      id: 'a',
+      personName: 'Shetu',
+      flow: DebtFlow.gave,
+      amount: 2000,
+      date: '2026-08-20',
+      timeHour: 9,
+    );
+    const backOne = DebtEntry(
+      id: 'b',
+      personName: 'Shetu',
+      flow: DebtFlow.got,
+      amount: 200,
+      date: '2026-08-20',
+      timeHour: 11,
+    );
+    const backTwo = DebtEntry(
+      id: 'c',
+      personName: 'Shetu',
+      flow: DebtFlow.got,
+      amount: 1800,
+      date: '2026-08-20',
+      timeHour: 14,
+    );
+
+    // The list is newest-first, the way the screen shows it.
+    final person = PersonBalance(
+      key: 'shetu',
+      name: 'Shetu',
+      phone: '',
+      entries: [backTwo, backOne, lent],
+    );
+
+    final balances = person.runningBalances;
+    expect(balances['a'], 2000); // lent — 2000 to come back
+    expect(balances['b'], 1800); // 200 returned
+    expect(balances['c'], 0); // the rest returned, square
+    expect(person.isSettled, isTrue);
+  });
+
   test('entries group by phone when there is one, by name otherwise', () {
     expect(_due(10, name: ' Rakib ').personKey, 'rakib');
     expect(

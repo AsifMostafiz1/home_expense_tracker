@@ -35,6 +35,8 @@ class PersonLedgerScreen extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
+        final Map<String, double> balances = person.runningBalances;
+
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: CustomAppBar(
@@ -57,7 +59,12 @@ class PersonLedgerScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               for (final DebtEntry entry in person.entries) ...[
-                _buildEntryTile(context, c, entry),
+                _buildEntryTile(
+                  context,
+                  c,
+                  entry,
+                  balanceAfter: balances[entry.id] ?? 0,
+                ),
                 const SizedBox(height: 10),
               ],
             ],
@@ -214,8 +221,9 @@ class PersonLedgerScreen extends StatelessWidget {
   Widget _buildEntryTile(
     BuildContext context,
     PersonalController c,
-    DebtEntry entry,
-  ) {
+    DebtEntry entry, {
+    required double balanceAfter,
+  }) {
     final MaterialColor tone = entry.isGave ? Colors.green : Colors.deepOrange;
 
     return Material(
@@ -249,9 +257,7 @@ class PersonLedgerScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  entry.isGave
-                      ? Icons.call_made_rounded
-                      : Icons.call_received_rounded,
+                  entry.isGave ? Icons.add_rounded : Icons.remove_rounded,
                   size: 17,
                   color: AppUi.accent(context, tone),
                 ),
@@ -263,7 +269,7 @@ class PersonLedgerScreen extends StatelessWidget {
                   children: [
                     Text(
                       entry.note.isEmpty
-                          ? (entry.isGave ? 'i_gave'.tr : 'i_got'.tr)
+                          ? (entry.isGave ? 'due_will_get'.tr : 'due_will_pay'.tr)
                           : entry.note,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -288,6 +294,15 @@ class PersonLedgerScreen extends StatelessWidget {
                               size: 12, color: AppUi.muted(context)),
                         ],
                       ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _balanceLine(balanceAfter),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppUi.muted(context),
+                      ),
                     ),
                   ],
                 ),
@@ -361,6 +376,14 @@ class PersonLedgerScreen extends StatelessWidget {
     );
   }
 
+  /// Where the account stood after one entry: `+` is money still to come
+  /// back, `−` is money still owed out.
+  static String _balanceLine(double balance) {
+    if (balance.abs() < 0.005) return 'all_settled'.tr;
+    final String label = balance > 0 ? 'due_will_get'.tr : 'due_will_pay'.tr;
+    return '${'balance_after'.tr}: $label ${AppUi.amount(balance.abs())}';
+  }
+
   /// Both directions sit at the bottom, because from inside an account the
   /// next entry is nearly always a repayment one way or the other.
   Widget _buildActionBar(BuildContext context, PersonBalance person) {
@@ -379,8 +402,8 @@ class PersonLedgerScreen extends StatelessWidget {
               Expanded(
                 child: _actionButton(
                   context,
-                  label: 'i_gave'.tr,
-                  icon: Icons.call_made_rounded,
+                  label: 'due_will_get'.tr,
+                  icon: Icons.add_rounded,
                   color: Colors.green,
                   onTap: () => showDebtEntrySheet(
                     context,
@@ -394,8 +417,8 @@ class PersonLedgerScreen extends StatelessWidget {
               Expanded(
                 child: _actionButton(
                   context,
-                  label: 'i_got'.tr,
-                  icon: Icons.call_received_rounded,
+                  label: 'due_will_pay'.tr,
+                  icon: Icons.remove_rounded,
                   color: Colors.deepOrange,
                   onTap: () => showDebtEntrySheet(
                     context,

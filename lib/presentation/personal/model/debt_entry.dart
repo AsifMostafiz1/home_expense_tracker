@@ -174,6 +174,28 @@ class PersonBalance {
 
   bool get owesMe => balance > 0.005;
 
+  /// What the account came to after each entry, keyed by entry id.
+  ///
+  /// Walked oldest-first, which is the only order a running total means
+  /// anything in — the list itself is newest-first for reading. This is what
+  /// makes a repayment row legible: the row says money came in, the balance
+  /// beside it says there is still something to come.
+  Map<String, double> get runningBalances {
+    final List<DebtEntry> chronological = List<DebtEntry>.from(entries)
+      ..sort((a, b) {
+        final int byDate = a.date.compareTo(b.date);
+        return byDate != 0 ? byDate : a.minuteOfDay.compareTo(b.minuteOfDay);
+      });
+
+    double running = 0;
+    final Map<String, double> out = {};
+    for (final DebtEntry entry in chronological) {
+      running += entry.signedAmount;
+      out[entry.id] = running;
+    }
+    return out;
+  }
+
   DateTime? get lastActivity {
     DateTime? latest;
     for (final DebtEntry entry in entries) {

@@ -270,10 +270,12 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
       ),
       child: Row(
         children: [
-          _flowOption(context, DebtFlow.gave, 'i_gave'.tr,
-              Icons.call_made_rounded, Colors.green),
-          _flowOption(context, DebtFlow.got, 'i_got'.tr,
-              Icons.call_received_rounded, Colors.deepOrange),
+          // Money handed over is money to come back — the label says the
+          // consequence, because that is what anybody is actually tracking.
+          _flowOption(context, DebtFlow.gave, 'due_will_get'.tr,
+              Icons.add_rounded, Colors.green),
+          _flowOption(context, DebtFlow.got, 'due_will_pay'.tr,
+              Icons.remove_rounded, Colors.deepOrange),
         ],
       ),
     );
