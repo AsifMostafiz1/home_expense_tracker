@@ -93,6 +93,40 @@ void main() {
         PersonalCategory.unknown.key);
   });
 
+  test('an entry carries the clock as well as the calendar', () {
+    const entry = PersonalTransaction(
+      amount: 100,
+      date: '2026-08-20',
+      timeHour: 15,
+      timeMinute: 45,
+    );
+    expect(entry.time.hour, 15);
+    expect(entry.time.minute, 45);
+    expect(entry.minuteOfDay, 15 * 60 + 45);
+    expect(entry.moment, DateTime(2026, 8, 20, 15, 45));
+    expect(entry.toMap()['time_hour'], 15);
+    expect(entry.toMap()['time_minute'], 45);
+
+    // A row written before the clock existed still reads back as midnight
+    // rather than blowing up.
+    final old = PersonalTransaction.fromMap('x', {
+      'amount': 50,
+      'date': '2026-07-01',
+      'type': 'expense',
+    });
+    expect(old.minuteOfDay, 0);
+
+    const due = DebtEntry(
+      amount: 500,
+      date: '2026-08-20',
+      timeHour: 9,
+      timeMinute: 5,
+    );
+    expect(due.time.hour, 9);
+    expect(due.moment, DateTime(2026, 8, 20, 9, 5));
+    expect(due.toMap()['time_minute'], 5);
+  });
+
   test('screens are constructible', () {
     expect(const PersonalFinanceScreen(), isNotNull);
     expect(const PersonLedgerScreen(personKey: 'rakib'), isNotNull);

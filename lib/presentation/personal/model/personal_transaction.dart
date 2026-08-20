@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 /// Which way the money went.
@@ -22,6 +23,11 @@ class PersonalTransaction {
   /// query needing its own index.
   final String date;
 
+  /// The time of day it happened, kept as two numbers the way the house
+  /// expenses keep theirs — a `TimeOfDay` has no storage form of its own.
+  final int timeHour;
+  final int timeMinute;
+
   final DateTime? createdAt;
 
   /// Written on this device and not acknowledged by the server yet.
@@ -35,6 +41,8 @@ class PersonalTransaction {
     this.category = '',
     this.note = '',
     this.date = '',
+    this.timeHour = 0,
+    this.timeMinute = 0,
     this.createdAt,
     this.pending = false,
   });
@@ -42,6 +50,21 @@ class PersonalTransaction {
   bool get isIncome => flow == MoneyFlow.income;
 
   DateTime get day => DateTime.tryParse(date) ?? DateTime.now();
+
+  TimeOfDay get time => TimeOfDay(hour: timeHour, minute: timeMinute);
+
+  /// Day and clock as one value — what orders two entries made on the same
+  /// day, and what a picker starts from when the entry is opened again.
+  DateTime get moment => DateTime(
+        day.year,
+        day.month,
+        day.day,
+        timeHour,
+        timeMinute,
+      );
+
+  /// Minutes since midnight, for sorting within a day.
+  int get minuteOfDay => timeHour * 60 + timeMinute;
 
   /// `2026-08` — what the month filters and the trend chart group on.
   String get monthKey => date.length >= 7 ? date.substring(0, 7) : '';
@@ -68,6 +91,8 @@ class PersonalTransaction {
       category: (map['category'] ?? '').toString(),
       note: (map['note'] ?? '').toString(),
       date: (map['date'] ?? '').toString(),
+      timeHour: (map['time_hour'] as num?)?.toInt() ?? 0,
+      timeMinute: (map['time_minute'] as num?)?.toInt() ?? 0,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       pending: pending,
     );
@@ -80,6 +105,8 @@ class PersonalTransaction {
         'category': category,
         'note': note,
         'date': date,
+        'time_hour': timeHour,
+        'time_minute': timeMinute,
       };
 
   PersonalTransaction copyWith({
@@ -89,6 +116,8 @@ class PersonalTransaction {
     String? category,
     String? note,
     String? date,
+    int? timeHour,
+    int? timeMinute,
   }) {
     return PersonalTransaction(
       id: id ?? this.id,
@@ -98,6 +127,8 @@ class PersonalTransaction {
       category: category ?? this.category,
       note: note ?? this.note,
       date: date ?? this.date,
+      timeHour: timeHour ?? this.timeHour,
+      timeMinute: timeMinute ?? this.timeMinute,
       createdAt: createdAt,
       pending: pending,
     );

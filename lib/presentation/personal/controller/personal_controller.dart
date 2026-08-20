@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -202,6 +202,7 @@ class PersonalController extends GetxController implements GetxService {
     required String category,
     required String note,
     required DateTime date,
+    required TimeOfDay time,
   }) async {
     if (userPhone.isEmpty) return false;
 
@@ -219,6 +220,8 @@ class PersonalController extends GetxController implements GetxService {
         category: category,
         note: note.trim(),
         date: PersonalTransaction.keyOf(date),
+        timeHour: time.hour,
+        timeMinute: time.minute,
       ));
 
       // The month the entry belongs to, so a row saved for another month is
@@ -314,6 +317,7 @@ class PersonalController extends GetxController implements GetxService {
     required double amount,
     required String note,
     required DateTime date,
+    required TimeOfDay time,
   }) async {
     if (userPhone.isEmpty) return false;
 
@@ -332,6 +336,8 @@ class PersonalController extends GetxController implements GetxService {
         amount: amount,
         note: note.trim(),
         date: PersonalTransaction.keyOf(date),
+        timeHour: time.hour,
+        timeMinute: time.minute,
       ));
 
       CustomSnackbar.show(

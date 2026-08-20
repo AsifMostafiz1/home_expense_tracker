@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 /// Which way the money moved between the two people.
 enum DebtFlow {
@@ -34,6 +35,11 @@ class DebtEntry {
   /// `yyyy-MM-dd`, as in [PersonalTransaction].
   final String date;
 
+  /// The time of day the money moved, as two numbers — see
+  /// [PersonalTransaction.timeHour].
+  final int timeHour;
+  final int timeMinute;
+
   final DateTime? createdAt;
   final bool pending;
 
@@ -46,6 +52,8 @@ class DebtEntry {
     this.amount = 0,
     this.note = '',
     this.date = '',
+    this.timeHour = 0,
+    this.timeMinute = 0,
     this.createdAt,
     this.pending = false,
   });
@@ -53,6 +61,18 @@ class DebtEntry {
   bool get isGave => flow == DebtFlow.gave;
 
   DateTime get day => DateTime.tryParse(date) ?? DateTime.now();
+
+  TimeOfDay get time => TimeOfDay(hour: timeHour, minute: timeMinute);
+
+  DateTime get moment => DateTime(
+        day.year,
+        day.month,
+        day.day,
+        timeHour,
+        timeMinute,
+      );
+
+  int get minuteOfDay => timeHour * 60 + timeMinute;
 
   /// Positive when it adds to what is owed *to* the owner.
   double get signedAmount => isGave ? amount : -amount;
@@ -78,6 +98,8 @@ class DebtEntry {
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
       note: (map['note'] ?? '').toString(),
       date: (map['date'] ?? '').toString(),
+      timeHour: (map['time_hour'] as num?)?.toInt() ?? 0,
+      timeMinute: (map['time_minute'] as num?)?.toInt() ?? 0,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       pending: pending,
     );
@@ -91,6 +113,8 @@ class DebtEntry {
         'amount': amount,
         'note': note,
         'date': date,
+        'time_hour': timeHour,
+        'time_minute': timeMinute,
       };
 
   DebtEntry copyWith({
@@ -100,6 +124,8 @@ class DebtEntry {
     double? amount,
     String? note,
     String? date,
+    int? timeHour,
+    int? timeMinute,
   }) {
     return DebtEntry(
       id: id,
@@ -110,6 +136,8 @@ class DebtEntry {
       amount: amount ?? this.amount,
       note: note ?? this.note,
       date: date ?? this.date,
+      timeHour: timeHour ?? this.timeHour,
+      timeMinute: timeMinute ?? this.timeMinute,
       createdAt: createdAt,
       pending: pending,
     );

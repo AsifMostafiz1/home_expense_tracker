@@ -15,6 +15,7 @@ import '../../expense/model/expense_model.dart';
 import '../../expense/widgets/expense_bottom_sheet.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../../utils/app_ui.dart';
+import '../../personal/widgets/ledger_app_bar_button.dart';
 import '../controller/meal_controller.dart';
 import 'announcement_history_screen.dart';
 
@@ -117,6 +118,7 @@ class MealScreen extends GetView<MealController> {
               icon: const Icon(Icons.history_rounded, size: 22),
               onPressed: () => Get.to(() => const AnnouncementHistoryScreen()),
             ),
+            const LedgerAppBarButton(),
             const SizedBox(width: 8),
           ],
         ),

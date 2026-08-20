@@ -233,7 +233,7 @@ class PersonLedgerScreen extends StatelessWidget {
           onConfirm: () => c.deleteDebtEntry(entry),
         ),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppUi.hairline(context)),
@@ -277,7 +277,8 @@ class PersonLedgerScreen extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          DateFormat('dd MMM, yyyy').format(entry.day),
+                          '${DateFormat('dd MMM, yyyy').format(entry.day)}'
+                          ' · ${entry.time.format(context)}',
                           style: TextStyle(
                               fontSize: 11, color: AppUi.muted(context)),
                         ),
@@ -300,10 +301,63 @@ class PersonLedgerScreen extends StatelessWidget {
                   color: AppUi.accent(context, tone),
                 ),
               ),
+              _buildEntryMenu(context, c, entry),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildEntryMenu(
+    BuildContext context,
+    PersonalController c,
+    DebtEntry entry,
+  ) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert_rounded, size: 18, color: AppUi.muted(context)),
+      padding: EdgeInsets.zero,
+      splashRadius: 18,
+      tooltip: 'options'.tr,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      onSelected: (value) {
+        if (value == 'edit') {
+          showDebtEntrySheet(context, entry: entry);
+        } else if (value == 'delete') {
+          showConfirmDialog(
+            title: 'delete_entry'.tr,
+            message: 'confirm_delete_entry'.tr,
+            detail: '${AppUi.amount(entry.amount)} · '
+                '${DateFormat('dd MMM, yyyy').format(entry.day)}',
+            confirmText: 'delete'.tr,
+            onConfirm: () => c.deleteDebtEntry(entry),
+          );
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 19, color: AppUi.muted(context)),
+              const SizedBox(width: 12),
+              Text('edit_entry'.tr),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline_rounded,
+                  size: 19, color: Colors.red.shade400),
+              const SizedBox(width: 12),
+              Text('delete_entry'.tr,
+                  style: TextStyle(color: Colors.red.shade400)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

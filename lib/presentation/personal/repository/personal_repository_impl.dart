@@ -54,8 +54,12 @@ class PersonalRepositoryImpl implements PersonalRepository {
 
       // Newest first, and sorted here rather than by the query: an `orderBy`
       // alongside the filter would want a composite index for a list this
-      // side can sort in microseconds.
-      items.sort((a, b) => b.date.compareTo(a.date));
+      // side can sort in microseconds. Two entries on the same day fall back
+      // to the clock, so the order matches the order they happened in.
+      items.sort((a, b) {
+        final int byDate = b.date.compareTo(a.date);
+        return byDate != 0 ? byDate : b.minuteOfDay.compareTo(a.minuteOfDay);
+      });
       return items;
     });
   }
@@ -100,7 +104,10 @@ class PersonalRepositoryImpl implements PersonalRepository {
               ))
           .toList();
 
-      items.sort((a, b) => b.date.compareTo(a.date));
+      items.sort((a, b) {
+        final int byDate = b.date.compareTo(a.date);
+        return byDate != 0 ? byDate : b.minuteOfDay.compareTo(a.minuteOfDay);
+      });
       return items;
     });
   }

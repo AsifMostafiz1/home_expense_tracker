@@ -7,6 +7,7 @@ import '../../../common/widgets/hiding_fab.dart';
 import '../../../common/widgets/image_viewer_screen.dart';
 import '../../../utils/app_ui.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
+import '../../personal/widgets/ledger_app_bar_button.dart';
 import '../controller/expense_controller.dart';
 import '../model/expense_model.dart';
 import '../widgets/expense_bottom_sheet.dart';
@@ -43,6 +44,10 @@ class ExpenseScreen extends GetView<ExpenseController> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: CustomAppBar(
           title: 'expense'.tr,
+          actions: const [
+            LedgerAppBarButton(),
+            SizedBox(width: 8),
+          ],
           bottom: const _MonthSwitcher(),
         ),
         floatingActionButton: fab,

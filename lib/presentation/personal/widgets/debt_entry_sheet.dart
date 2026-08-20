@@ -63,6 +63,8 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
       TextEditingController(text: widget.entry?.note ?? '');
 
   late DateTime _date = widget.entry?.day ?? DateTime.now();
+  late TimeOfDay _time =
+      widget.entry?.time ?? TimeOfDay.fromDateTime(DateTime.now());
 
   String? _nameError;
   String? _amountError;
@@ -102,6 +104,12 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
     if (picked != null) setState(() => _date = picked);
   }
 
+  Future<void> _pickTime() async {
+    final TimeOfDay? picked =
+        await showTimePicker(context: context, initialTime: _time);
+    if (picked != null) setState(() => _time = picked);
+  }
+
   Future<void> _save() async {
     final String name = _name.text.trim();
     final double amount = double.tryParse(_amount.text.trim()) ?? 0;
@@ -120,6 +128,7 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
       amount: amount,
       note: _note.text,
       date: _date,
+      time: _time,
     );
 
     if (saved) closeOverlayRoute();
@@ -222,7 +231,7 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
                 },
               ),
               const SizedBox(height: 16),
-              _buildDateField(context, accent),
+              _buildDateTimeRow(context, accent),
               const SizedBox(height: 16),
               CustomTextField(
                 controller: _note,
@@ -356,34 +365,68 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
     );
   }
 
-  Widget _buildDateField(BuildContext context, MaterialColor accent) {
+  /// Calendar and clock side by side, the way the house expense sheet asks
+  /// for them — an entry typed in the evening for something bought at noon is
+  /// the normal case, not the exception.
+  Widget _buildDateTimeRow(BuildContext context, MaterialColor accent) {
+    return Row(
+      children: [
+        Expanded(
+          child: _pickerField(
+            context,
+            icon: Icons.calendar_today_rounded,
+            label: DateFormat('dd MMM, yyyy').format(_date),
+            accent: accent,
+            onTap: _pickDate,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _pickerField(
+            context,
+            icon: Icons.access_time_rounded,
+            label: _time.format(context),
+            accent: accent,
+            onTap: _pickTime,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pickerField(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required MaterialColor accent,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
-      onTap: _pickDate,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
         decoration: BoxDecoration(
           color: AppUi.neutralSurface(context),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppUi.hairline(context)),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.calendar_today_rounded,
-                size: 17, color: AppUi.accent(context, accent)),
-            const SizedBox(width: 12),
-            Text(
-              DateFormat('dd MMM, yyyy').format(_date),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppUi.body(context),
+            Icon(icon, size: 16, color: AppUi.accent(context, accent)),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppUi.body(context),
+                ),
               ),
-            ),
-            const Spacer(),
-            Text(
-              'change'.tr,
-              style: TextStyle(fontSize: 12, color: AppUi.muted(context)),
             ),
           ],
         ),

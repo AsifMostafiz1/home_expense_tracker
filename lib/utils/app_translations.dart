@@ -278,6 +278,7 @@ class AppTranslations extends Translations {
           'last_updated_by': 'Last updated by @name',
           // -------------------------------------------------- personal ledger
           'my_ledger': 'My Ledger',
+          'options': 'Options',
           'my_ledger_subtitle': 'Your own income, spending and dues',
           'PERSONAL': 'PERSONAL',
           'money_tab': 'Money',
@@ -920,6 +921,7 @@ class AppTranslations extends Translations {
           'last_updated_by': 'সর্বশেষ আপডেট করেছেন @name',
           // -------------------------------------------------- personal ledger
           'my_ledger': 'আমার হিসাব',
+          'options': 'অপশন',
           'my_ledger_subtitle': 'নিজের আয়, খরচ ও দেনা-পাওনা',
           'PERSONAL': 'ব্যক্তিগত',
           'money_tab': 'আয়-ব্যয়',

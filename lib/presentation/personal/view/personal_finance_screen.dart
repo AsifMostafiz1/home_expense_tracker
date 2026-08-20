@@ -324,7 +324,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
         onTap: () => showTransactionSheet(context, entry: entry),
         onLongPress: () => _confirmDeleteTransaction(context, c, entry),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: AppUi.hairline(context)),
@@ -361,7 +361,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                     Row(
                       children: [
                         Text(
-                          DateFormat('dd MMM').format(entry.day),
+                          '${DateFormat('dd MMM').format(entry.day)}'
+                          ' · ${entry.time.format(context)}',
                           style: TextStyle(
                               fontSize: 11, color: AppUi.muted(context)),
                         ),
@@ -398,10 +399,58 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                   color: AppUi.accent(context, tone),
                 ),
               ),
+              // The long press does the same thing, but a menu is the only
+              // one of the two anybody finds.
+              _buildEntryMenu(context, c, entry),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildEntryMenu(
+    BuildContext context,
+    PersonalController c,
+    PersonalTransaction entry,
+  ) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert_rounded, size: 18, color: AppUi.muted(context)),
+      padding: EdgeInsets.zero,
+      splashRadius: 18,
+      tooltip: 'options'.tr,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      onSelected: (value) {
+        if (value == 'edit') {
+          showTransactionSheet(context, entry: entry);
+        } else if (value == 'delete') {
+          _confirmDeleteTransaction(context, c, entry);
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 19, color: AppUi.muted(context)),
+              const SizedBox(width: 12),
+              Text('edit_entry'.tr),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline_rounded,
+                  size: 19, color: Colors.red.shade400),
+              const SizedBox(width: 12),
+              Text('delete_entry'.tr,
+                  style: TextStyle(color: Colors.red.shade400)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
