@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +17,7 @@ import '../presentation/monthly_stats/controller/monthly_stats_controller.dart';
 import '../presentation/monthly_stats/view/monthly_stats_screen.dart';
 import '../presentation/splash/view/splash_screen.dart';
 import '../utils/app_constant.dart';
+import 'home_refresh.dart';
 
 /// Where a tapped notification lands.
 ///
@@ -189,6 +192,10 @@ class NotificationRouter {
 
     await _openTab(destination.tab);
 
+    // The tab is showing; bring what is on it up to date underneath. Not
+    // awaited — see [_refreshFor].
+    unawaited(_refreshFor(destination));
+
     switch (destination) {
       case NotificationDestination.directThread:
         await _openDirectThread(data, prefs);
@@ -208,10 +215,15 @@ class NotificationRouter {
         break;
 
       case NotificationDestination.monthlyBill:
-        // The saved months each carry a figure, and the launch only worked
-        // out the current one — see MonthlyStatsController.ensureHistory.
-        if (Get.isRegistered<MonthlyStatsController>()) {
-          Get.find<MonthlyStatsController>().ensureHistory();
+        // Read here rather than in [_refreshFor], because the per-month
+        // figures have to be switched on before the read rather than after it
+        // — see MonthlyStatsController.reload. The launch only worked out the
+        // current month, and none of the bills are live.
+        if (Get.isRegistered<MonthlyStatsController>() &&
+            !Get.isPrepared<MonthlyStatsController>()) {
+          unawaited(
+            Get.find<MonthlyStatsController>().reload(withHistory: true),
+          );
         }
         await _push(() => const MonthlyStatsScreen());
         break;
@@ -220,6 +232,36 @@ class NotificationRouter {
       case NotificationDestination.meals:
       case NotificationDestination.expenses:
       case NotificationDestination.profile:
+      case NotificationDestination.signedOut:
+      case NotificationDestination.appUpdate:
+        break;
+    }
+  }
+
+  /// Brings the data behind [destination] up to date.
+  ///
+  /// Which of them need it, and what refreshing one means, is [HomeRefresh] —
+  /// the same reads coming back to a backgrounded app runs. This only decides
+  /// which destinations are worth it: the chat and the house rules are live,
+  /// and the month's bills are read where that screen is opened, because the
+  /// per-month figures have to be switched on before the read rather than
+  /// after it.
+  ///
+  /// Not awaited by the caller: the tap belongs on the screen straight away,
+  /// and these are reads that take a moment on a poor connection.
+  Future<void> _refreshFor(NotificationDestination destination) async {
+    switch (destination) {
+      case NotificationDestination.meals:
+      case NotificationDestination.expenses:
+      case NotificationDestination.profile:
+        await HomeRefresh.tab(destination.tab);
+        break;
+
+      // Live already, read where the screen is opened, or not a screen.
+      case NotificationDestination.groupThread:
+      case NotificationDestination.directThread:
+      case NotificationDestination.houseRules:
+      case NotificationDestination.monthlyBill:
       case NotificationDestination.signedOut:
       case NotificationDestination.appUpdate:
         break;

@@ -70,6 +70,17 @@ class MemberAvatarService extends GetxController implements GetxService {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       _myPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
 
+      // What this device wrote down when the picture was set — at sign-in, and
+      // again on every profile save. It stands in while the read below is
+      // still out, so the member's own avatar is not a set of initials for the
+      // first second of a launch.
+      final String saved =
+          (prefs.getString(AppConstant.keyUserProfileImage) ?? '').trim();
+      if (saved.isNotEmpty && (_myImage ?? '').isEmpty) {
+        _myImage = saved;
+        update();
+      }
+
       final QuerySnapshot snapshot = await FirebaseFirestore.instance
           .collection(AppConstant.collectionUsers)
           .get();
@@ -77,21 +88,37 @@ class MemberAvatarService extends GetxController implements GetxService {
       _byPhone.clear();
       _byName.clear();
 
+      // Whether the read covered the signed-in member at all, which is not the
+      // same question as what it said about them — see below.
+      bool sawMe = false;
+
       for (final QueryDocumentSnapshot doc in snapshot.docs) {
         final Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         final String image = (data['profileImage'] ?? '').toString();
-        if (image.isEmpty) continue;
 
         // The document id is the phone number, so it stands in when the field
         // itself is missing on an older record.
         final String phone = (data['phone'] ?? doc.id).toString();
-        final String name = (data['name'] ?? '').toString().trim().toLowerCase();
+        if (phone.isNotEmpty && phone == _myPhone) sawMe = true;
+
+        if (image.isEmpty) continue;
+
+        final String name =
+            (data['name'] ?? '').toString().trim().toLowerCase();
 
         if (phone.isNotEmpty) _byPhone[phone] = image;
         if (name.isNotEmpty) _byName[name] = image;
       }
 
-      _myImage = _myPhone.isEmpty ? null : _byPhone[_myPhone];
+      // A read that did not reach the member says nothing about their picture:
+      // Firestore answers a slow launch from its own local copy, and that copy
+      // can be older than the upload. The device's record keeps the last word
+      // in that case. When the read did reach them it is the newer of the two,
+      // including when what it carries is no picture at all.
+      final String? fromRead = _myPhone.isEmpty ? null : _byPhone[_myPhone];
+      _myImage =
+          sawMe ? fromRead : (fromRead ?? (saved.isEmpty ? null : saved));
+
       _loaded = true;
       update();
     } catch (e) {

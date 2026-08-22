@@ -26,6 +26,19 @@ class ConnectionBanner extends StatefulWidget {
 
   const ConnectionBanner({super.key, required this.child});
 
+  /// Whether the strip is on screen, for anything else that wants the same
+  /// space at the top of the app and has to give way to it — see [DueBanner],
+  /// the only other thing that puts a notice up there.
+  ///
+  /// Two notices stacked read as one wall of amber, and the connection is the
+  /// more urgent of the two: what a member owes will keep, and what they can
+  /// and cannot do on this device right now will not.
+  ///
+  /// True from the moment the strip starts sliding in until it starts sliding
+  /// out, the green "back online" moment included — that one is part of the
+  /// same story and shares the same space.
+  static final ValueNotifier<bool> isShowing = ValueNotifier<bool>(false);
+
   @override
   State<ConnectionBanner> createState() => _ConnectionBannerState();
 }
@@ -74,6 +87,9 @@ class _ConnectionBannerState extends State<ConnectionBanner>
     _backOnlineTimer?.cancel();
     _connectivity.removeListener(_sync);
     _reveal.dispose();
+    // The flag outlives the widget — leaving it set would hold the other
+    // notice down for good.
+    ConnectionBanner.isShowing.value = false;
     super.dispose();
   }
 
@@ -105,6 +121,10 @@ class _ConnectionBannerState extends State<ConnectionBanner>
       // Keep the last words while the strip slides away.
       show = false;
     }
+
+    // Before the animation rather than after it, so whatever is giving way
+    // starts leaving as this one starts arriving instead of after it lands.
+    ConnectionBanner.isShowing.value = show;
 
     if (animate) {
       setState(() {});

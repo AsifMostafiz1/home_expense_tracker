@@ -37,9 +37,26 @@ class ProfilePhotoPrompt {
     final String dismissKey = AppConstant.keyProfilePhotoPromptDismissed(phone);
     if (prefs.getBool(dismissKey) ?? false) return;
 
+    // The picture this device wrote down when it was set — at sign-in, and
+    // again on every profile save. Asked before the directory below, because
+    // this answers at once and that has a Firestore read to get through
+    // first: a slow launch is answered from Firestore's local copy, which can
+    // be older than the upload, and every member's picture then looks absent.
+    // Asking somebody to add a picture they already have is the one mistake
+    // this sheet must not make, so nothing that can be late gets to decide it.
+    if ((prefs.getString(AppConstant.keyUserProfileImage) ?? '')
+        .trim()
+        .isNotEmpty) {
+      return;
+    }
+
     if (!Get.isRegistered<MemberAvatarService>()) return;
     final MemberAvatarService directory = Get.find<MemberAvatarService>();
-    await directory.load();
+    // The directory settles "my picture" against whoever was signed in when
+    // it last read, and the initial binding fires that read before a sign-in
+    // on this launch has happened. Have it look again rather than act on a
+    // blank that belongs to nobody.
+    await directory.load(force: directory.myPhone != phone);
 
     // A read that never landed leaves every picture looking absent — asking
     // for one on the strength of an offline launch would be wrong.

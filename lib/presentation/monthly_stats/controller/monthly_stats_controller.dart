@@ -233,7 +233,8 @@ class MonthlyStatsController extends GetxController implements GetxService {
 
       final List<DateTime> months = mealMonths.toList();
       final List<MealStats> fetched = await Future.wait(
-        months.map((month) => mealRepository.fetchMonthlyStats(userPhone, month)),
+        months
+            .map((month) => mealRepository.fetchMonthlyStats(userPhone, month)),
       );
 
       final Map<String, MealStats> statsByMealMonth = {
@@ -321,6 +322,22 @@ class MonthlyStatsController extends GetxController implements GetxService {
     await loadMyCost();
   }
 
+  /// Every figure this screen shows, read again, without taking what is on
+  /// screen away while it happens.
+  ///
+  /// [withHistory] switches on the per-month figures at the same time — see
+  /// [ensureHistory] — so somebody arriving from a notification about a bill
+  /// gets the whole list current in one pass rather than a read for the
+  /// history and a second one for everything else.
+  ///
+  /// Nothing here is live: the bills are read once at launch and then held,
+  /// which is fine for a screen somebody opens from the menu and wrong for one
+  /// a notification opens to say the figures have changed.
+  Future<void> reload({bool withHistory = false}) async {
+    if (withHistory && !isAdminUser) _wantsHistory = true;
+    await loadStats(background: true);
+  }
+
   Future<void> _fetchBills({bool background = false}) async {
     try {
       bills = await repository.fetchMonthlyBills();
@@ -389,7 +406,8 @@ class MonthlyStatsController extends GetxController implements GetxService {
       update();
 
       members = await repository.fetchActiveMembers();
-      debugPrint('Monthly stats: loaded ${members.length} members for the split');
+      debugPrint(
+          'Monthly stats: loaded ${members.length} members for the split');
 
       if (syncForm) _rebuildRoster();
     } catch (e) {
@@ -413,8 +431,7 @@ class MonthlyStatsController extends GetxController implements GetxService {
   MonthlyBillModel? billForMonth(DateTime month) =>
       billForKey(MonthlyBillModel.monthKeyOf(month));
 
-  DateTime get thisMonth =>
-      DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime get thisMonth => DateTime(DateTime.now().year, DateTime.now().month);
 
   MonthlyBillModel? get currentMonthBill => billForMonth(thisMonth);
 
@@ -599,9 +616,8 @@ class MonthlyStatsController extends GetxController implements GetxService {
     otherNoteController.text = source.otherNote;
 
     // Matched by phone, so a member who joined since simply starts at zero.
-    _syncRentControllers({
-      for (final share in source.rentShares) share.phone: share.amount
-    });
+    _syncRentControllers(
+        {for (final share in source.rentShares) share.phone: share.amount});
 
     homeRentError = null;
     update();
@@ -750,8 +766,7 @@ class MonthlyStatsController extends GetxController implements GetxService {
 
       CustomSnackbar.show(
         type: SnackbarType.success,
-        message:
-            'bill_saved'.trParams({'month': AppUi.monthLabel(formMonth)}),
+        message: 'bill_saved'.trParams({'month': AppUi.monthLabel(formMonth)}),
       );
       return true;
     } catch (e) {
@@ -782,8 +797,8 @@ class MonthlyStatsController extends GetxController implements GetxService {
 
       CustomSnackbar.show(
         type: SnackbarType.success,
-        message:
-            'bill_deleted'.trParams({'month': AppUi.monthLabel(bill.monthDate)}),
+        message: 'bill_deleted'
+            .trParams({'month': AppUi.monthLabel(bill.monthDate)}),
       );
       return true;
     } catch (e) {

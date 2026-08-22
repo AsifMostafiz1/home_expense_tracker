@@ -9,7 +9,19 @@ import 'package:http/http.dart' as http;
 import 'fcm_v1_service.dart';
 import 'notification_router.dart';
 
-Future<void> _showNotificationIfAppropriate(RemoteMessage message) async {
+/// Raises the tray notification for [message], if this device should see it.
+///
+/// [fromBackgroundIsolate] says whether the local notifications plugin still
+/// has to be set up. It matters more than it looks: the plugin is a singleton
+/// per isolate, and `initialize` overwrites its tap callback with whatever it
+/// is handed — so calling it again on the main isolate replaces the handler
+/// [PushNotificationService.init] installed with null, and every tap from
+/// then on lands nowhere. A background message runs in its own isolate, which
+/// has never been through `init`, so that one does have to initialize.
+Future<void> _showNotificationIfAppropriate(
+  RemoteMessage message, {
+  required bool fromBackgroundIsolate,
+}) async {
   final data = message.data;
   final title = data['title'];
   final body = data['body'];
@@ -61,15 +73,16 @@ Future<void> _showNotificationIfAppropriate(RemoteMessage message) async {
   final FlutterLocalNotificationsPlugin localNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
-  // Initialize for the current instance (important for background/separate isolate)
-  const AndroidInitializationSettings androidSettings =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-  const DarwinInitializationSettings iosSettings =
-      DarwinInitializationSettings();
-  const InitializationSettings initSettings =
-      InitializationSettings(android: androidSettings, iOS: iosSettings);
+  if (fromBackgroundIsolate) {
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const DarwinInitializationSettings iosSettings =
+        DarwinInitializationSettings();
+    const InitializationSettings initSettings =
+        InitializationSettings(android: androidSettings, iOS: iosSettings);
 
-  await localNotificationsPlugin.initialize(initSettings);
+    await localNotificationsPlugin.initialize(initSettings);
+  }
 
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
     'high_importance_channel',
@@ -100,7 +113,7 @@ Future<void> _showNotificationIfAppropriate(RemoteMessage message) async {
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  await _showNotificationIfAppropriate(message);
+  await _showNotificationIfAppropriate(message, fromBackgroundIsolate: true);
 }
 
 class PushNotificationService {
@@ -164,7 +177,8 @@ class PushNotificationService {
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       print('FCM: Foreground message received: ${message.messageId}');
-      await _showNotificationIfAppropriate(message);
+      await _showNotificationIfAppropriate(message,
+          fromBackgroundIsolate: false);
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
@@ -322,8 +336,7 @@ class PushNotificationService {
               'headers': {
                 'apns-priority': '10',
               },
-              if (imageUrl != null)
-                'fcm_options': {'image': imageUrl},
+              if (imageUrl != null) 'fcm_options': {'image': imageUrl},
             }
           }
         };

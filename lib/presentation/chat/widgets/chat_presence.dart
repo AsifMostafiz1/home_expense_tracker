@@ -16,13 +16,31 @@ const Color kOnlineText = Color(0xFF16A34A);
 String presenceLabel(ChatUser? user) {
   if (user == null) return 'offline'.tr;
   if (user.isOnline) return 'active_now'.tr;
+  return lastActiveLabel(user) ?? 'offline'.tr;
+}
+
+/// How long ago somebody was last around — "Active 20m ago", "Active 3h ago" —
+/// or null when there is no such figure worth giving.
+///
+/// Null covers three things, and all three are the same answer to the reader:
+/// they are around right now, nothing has ever been heard from them, or the
+/// last heartbeat is old enough that a number is history rather than news.
+///
+/// Separate from [presenceLabel] because the chat list draws only this: on a
+/// row, "Active now" is already said by the dot on the picture and by the
+/// strip at the top of the screen, and a flat "Offline" is a line spent saying
+/// nothing. The chat header, where there is nothing else to go on, still says
+/// both.
+String? lastActiveLabel(ChatUser? user) {
+  if (user == null || user.isOnline) return null;
 
   final DateTime? seen = user.lastActiveAt;
-  if (seen == null) return 'offline'.tr;
+  if (seen == null) return null;
 
   final Duration gap = DateTime.now().difference(seen);
   if (gap.inMinutes < 60) {
-    return 'active_min_ago'.trParams({'count': '${gap.inMinutes.clamp(1, 59)}'});
+    return 'active_min_ago'
+        .trParams({'count': '${gap.inMinutes.clamp(1, 59)}'});
   }
   if (gap.inHours < 24) {
     return 'active_hour_ago'.trParams({'count': '${gap.inHours}'});
@@ -30,7 +48,7 @@ String presenceLabel(ChatUser? user) {
   if (gap.inDays < 7) {
     return 'active_day_ago'.trParams({'count': '${gap.inDays}'});
   }
-  return 'offline'.tr;
+  return null;
 }
 
 /// The presence line itself — a green dot while somebody is around, the
@@ -76,7 +94,11 @@ class PresenceLine extends StatelessWidget {
               fontWeight: online ? FontWeight.w600 : FontWeight.w400,
               color: online
                   ? kOnlineText
-                  : Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
+                  : Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.color
+                      ?.withOpacity(0.6),
             ),
           ),
         ),

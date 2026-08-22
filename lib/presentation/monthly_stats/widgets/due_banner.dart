@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
+import '../../../common/widgets/connection_banner.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/monthly_stats_controller.dart';
 import '../model/month_cost_summary.dart';
@@ -16,6 +17,10 @@ import '../view/monthly_stats_screen.dart';
 /// tab's own app bar slides rather than jumps. Wrapping the tab body from the
 /// dashboard puts it above all four app bars without any of them knowing about
 /// it, and keeps it off the statistics screen its own button leads to.
+///
+/// It is the same space the offline strip uses, so the two are never up
+/// together: this one stands down while that one is showing and comes back
+/// once it has gone — see [ConnectionBanner.isShowing].
 ///
 /// A reminder, nothing more. It goes as soon as the admin marks the month
 /// collected, never appears for a month with nothing left to pay, and never
@@ -39,45 +44,62 @@ class _DueBannerState extends State<DueBanner> {
     final MediaQueryData media = MediaQuery.of(context);
     final double statusBar = media.padding.top;
 
-    return GetBuilder<MonthlyStatsController>(
-      // The controller updates on every keystroke in the bill form; the strip
-      // only cares about the figure it is showing.
-      filter: _filterKey,
-      builder: (c) {
-        final _DueContent? due = _read(c);
-        if (due != null) _content = due;
+    return ValueListenableBuilder<bool>(
+      valueListenable: ConnectionBanner.isShowing,
+      builder: (context, connectionShowing, _) {
+        return GetBuilder<MonthlyStatsController>(
+          // The controller updates on every keystroke in the bill form; the
+          // strip only cares about the figure it is showing.
+          filter: _filterKey,
+          builder: (c) => _banner(c, media, statusBar, connectionShowing),
+        );
+      },
+    );
+  }
 
-        return TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0, end: due == null ? 0 : 1),
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-          child: widget.child,
-          builder: (context, t, child) {
-            return Column(
-              children: [
-                if (t > 0 && _content != null)
-                  ClipRect(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      heightFactor: t,
-                      child: _DueStrip(content: _content!, topInset: statusBar),
-                    ),
-                  ),
-                Expanded(
-                  // The strip owns the status bar area while it is up; the tab
-                  // gets its top padding back in step with the strip leaving.
-                  child: MediaQuery(
-                    data: media.copyWith(
-                      padding: media.padding.copyWith(top: statusBar * (1 - t)),
-                      viewPadding:
-                          media.viewPadding.copyWith(top: statusBar * (1 - t)),
-                    ),
-                    child: child!,
-                  ),
+  Widget _banner(
+    MonthlyStatsController c,
+    MediaQueryData media,
+    double statusBar,
+    bool connectionShowing,
+  ) {
+    final _DueContent? due = _read(c);
+    if (due != null) _content = due;
+
+    // The figure is remembered either way, so standing down for the offline
+    // strip costs nothing: this slides back in with the same amount on it the
+    // moment that one leaves.
+    final bool show = due != null && !connectionShowing;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: show ? 1 : 0),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      child: widget.child,
+      builder: (context, t, child) {
+        return Column(
+          children: [
+            if (t > 0 && _content != null)
+              ClipRect(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  heightFactor: t,
+                  child: _DueStrip(content: _content!, topInset: statusBar),
                 ),
-              ],
-            );
-          },
+              ),
+            Expanded(
+              // The strip owns the status bar area while it is up; the tab
+              // gets its top padding back in step with the strip leaving.
+              child: MediaQuery(
+                data: media.copyWith(
+                  padding: media.padding.copyWith(top: statusBar * (1 - t)),
+                  viewPadding:
+                      media.viewPadding.copyWith(top: statusBar * (1 - t)),
+                ),
+                child: child!,
+              ),
+            ),
+          ],
         );
       },
     );
@@ -135,7 +157,8 @@ class _DueStrip extends StatelessWidget {
     // the two notices are one thing the user learns to read rather than two.
     final Color background =
         dark ? const Color(0xFF3B2A12) : const Color(0xFFFFF1DE);
-    final Color title = dark ? const Color(0xFFFFD79A) : const Color(0xFF7A3E00);
+    final Color title =
+        dark ? const Color(0xFFFFD79A) : const Color(0xFF7A3E00);
     final Color body = dark ? const Color(0xFFE6BF83) : const Color(0xFF8C5A1E);
     final Color bubble =
         dark ? const Color(0x33FFC46B) : const Color(0xFFFFD9A8);

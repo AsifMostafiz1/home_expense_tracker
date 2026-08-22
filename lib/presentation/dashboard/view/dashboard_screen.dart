@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../common/widgets/confirm_dialog.dart';
@@ -12,6 +14,7 @@ import '../../chat/controller/chat_controller.dart';
 import '../../chat/controller/chat_list_controller.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/widgets/due_banner.dart';
+import '../../../services/home_refresh.dart';
 import '../widgets/home_prompts.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -82,13 +85,43 @@ class _DashboardScreenState extends State<DashboardScreen>
     setState(() => _selectedIndex = index);
   }
 
-  /// Only the rules are re-checked on the way back in. The other two asks
-  /// belong to a launch — repeating them after every glance at another app
-  /// would be nagging — but a rule published while the app sat in the
+  /// When the app went into the background, or null while it is in front.
+  DateTime? _leftAt;
+
+  /// How long the app has to have been away before coming back re-reads the
+  /// tab. Long enough that answering a call or copying a code out of the
+  /// notification shade costs nothing; short enough that anything the house
+  /// did while the phone was in a pocket is on screen by the time it is
+  /// looked at.
+  static const Duration _staleAfter = Duration(seconds: 30);
+
+  /// Coming back in, two things happen.
+  ///
+  /// The rules are re-checked every time: the other two asks of the launch
+  /// queue belong to a launch — repeating them after every glance at another
+  /// app would be nagging — but a rule published while the app sat in the
   /// background has to be agreed to before the house carries on.
+  ///
+  /// And the tab is re-read, if the app was away long enough to be worth it.
+  /// Most of what is on screen is read once and then held — see
+  /// [HomeRefresh] — so an app left open on the meal tab overnight would
+  /// otherwise still be showing yesterday's figures in the morning.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) HomePrompts.runRulesGate();
+    if (state == AppLifecycleState.paused) {
+      _leftAt = DateTime.now();
+      return;
+    }
+    if (state != AppLifecycleState.resumed) return;
+
+    HomePrompts.runRulesGate();
+
+    final DateTime? left = _leftAt;
+    _leftAt = null;
+    if (left == null || DateTime.now().difference(left) < _staleAfter) return;
+
+    // Behind whatever is on screen: every read swaps its data in underneath.
+    unawaited(HomeRefresh.tab(_selectedIndex));
   }
 
   /// The ledger sits after the chat rather than before it, so the index a
@@ -132,10 +165,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-
-  Widget _buildNavItem(IconData icon, String label, int index, {int badgeCount = 0}) {
+  Widget _buildNavItem(IconData icon, String label, int index,
+      {int badgeCount = 0}) {
     bool isSelected = _selectedIndex == index;
-    final color = isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.shade400;
+    final color = isSelected
+        ? Theme.of(context).colorScheme.primary
+        : Colors.grey.shade400;
 
     // Expanded rather than a fixed width: five destinations have to share
     // whatever the phone is, and a Bangla label is longer than an English one.
@@ -151,8 +186,11 @@ class _DashboardScreenState extends State<DashboardScreen>
               height: 3,
               width: 30,
               decoration: BoxDecoration(
-                color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(3)),
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.transparent,
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(3)),
               ),
             ),
             const SizedBox(height: 8),
@@ -249,8 +287,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _buildNavItem(Icons.restaurant_outlined, 'meal'.tr, 0),
-                    _buildNavItem(
-                        Icons.receipt_long_outlined, 'expense'.tr, 1),
+                    _buildNavItem(Icons.receipt_long_outlined, 'expense'.tr, 1),
                     _buildNavItem(
                       Icons.chat_bubble_outline_rounded,
                       'chat'.tr,

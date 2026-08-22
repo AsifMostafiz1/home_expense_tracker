@@ -63,8 +63,8 @@ class ChatListScreen extends StatelessWidget {
         decoration: InputDecoration(
           hintText: 'search_people'.tr,
           hintStyle: TextStyle(color: AppUi.muted(context), fontSize: 14),
-          prefixIcon: Icon(Icons.search_rounded,
-              size: 20, color: AppUi.muted(context)),
+          prefixIcon:
+              Icon(Icons.search_rounded, size: 20, color: AppUi.muted(context)),
           filled: true,
           fillColor: AppUi.neutralSurface(context),
           contentPadding: const EdgeInsets.symmetric(vertical: 4),
@@ -274,8 +274,7 @@ class _GroupCard extends StatelessWidget {
                             if (chat.unseenCount > 0) ...[
                               const SizedBox(width: 8),
                               Container(
-                                constraints:
-                                    const BoxConstraints(minWidth: 20),
+                                constraints: const BoxConstraints(minWidth: 20),
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
@@ -391,6 +390,8 @@ class _ChatRow extends StatelessWidget {
     final bool hasUnread = unread > 0;
     final Color primary = Theme.of(context).colorScheme.primary;
 
+    final String? lastActive = lastActiveLabel(entry.user);
+
     // Nothing said yet reads as an invitation rather than an empty line.
     final String preview = thread != null && thread.preview.isNotEmpty
         ? (thread.lastSenderPhone == myPhone
@@ -421,8 +422,7 @@ class _ChatRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight:
-                          hasUnread ? FontWeight.bold : FontWeight.w600,
+                      fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
                       color: AppUi.body(context),
                     ),
                   ),
@@ -434,8 +434,7 @@ class _ChatRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12.5,
                       height: 1.25,
-                      fontWeight:
-                          hasUnread ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
                       fontStyle: entry.hasHistory
                           ? FontStyle.normal
                           : FontStyle.italic,
@@ -444,14 +443,21 @@ class _ChatRow extends StatelessWidget {
                           : AppUi.muted(context),
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  // The same line the chat header carries, so opening a row
-                  // tells you nothing new about whether they are around.
-                  PresenceLine(
-                    label: presenceLabel(entry.user),
-                    online: entry.user.isOnline,
-                    fontSize: 11,
-                  ),
+                  // Only when there is a figure to give — see
+                  // [lastActiveLabel]. That somebody is around is already on
+                  // the row twice over, in the dot on their picture and their
+                  // face in the strip at the top of this screen; and a flat
+                  // "Offline" under a member nobody has heard from is a line
+                  // spent saying nothing. What is worth a line is how long it
+                  // has been.
+                  if (lastActive != null) ...[
+                    const SizedBox(height: 3),
+                    PresenceLine(
+                      label: lastActive,
+                      online: false,
+                      fontSize: 11,
+                    ),
+                  ],
                 ],
               ),
             ),

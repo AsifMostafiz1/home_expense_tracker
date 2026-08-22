@@ -121,6 +121,14 @@ class ProfileController extends GetxController implements GetxService {
     await prefs.setString(AppConstant.keyLanguage, langCode);
   }
 
+  /// The account and the lifetime figures, read again.
+  ///
+  /// The role badge and the menu under it come from the user document, which
+  /// is read once on the way in. An admin promoting or demoting somebody sends
+  /// that member a notification, and the tap on it lands here — on the very
+  /// page that is showing the old role until this runs.
+  Future<void> refreshProfile() => _loadUserData();
+
   Future<void> _loadUserData() async {
     try {
       isLoading = true;
