@@ -102,12 +102,16 @@ class HouseRulesRepositoryImpl implements HouseRulesRepository {
   Future<void> deleteRule(String id) => _commit(_rules.doc(id).delete());
 
   @override
-  Future<void> saveOrder(List<HouseRuleModel> rules, {required String by}) {
+  Future<void> saveOrder(List<HouseRuleModel> rules) {
     final WriteBatch batch = FirebaseFirestore.instance.batch();
     for (int i = 0; i < rules.length; i++) {
+      // The position and nothing else. `updatedAt` is the version an
+      // acknowledgement is compared against, so stamping it here would ask
+      // the whole house to agree to every rule again because an admin dragged
+      // one up the list — and a reorder changes no wording anybody agreed to.
       batch.set(
         _rules.doc(rules[i].id),
-        {'order': i, 'updated_by': by, 'updatedAt': FieldValue.serverTimestamp()},
+        {'order': i},
         SetOptions(merge: true),
       );
     }

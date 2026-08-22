@@ -21,7 +21,10 @@ abstract class HouseRulesRepository {
   Future<void> deleteRule(String id);
 
   /// Writes the new position of every rule that moved, in one batch.
-  Future<void> saveOrder(List<HouseRuleModel> rules, {required String by});
+  ///
+  /// Positions only: moving a rule is not a change to what it says, so this
+  /// must leave the wording stamp alone — see [fetchAcks].
+  Future<void> saveOrder(List<HouseRuleModel> rules);
 
   /// Writes the starter set at fixed ids, so running it twice cannot leave
   /// the house with two copies of every rule.

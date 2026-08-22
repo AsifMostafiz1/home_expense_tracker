@@ -161,6 +161,17 @@ class HouseRulesController extends GetxController implements GetxService {
       return false;
     }
 
+    // Saving a rule back exactly as it was is not an edit. Writing it anyway
+    // would move its stamp forward, which is what the house acknowledges
+    // against — so everyone would be asked to agree again to wording nobody
+    // touched, and the notification would go out for nothing.
+    if (existing != null &&
+        en == existing.textEn.trim() &&
+        bn == existing.textBn.trim()) {
+      CustomSnackbar.show(type: SnackbarType.info, message: 'rule_saved'.tr);
+      return true;
+    }
+
     try {
       isSaving = true;
       update();
@@ -248,7 +259,7 @@ class HouseRulesController extends GetxController implements GetxService {
     update();
 
     try {
-      await repository.saveOrder(rules, by: userName);
+      await repository.saveOrder(rules);
     } catch (e) {
       debugPrint('Error reordering house rules: $e');
       CustomSnackbar.show(
