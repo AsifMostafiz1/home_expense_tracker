@@ -42,6 +42,16 @@ class OutgoingMessage {
   /// the first picture of a batch carries one, the way every chat app does it.
   final String text;
 
+  /// Which thread this is going to: null for the house group, otherwise the
+  /// direct thread's id. Kept on the message rather than looked up later
+  /// because the job that finally delivers it may be the OS background one,
+  /// with no controller around to ask.
+  final String? conversationId;
+
+  /// The other person in a direct thread — whose unread count goes up when
+  /// this lands. Null for the group.
+  final String? peerPhone;
+
   /// The outbox's own copy of the picture, when there is one. Null for text.
   final String? imagePath;
   final double? imageWidth;
@@ -78,6 +88,8 @@ class OutgoingMessage {
   OutgoingMessage({
     required this.localId,
     required this.text,
+    this.conversationId,
+    this.peerPhone,
     this.imagePath,
     this.imageWidth,
     this.imageHeight,
@@ -96,6 +108,8 @@ class OutgoingMessage {
     this.failed = false,
     required this.queuedAt,
   });
+
+  bool get isGroup => conversationId == null;
 
   bool get hasImage => imagePath != null && imagePath!.isNotEmpty;
 
@@ -128,6 +142,8 @@ class OutgoingMessage {
   Map<String, dynamic> toJson() => {
         'localId': localId,
         'text': text,
+        'conversationId': conversationId,
+        'peerPhone': peerPhone,
         'imagePath': imagePath,
         'imageWidth': imageWidth,
         'imageHeight': imageHeight,
@@ -151,6 +167,8 @@ class OutgoingMessage {
     return OutgoingMessage(
       localId: json['localId'] as String,
       text: (json['text'] ?? '') as String,
+      conversationId: json['conversationId'] as String?,
+      peerPhone: json['peerPhone'] as String?,
       imagePath: json['imagePath'] as String?,
       imageWidth: (json['imageWidth'] as num?)?.toDouble(),
       imageHeight: (json['imageHeight'] as num?)?.toDouble(),

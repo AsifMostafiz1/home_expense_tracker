@@ -74,6 +74,16 @@ class PushOutboxService extends GetxController implements GetxService {
 
   static const int _maxAttempts = 5;
 
+  /// Whether an attempt is worth making. Not `isOnline`: that carries the
+  /// verdict of a probe against an unrelated host, and one slow probe used to
+  /// file every notification for later on a connection that would have
+  /// carried it. With an interface up, FCM is the better authority — a real
+  /// failure files the notification anyway, one line below.
+  ///
+  /// The background job hands in no service at all and always tries; it only
+  /// runs when the OS says there is a network.
+  bool get _worthTrying => _connectivity?.hasNetwork ?? true;
+
   final List<PendingPush> _items = [];
   StreamSubscription<bool>? _onlineSubscription;
   bool _flushing = false;
@@ -132,7 +142,7 @@ class PushOutboxService extends GetxController implements GetxService {
       imageUrl: imageUrl,
     );
 
-    if (!(_connectivity?.isOffline ?? false)) {
+    if (_worthTrying) {
       // Not while a flush is running: it would go out ahead of older ones.
       if (!_flushing && await _trySend(push)) return;
     }
@@ -167,7 +177,7 @@ class PushOutboxService extends GetxController implements GetxService {
   /// times. Returns true when nothing is left waiting.
   Future<bool> flush() async {
     if (_flushing || _items.isEmpty) return _items.isEmpty;
-    if (_connectivity?.isOffline ?? false) return false;
+    if (!_worthTrying) return false;
     _flushing = true;
 
     try {

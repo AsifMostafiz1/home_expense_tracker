@@ -24,7 +24,12 @@ class HomePrompts {
 
   static bool _running = false;
 
-  static Future<void> run() async {
+  /// [isHomeOnTop] tells this whether the home screen is still what the user
+  /// is looking at. A tapped notification opens a thread, a bill or the rules
+  /// over it while this queue is still waiting its turn, and the two asks
+  /// that are the user's to postpone have no business landing on top of
+  /// somebody's message. The rules are not one of them — see below.
+  static Future<void> run({bool Function()? isHomeOnTop}) async {
     if (_running) return;
     _running = true;
 
@@ -33,18 +38,25 @@ class HomePrompts {
       if (Get.context == null) return;
       if (_overlayBusy) return;
 
-      final BulkMealPromptResult meals = await BulkMealPrompt.maybeShow();
+      final bool onHome = isHomeOnTop?.call() ?? true;
+
+      final BulkMealPromptResult meals = onHome
+          ? await BulkMealPrompt.maybeShow()
+          : BulkMealPromptResult.notNeeded;
 
       // Let a sheet finish sliding out before the next thing arrives.
       if (meals != BulkMealPromptResult.notNeeded) {
         await Future.delayed(const Duration(milliseconds: 700));
       }
 
-      // Runs whatever the meal sheet was answered with: agreeing to the rules
-      // is not something a member gets to put off by waving a sheet away.
+      // Runs whatever the meal sheet was answered with, and wherever the
+      // reader has ended up: agreeing to the rules is not something a member
+      // gets to put off by waving a sheet away — or by having tapped a
+      // notification on the way in.
       final HouseRulesGateResult rules = await HouseRulesGate.maybeShow();
       if (rules == HouseRulesGateResult.shown) return;
 
+      if (!onHome) return;
       if (meals == BulkMealPromptResult.dismissed) return;
 
       await ProfilePhotoPrompt.maybeShow();

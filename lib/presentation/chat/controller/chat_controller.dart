@@ -14,13 +14,34 @@ import '../../../services/supabase_storage_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../model/chat_message_model.dart';
+import '../model/chat_thread_model.dart';
 import '../model/outgoing_image_model.dart';
+import '../model/pinned_message_model.dart';
 import '../repository/chat_repository.dart';
 
+/// One conversation on screen.
+///
+/// The house group gets the untagged instance the dashboard holds for its
+/// badge; every direct chat gets its own, tagged with the conversation id and
+/// disposed with the screen. Everything below reads [thread] to decide where a
+/// message goes, so the two behave identically apart from the handful of
+/// places a group needs mentions and a direct chat does not.
 class ChatController extends GetxController implements GetxService {
   final ChatRepository repository;
 
-  ChatController({required this.repository});
+  /// Which conversation this controller is for. Defaults to the house group,
+  /// which is what the binding registers.
+  final ChatThread thread;
+
+  ChatController({
+    required this.repository,
+    this.thread = const ChatThread.group(),
+  });
+
+  /// Null for the group — the argument every repository call below passes.
+  String? get conversationId => thread.conversationId;
+
+  bool get isGroupChat => thread.isGroup;
 
   final TextEditingController messageController = TextEditingController();
   final ScrollController scrollController = ScrollController();
@@ -56,6 +77,29 @@ class ChatController extends GetxController implements GetxService {
   Map<String, List<Map<String, dynamic>>> messageSeenBy = {};
   StreamSubscription? _seenStatusSubscription;
 
+  /// The group's name and picture. Only ever filled on the group instance —
+  /// a direct chat's identity is the person it is with.
+  GroupInfo groupInfo = const GroupInfo();
+  StreamSubscription? _groupInfoSubscription;
+
+  /// What the house has pinned to the top of the thread, in its own order.
+  /// Group only, like the rest of the group's furniture.
+  List<PinnedMessage> pinnedMessages = [];
+  StreamSubscription? _pinnedSubscription;
+
+  int get pinnedCount => pinnedMessages.length;
+
+  /// The one the banner under the app bar shows. First in the list, so
+  /// dragging a pin to the top is what puts it there.
+  PinnedMessage? get topPin =>
+      pinnedMessages.isEmpty ? null : pinnedMessages.first;
+
+  bool isPinned(String messageId) =>
+      pinnedMessages.any((pin) => pin.messageId == messageId);
+
+  /// What the header and the chat list show for this conversation.
+  String get title => isGroupChat ? groupInfo.displayName : thread.peerName;
+
   final SupabaseStorageService _storage = SupabaseStorageService();
   final ChatOutboxService _outbox = Get.find<ChatOutboxService>();
   final ConnectivityService _connectivity = Get.find<ConnectivityService>();
@@ -70,12 +114,24 @@ class ChatController extends GetxController implements GetxService {
   /// Messages sent but not yet in the thread — waiting for a connection, or
   /// mid-upload — drawn at the end of the thread as their own bubbles.
   /// Oldest first, the order they will go out in.
-  List<OutgoingMessage> get outgoing => _outbox.items;
+  List<OutgoingMessage> get outgoing => _outbox.itemsFor(conversationId);
 
   /// Whether the outbox is working right now, as opposed to waiting for a
-  /// connection — the bubbles say "sending" for one and "waiting" for the
-  /// other.
+  /// connection.
   bool get isDelivering => _outbox.isDelivering;
+
+  /// Whether a queued message is on its way rather than stuck — what the
+  /// outgoing bubble says out loud.
+  ///
+  /// Either half is enough. The outbox working is direct evidence. A
+  /// connection is enough on its own because the queue is drained the moment
+  /// something joins it: between the message being queued and the outbox
+  /// picking it up there is a disk write, and a bubble that said "waiting for
+  /// connection" across it read as a stall on a connection that was fine.
+  ///
+  /// Both false is the case worth naming: nothing is being delivered and
+  /// there is nothing to deliver it over.
+  bool get isSendingOut => _outbox.isDelivering || isOnline;
 
   bool get isOnline => _connectivity.isOnline;
 
@@ -85,10 +141,16 @@ class ChatController extends GetxController implements GetxService {
     _loadUserConfig();
     _initChatStream();
     _initSeenStatusStream();
-    _fetchAllUsers();
+    // Only the group needs the directory: it is what the mention box is
+    // filtered from, and a direct chat has exactly one other person in it.
+    if (isGroupChat) _fetchAllUsers();
+    if (isGroupChat) _initGroupInfoStream();
+    if (isGroupChat) _initPinnedStream();
 
-    // Ensure subscribed to personal topic for notifications
-    _subscribeToTopic();
+    // Ensure subscribed to personal topic for notifications. The group
+    // instance is the app's long-lived one, so this happens once rather than
+    // on every direct chat that is opened.
+    if (isGroupChat) _subscribeToTopic();
 
     messageController.addListener(_onTextChanged);
     // The outgoing bubbles are drawn from the outbox; redraw as it moves.
@@ -114,6 +176,8 @@ class ChatController extends GetxController implements GetxService {
   void onClose() {
     _messagesSubscription?.cancel();
     _seenStatusSubscription?.cancel();
+    _groupInfoSubscription?.cancel();
+    _pinnedSubscription?.cancel();
     _outbox.removeListener(_onOutboxChanged);
     _connectivity.removeListener(_onOutboxChanged);
     messageController.removeListener(_onTextChanged);
@@ -132,6 +196,9 @@ class ChatController extends GetxController implements GetxService {
   }
 
   void _onTextChanged() {
+    // Nobody to mention in a conversation of two.
+    if (!isGroupChat) return;
+
     final text = messageController.text;
     final cursorPosition = messageController.selection.baseOffset;
 
@@ -211,12 +278,19 @@ class ChatController extends GetxController implements GetxService {
     userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
     userProfileImage = prefs.getString(AppConstant.keyUserProfileImage);
     isAdminUser = prefs.getString(AppConstant.keyIsAdmin) == '1';
+    // The screen can be up before this lands — the reads above are async and
+    // the first frame is not. Anything that needed the phone number runs now.
+    if (isChatScreenVisible) {
+      _updateMySeenStatus();
+      _clearThreadUnread();
+    }
     update();
   }
 
   void _initChatStream() {
-    _messagesSubscription =
-        repository.getMessagesStream().listen((newMessages) {
+    _messagesSubscription = repository
+        .getMessagesStream(conversationId: conversationId)
+        .listen((newMessages) {
       if (!isChatScreenVisible && messages.isNotEmpty) {
         final existingIds = messages.map((m) => m.id).toSet();
         for (var msg in newMessages) {
@@ -228,6 +302,9 @@ class ChatController extends GetxController implements GetxService {
       messages = newMessages;
       if (isChatScreenVisible && messages.isNotEmpty) {
         _updateMySeenStatus();
+        // A message that arrives while the thread is open was read as it
+        // landed, so the count it just bumped goes straight back down.
+        _clearThreadUnread();
       }
       update();
     }, onError: (error) {
@@ -242,13 +319,157 @@ class ChatController extends GetxController implements GetxService {
       if (messages.isNotEmpty) {
         _updateMySeenStatus();
       }
+      _clearThreadUnread();
       update();
     }
   }
 
+  /// Zeroes what the chat list shows against this thread. The group keeps its
+  /// count in memory ([unseenCount]) rather than in Firestore, so this is a
+  /// direct-chat concern only.
+  void _clearThreadUnread() {
+    final String? id = conversationId;
+    if (id == null || userPhone.isEmpty) return;
+    // Nothing said yet means no thread document — and `markThreadRead` would
+    // create a half-empty one for every member whose row was ever tapped.
+    if (messages.isEmpty) return;
+    repository.markThreadRead(id, userPhone);
+  }
+
+  void _initPinnedStream() {
+    _pinnedSubscription = repository.getPinnedMessagesStream().listen(
+      (pins) {
+        pinnedMessages = pins;
+        update();
+      },
+      onError: (Object e) => debugPrint('Chat: pinned stream failed — $e'),
+    );
+  }
+
+  /// Pins a message, or takes it back down.
+  ///
+  /// Open to everyone. Pinning is how the house keeps a rent reminder or a
+  /// meeting time from scrolling away, and gating that behind an admin would
+  /// mean asking one every time.
+  Future<void> togglePin(ChatMessageModel message) async {
+    if (!isGroupChat || message.id.isEmpty) return;
+
+    // Nothing left to pin, and the banner would show an empty bubble.
+    if (message.deleted) return;
+
+    try {
+      if (isPinned(message.id)) {
+        await repository.unpinMessage(message.id);
+        CustomSnackbar.show(
+            type: SnackbarType.success, message: 'message_unpinned'.tr);
+        return;
+      }
+
+      await repository.pinMessage(PinnedMessage.fromMessage(
+        message,
+        pinnedBy: userPhone,
+        pinnedByName: userName,
+        order: PinnedMessage.nextOrderFor(pinnedMessages),
+      ));
+      CustomSnackbar.show(
+          type: SnackbarType.success, message: 'message_pinned'.tr);
+    } catch (e) {
+      debugPrint('Error pinning message: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_pin_message'.tr);
+    }
+  }
+
+  Future<void> unpin(String messageId) async {
+    try {
+      await repository.unpinMessage(messageId);
+    } catch (e) {
+      debugPrint('Error unpinning message: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_pin_message'.tr);
+    }
+  }
+
+  /// Drags a pin up or down the list.
+  ///
+  /// [newIndex] is where it ends up once it has been lifted out —
+  /// `onReorderItem` has already accounted for the gap it left behind. The
+  /// local list moves first so the drag lands where it was dropped rather
+  /// than snapping back while the batch is in flight; the stream confirms the
+  /// same order a moment later.
+  Future<void> reorderPins(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= pinnedMessages.length) return;
+    if (oldIndex == newIndex) return;
+
+    final List<PinnedMessage> reordered =
+        List<PinnedMessage>.from(pinnedMessages);
+    final PinnedMessage moved = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex.clamp(0, reordered.length), moved);
+
+    pinnedMessages = [
+      for (int i = 0; i < reordered.length; i++) reordered[i].copyWith(order: i),
+    ];
+    update();
+
+    try {
+      await repository.savePinnedOrder(pinnedMessages);
+    } catch (e) {
+      debugPrint('Error reordering pins: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_pin_message'.tr);
+      // Put the server's order back rather than leaving an arrangement
+      // nobody else can see.
+      _pinnedSubscription?.cancel();
+      _initPinnedStream();
+    }
+  }
+
+  void _initGroupInfoStream() {
+    _groupInfoSubscription = repository.getGroupInfoStream().listen(
+      (info) {
+        groupInfo = info;
+        update();
+      },
+      onError: (Object e) => debugPrint('Chat: group info stream failed — $e'),
+    );
+  }
+
+  /// Renames the group and sets — or, with a null [imageUrl], clears — its
+  /// picture. Admins only; the sheet does not offer the fields to anyone else,
+  /// and this refuses them anyway.
+  Future<bool> saveGroupInfo({
+    required String name,
+    required String? imageUrl,
+  }) async {
+    if (!isAdminUser) return false;
+
+    final String? previous = groupInfo.imageUrl;
+    try {
+      await repository.saveGroupInfo(
+        name: name.trim(),
+        imageUrl: imageUrl,
+        actorPhone: userPhone,
+      );
+
+      // Only once Firestore points somewhere else. Deleting first would leave
+      // the icon broken for good if the write then failed. Offline the old
+      // object is left behind rather than the save held up on it.
+      if (previous != null && previous != imageUrl && isOnline) {
+        await _storage.deleteByPublicUrl(previous);
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error saving group info: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_save_group'.tr);
+      return false;
+    }
+  }
+
   void _initSeenStatusStream() {
-    _seenStatusSubscription =
-        repository.getSeenStatusStream().listen((statuses) {
+    _seenStatusSubscription = repository
+        .getSeenStatusStream(conversationId: conversationId)
+        .listen((statuses) {
       Map<String, List<Map<String, dynamic>>> newSeenMap = {};
 
       for (var status in statuses) {
@@ -274,7 +495,12 @@ class ChatController extends GetxController implements GetxService {
     final latestMessageId = messages.first.id;
     if (latestMessageId.isNotEmpty) {
       repository.updateSeenStatus(
-          latestMessageId, userPhone, userName, userProfileImage);
+        latestMessageId,
+        userPhone,
+        userName,
+        userProfileImage,
+        conversationId: conversationId,
+      );
     }
   }
 
@@ -376,7 +602,13 @@ class ChatController extends GetxController implements GetxService {
         message.id,
         byAdmin: !_isMine(message),
         actorPhone: userPhone,
+        conversationId: conversationId,
       );
+
+      // A tombstone has nothing to show, so it comes off the banner with the
+      // message. Done from here rather than by a rule because this device is
+      // the one holding the pin list.
+      if (isPinned(message.id)) await unpin(message.id);
 
       // Best effort, and only with a connection — offline the object is
       // left behind rather than the delete held up on it.
@@ -413,9 +645,14 @@ class ChatController extends GetxController implements GetxService {
     return messageKeys[id]!;
   }
 
-  void scrollToMessage(String messageId) {
+  /// Brings a message into view and flashes it.
+  ///
+  /// Returns false when it is not in the thread at all: only the most recent
+  /// hundred are loaded, and a pin can outlive that window. The caller says so
+  /// rather than letting the tap do nothing.
+  bool scrollToMessage(String messageId) {
     int index = messages.indexWhere((m) => m.id == messageId);
-    if (index == -1) return;
+    if (index == -1) return false;
 
     final key = messageKeys[messageId];
     if (key != null && key.currentContext != null) {
@@ -426,6 +663,7 @@ class ChatController extends GetxController implements GetxService {
         alignment: 0.5,
       );
       _highlightMessage(messageId);
+      return true;
     } else {
       scrollController
           .animateTo(
@@ -447,6 +685,7 @@ class ChatController extends GetxController implements GetxService {
         });
       });
     }
+    return true;
   }
 
   void _highlightMessage(String messageId) {
@@ -600,6 +839,8 @@ class ChatController extends GetxController implements GetxService {
       await _outbox.enqueue(
         localId: localId ?? DateTime.now().microsecondsSinceEpoch.toString(),
         text: text,
+        conversationId: conversationId,
+        peerPhone: thread.peerPhone,
         image: image?.file,
         imageWidth: image?.width,
         imageHeight: image?.height,
@@ -649,7 +890,23 @@ class ChatController extends GetxController implements GetxService {
     if (text == message.text.trim()) return;
 
     try {
-      await repository.editMessage(message.id, text, userPhone);
+      await repository.editMessage(
+        message.id,
+        text,
+        userPhone,
+        conversationId: conversationId,
+      );
+
+      // The pin keeps its own copy of the words — see `PinnedMessage`. Only
+      // attempted for a message this device can see is pinned, and a pin
+      // taken down in between is not worth telling anybody about.
+      if (isPinned(message.id)) {
+        try {
+          await repository.updatePinnedText(message.id, text);
+        } catch (e) {
+          debugPrint('Pinned copy not updated — $e');
+        }
+      }
     } catch (e) {
       debugPrint('Error editing message: $e');
       CustomSnackbar.show(
@@ -675,7 +932,12 @@ class ChatController extends GetxController implements GetxService {
       // Decided here from the message on screen, so it is one plain write —
       // a transaction needs the server and would fail offline.
       final bool removing = _current(message).reactions?[userPhone] == emoji;
-      await repository.setReaction(message.id, userPhone, removing ? null : emoji);
+      await repository.setReaction(
+        message.id,
+        userPhone,
+        removing ? null : emoji,
+        conversationId: conversationId,
+      );
 
       // Notify the message sender about the reaction — only with a
       // connection; a reaction is not worth queueing a notification for.
@@ -692,6 +954,16 @@ class ChatController extends GetxController implements GetxService {
   /// really in — from the app or from the background job.
   _PushPlan _planPush(String text,
       {ChatMessageModel? replyTo, bool hasImage = false}) {
+    // A direct message has exactly one recipient and nothing to work out.
+    if (!isGroupChat) {
+      return _PushPlan(
+        title: hasImage ? '📷 $userName' : userName,
+        body: text.isEmpty ? '📷 ${'photo'.tr}' : text,
+        targets: [thread.peerPhone!],
+        data: _directPushData(),
+      );
+    }
+
     final RegExp mentionRegExp = RegExp(r'@(\w+)');
     final List<String> mentionList = mentionRegExp
         .allMatches(text)
@@ -751,16 +1023,32 @@ class ChatController extends GetxController implements GetxService {
       title: 'Reaction from $userName',
       body: '$userName reacted $emoji to your message',
       targetPhones: [message.senderPhone],
-      data: {
+      data: isGroupChat
+          ? {
+              'senderName': userName,
+              'senderPhone': userPhone,
+              'replyToSenderName': '',
+              'mentions': '',
+              'isEveryone': 'false',
+              'type': 'chat_message',
+            }
+          : _directPushData(),
+    );
+  }
+
+  /// What a direct notification carries, so a tap can open the very thread it
+  /// came from — see `PushNotificationService._handleNotificationClick`. The
+  /// recipient is the one reading it, so the peer they need is the sender.
+  Map<String, String> _directPushData() => {
         'senderName': userName,
         'senderPhone': userPhone,
+        'senderImage': userProfileImage ?? '',
+        'conversationId': conversationId ?? '',
         'replyToSenderName': '',
         'mentions': '',
         'isEveryone': 'false',
-        'type': 'chat_message',
-      },
-    );
-  }
+        'type': 'direct_message',
+      };
 }
 
 /// A notification worked out but not yet sent.

@@ -95,7 +95,7 @@ class HouseRulesScreen extends StatelessWidget {
         child: _buildFootnote(context, c),
       ),
       itemCount: c.rules.length,
-      onReorderItem: c.reorder,
+      onReorder: c.reorder,
       proxyDecorator: (child, index, animation) => Material(
         color: Colors.transparent,
         elevation: 6,

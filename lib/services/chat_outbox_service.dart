@@ -19,7 +19,8 @@ import 'connectivity_service.dart';
 import 'push_notification_service.dart';
 import 'supabase_storage_service.dart';
 
-/// Messages on their way out of the group chat.
+/// Messages on their way out of a chat thread — the house group, or a direct
+/// one between two members.
 ///
 /// Every send goes through here — text or picture, online or not. The
 /// composer hands over an [OutgoingMessage] and moves on; the outbox delivers
@@ -62,6 +63,14 @@ class ChatOutboxService extends GetxController implements GetxService {
 
   /// Oldest first — the order they were sent, and the order they go out.
   List<OutgoingMessage> get items => List<OutgoingMessage>.unmodifiable(_items);
+
+  /// Just the ones bound for one thread — null for the house group. Every
+  /// chat screen draws its own tail of outgoing bubbles, and a message
+  /// waiting for one conversation must not appear at the end of another.
+  List<OutgoingMessage> itemsFor(String? conversationId) =>
+      List<OutgoingMessage>.unmodifiable(
+        _items.where((item) => item.conversationId == conversationId),
+      );
   int get length => _items.length;
   bool get isEmpty => _items.isEmpty;
   bool get isNotEmpty => _items.isNotEmpty;
@@ -69,6 +78,12 @@ class ChatOutboxService extends GetxController implements GetxService {
   /// Whether the queue is being worked right now — what the bubbles show as
   /// "sending" rather than "waiting".
   bool get isDelivering => _flushing;
+
+  /// Whether a delivery attempt is worth making. See
+  /// `ConnectivityService.hasNetwork` for why this is not `isOnline`. The
+  /// background job hands in no service at all and always tries — it only
+  /// runs when the OS says there is a network.
+  bool get _worthTrying => _connectivity?.hasNetwork ?? true;
 
   Future<void> init(ConnectivityService connectivity) async {
     await load();
@@ -109,6 +124,8 @@ class ChatOutboxService extends GetxController implements GetxService {
   Future<OutgoingMessage> enqueue({
     required String localId,
     required String text,
+    String? conversationId,
+    String? peerPhone,
     File? image,
     double? imageWidth,
     double? imageHeight,
@@ -138,6 +155,8 @@ class ChatOutboxService extends GetxController implements GetxService {
     final OutgoingMessage item = OutgoingMessage(
       localId: localId,
       text: text,
+      conversationId: conversationId,
+      peerPhone: peerPhone,
       imagePath: storedPath,
       imageWidth: imageWidth,
       imageHeight: imageHeight,
@@ -156,15 +175,17 @@ class ChatOutboxService extends GetxController implements GetxService {
       queuedAt: DateTime.now(),
     );
     _items.add(item);
-    await _save();
+    // Before the disk write, not after it: persisting goes through a platform
+    // channel, and the sender should not watch their own message wait on it.
     update();
+    await _save();
 
-    if (_connectivity?.isOffline ?? false) {
+    if (_worthTrying) {
+      flush();
+    } else {
       // Should the app be closed before the connection returns, the OS
       // finishes the job — see BackgroundSyncService.
       BackgroundSyncService.schedule();
-    } else {
-      flush();
     }
     return item;
   }
@@ -191,9 +212,16 @@ class ChatOutboxService extends GetxController implements GetxService {
   /// stepped over. Returns true when nothing is left waiting afterwards.
   Future<bool> flush() async {
     if (_flushing) return _items.isEmpty;
-    // Known to be offline: nothing to gain by trying, and a write made now
+    // No interface at all: nothing to gain by trying, and a write made now
     // would land in Firestore's queue with its notification lost. Wait.
-    if (_connectivity?.isOffline ?? false) return _items.isEmpty;
+    //
+    // Deliberately *not* gated on `isOnline`. That carries the verdict of a
+    // probe against an unrelated host, and one slow or blocked probe used to
+    // hold a send here for as long as ten seconds on a connection that was
+    // working the whole time. With an interface up, the server is asked
+    // directly; if it really cannot be reached the attempt throws, and the
+    // catch below puts the queue back to waiting.
+    if (!_worthTrying) return _items.isEmpty;
     _flushing = true;
     update();
 
@@ -256,6 +284,8 @@ class ChatOutboxService extends GetxController implements GetxService {
         imageUrl: imageUrl,
         imageWidth: item.imageWidth,
         imageHeight: item.imageHeight,
+        conversationId: item.conversationId,
+        peerPhone: item.peerPhone,
       );
     } catch (e) {
       // The write did not take. Put the message back where it was so nothing

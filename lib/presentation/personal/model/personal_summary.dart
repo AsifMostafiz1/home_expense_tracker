@@ -44,6 +44,59 @@ class MonthMoney {
   }
 }
 
+/// One day of the ledger: what was recorded that day, and what it came to.
+///
+/// The month's list is grouped rather than flat for the same reason the house
+/// expense screen groups its own — a run of entries reads as "what happened on
+/// the 20th", not as a dozen unrelated lines. A day is the unit people
+/// remember spending in.
+class MoneyDay {
+  final DateTime date;
+
+  /// That day's entries, latest first.
+  final List<PersonalTransaction> entries;
+
+  const MoneyDay({required this.date, this.entries = const []});
+
+  double get income => entries
+      .where((entry) => entry.isIncome)
+      .fold<double>(0, (sum, entry) => sum + entry.amount);
+
+  double get expense => entries
+      .where((entry) => !entry.isIncome)
+      .fold<double>(0, (sum, entry) => sum + entry.amount);
+
+  /// What the day came to. Usually all spending, so usually negative — but a
+  /// day with earnings in it has to be able to end up either way.
+  double get net => income - expense;
+
+  /// Groups [entries] by the day they happened, newest day first.
+  ///
+  /// Sorted here rather than trusted from the caller: the repository already
+  /// hands its list over in this order, and a grouping that silently depended
+  /// on that would break the first time somebody fed it anything else.
+  static List<MoneyDay> group(Iterable<PersonalTransaction> entries) {
+    final Map<String, List<PersonalTransaction>> byDay = {};
+    for (final PersonalTransaction entry in entries) {
+      byDay.putIfAbsent(entry.date, () => <PersonalTransaction>[]).add(entry);
+    }
+
+    final List<MoneyDay> days = [];
+    for (final List<PersonalTransaction> items in byDay.values) {
+      // Within a day, the clock — so the order matches the order things
+      // happened in, latest at the top.
+      items.sort((a, b) => b.minuteOfDay.compareTo(a.minuteOfDay));
+      days.add(MoneyDay(
+        date: items.first.day,
+        entries: List<PersonalTransaction>.unmodifiable(items),
+      ));
+    }
+
+    days.sort((a, b) => b.date.compareTo(a.date));
+    return days;
+  }
+}
+
 /// One category's share of a month.
 class CategoryTotal {
   final String category;

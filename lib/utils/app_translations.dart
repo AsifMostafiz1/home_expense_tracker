@@ -656,6 +656,54 @@ class AppTranslations extends Translations {
           'waiting_for_connection': 'Waiting for connection',
           'revise_needs_connection':
               'You are offline. Messages can only be edited or deleted within 5 minutes, so this needs a connection.',
+
+          // Chat list — the house group, then everyone in it.
+          'messages': 'Messages',
+          'search': 'Search',
+          'search_people': 'Search members…',
+          'direct_messages': 'Direct messages',
+          'other_members': 'Other members',
+          'start_a_chat': 'Start a chat',
+          'tap_to_start_chat': 'Tap to start chatting',
+          'house_group_subtitle': 'Everyone in the house',
+          'member_count': '@count members',
+          'unread_count': '@count unread',
+          'say_hi_to': 'Say hi to @name 👋',
+          'no_one_matches': 'Nobody matches that',
+          'no_other_members': 'Nobody else has joined the house yet',
+          'active_now': 'Active now',
+          'active_min_ago': 'Active @count min ago',
+          'active_hour_ago': 'Active @count hr ago',
+          'active_day_ago': 'Active @count d ago',
+          'offline': 'Offline',
+
+          // The group's own name and picture.
+          'group_settings': 'Group settings',
+          'group_name': 'Group name',
+          'group_updated': 'Group updated',
+          'failed_save_group': 'Could not save the group settings',
+          'group_settings_admin_only':
+              'Only an admin can change the group name or picture.',
+
+          // Pinned messages.
+          'pin_message': 'Pin message',
+          'unpin_message': 'Unpin message',
+          'pinned_message': 'Pinned message',
+          'pinned_messages': 'Pinned messages',
+          'message_pinned': 'Message pinned',
+          'message_unpinned': 'Message unpinned',
+          'failed_pin_message': 'Could not pin that message',
+          'pinned_count': '@count pinned',
+          'pinned_by': 'pinned by @name',
+          'shown_on_top': 'ON TOP',
+          'pinned_reorder_hint':
+              'Drag to reorder. Whichever sits at the top is the one shown under the chat header.',
+          'no_pinned_messages': 'Nothing pinned yet',
+          'no_pinned_messages_hint':
+              'Hold any message in the group chat and choose Pin, so it stays above the conversation.',
+          'message_not_loaded':
+              'That message is too far back to jump to. Scroll up to load it.',
+          'message': 'Message',
         },
         'bn_BD': {
           'app_name': 'মিল ট্র্যাকার',
@@ -1306,6 +1354,54 @@ class AppTranslations extends Translations {
           'waiting_for_connection': 'সংযোগের অপেক্ষায়',
           'revise_needs_connection':
               'আপনি অফলাইনে আছেন। মেসেজ শুধু ৫ মিনিটের মধ্যে সম্পাদনা বা মুছে ফেলা যায়, তাই এর জন্য ইন্টারনেট সংযোগ লাগবে।',
+
+          // Chat list — the house group, then everyone in it.
+          'messages': 'বার্তা',
+          'search': 'খুঁজুন',
+          'search_people': 'সদস্য খুঁজুন…',
+          'direct_messages': 'ব্যক্তিগত বার্তা',
+          'other_members': 'অন্যান্য সদস্য',
+          'start_a_chat': 'চ্যাট শুরু করুন',
+          'tap_to_start_chat': 'চ্যাট শুরু করতে ট্যাপ করুন',
+          'house_group_subtitle': 'বাসার সবাই',
+          'member_count': '@count জন সদস্য',
+          'unread_count': '@count টি অপঠিত',
+          'say_hi_to': '@name কে হাই বলুন 👋',
+          'no_one_matches': 'এমন কাউকে পাওয়া যায়নি',
+          'no_other_members': 'বাসায় এখনো আর কেউ যোগ দেয়নি',
+          'active_now': 'এখন সক্রিয়',
+          'active_min_ago': '@count মিনিট আগে সক্রিয় ছিল',
+          'active_hour_ago': '@count ঘণ্টা আগে সক্রিয় ছিল',
+          'active_day_ago': '@count দিন আগে সক্রিয় ছিল',
+          'offline': 'অফলাইন',
+
+          // The group's own name and picture.
+          'group_settings': 'গ্রুপ সেটিংস',
+          'group_name': 'গ্রুপের নাম',
+          'group_updated': 'গ্রুপ আপডেট হয়েছে',
+          'failed_save_group': 'গ্রুপ সেটিংস সেভ করা যায়নি',
+          'group_settings_admin_only':
+              'শুধু অ্যাডমিন গ্রুপের নাম বা ছবি পরিবর্তন করতে পারবেন।',
+
+          // Pinned messages.
+          'pin_message': 'পিন করুন',
+          'unpin_message': 'পিন সরান',
+          'pinned_message': 'পিন করা বার্তা',
+          'pinned_messages': 'পিন করা বার্তা',
+          'message_pinned': 'বার্তাটি পিন করা হয়েছে',
+          'message_unpinned': 'পিন সরানো হয়েছে',
+          'failed_pin_message': 'বার্তাটি পিন করা যায়নি',
+          'pinned_count': '@count টি পিন করা',
+          'pinned_by': 'পিন করেছেন @name',
+          'shown_on_top': 'উপরে',
+          'pinned_reorder_hint':
+              'সাজাতে টেনে নিন। যেটি সবার উপরে থাকবে, চ্যাটের হেডারের নিচে সেটিই দেখানো হবে।',
+          'no_pinned_messages': 'এখনো কিছু পিন করা হয়নি',
+          'no_pinned_messages_hint':
+              'গ্রুপ চ্যাটে যেকোনো বার্তা চেপে ধরে "পিন করুন" বেছে নিন, তাহলে সেটি কথোপকথনের উপরে থাকবে।',
+          'message_not_loaded':
+              'বার্তাটি অনেক আগের, সরাসরি যাওয়া যাচ্ছে না। উপরে স্ক্রল করে লোড করুন।',
+          'message': 'বার্তা',
         },
       };
 }

@@ -52,6 +52,14 @@ dependencies:
   # Storage lives in Supabase, not Firebase — Firebase Storage requires a
   # billing account this project does not have.
   supabase_flutter: ^2.17.2
+
+  # Pinned to 6.x on purpose. `supabase_flutter` pulls this in and accepts
+  # `>=6.4.1 <8.0.0`, but resolution had settled on 7.2.1 — which declares
+  # `sdk: ^3.12.0` and so refuses to compile against the Dart 3.11 this
+  # Flutter ships. Nothing in the app calls it directly; the constraint is
+  # only here to keep the resolver inside what the SDK can build. Drop it once
+  # the toolchain is on Flutter 3.44 or newer.
+  app_links: ^6.4.1
   firebase_app_check: any
   firebase_auth: any
   permission_handler: ^11.3.1

@@ -65,6 +65,18 @@ class ConnectivityService extends GetxController
   bool get isOnline => _hasNetwork && _reachable;
   bool get isOffline => !isOnline;
 
+  /// Whether there is an interface up at all — Wi‑Fi or data, whether or not
+  /// the probe found anything on the other end.
+  ///
+  /// The difference from [isOnline] matters to anything about to *send*
+  /// something. [isOnline] carries the verdict of a probe against one host,
+  /// which can be wrong in both directions: a slow or blocked
+  /// `generate_204` reads as "no internet" on a connection that would have
+  /// carried the write perfectly well. With no interface at all there is
+  /// genuinely nothing to try; with one, the server being written to is a
+  /// better authority than the probe, so try and let it answer.
+  bool get hasNetwork => _hasNetwork;
+
   final StreamController<bool> _transitions =
       StreamController<bool>.broadcast();
 

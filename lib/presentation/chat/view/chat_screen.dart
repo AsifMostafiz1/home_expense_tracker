@@ -11,25 +11,80 @@ import '../../../common/widgets/custom_snackbar.dart';
 import '../../../common/widgets/image_viewer_screen.dart';
 import '../../../common/widgets/profile_avatar.dart';
 import '../../../utils/app_enums.dart';
+import '../../../utils/app_ui.dart';
 import '../controller/chat_controller.dart';
+import '../controller/chat_list_controller.dart';
 import '../model/chat_message_model.dart';
+import '../model/chat_thread_model.dart';
 import '../model/outgoing_image_model.dart';
+import '../widgets/chat_presence.dart';
+import '../widgets/group_avatar.dart';
+import '../widgets/group_settings_sheet.dart';
+import '../widgets/pinned_banner.dart';
+import 'pinned_messages_screen.dart';
 
-class ChatScreen extends GetView<ChatController> {
-  const ChatScreen({super.key});
+/// One conversation, whichever it is.
+///
+/// The house group and a direct chat are the same screen: the same bubbles,
+/// the same composer, the same reactions and replies. Only the header and the
+/// controller behind it differ — see [tag].
+class ChatScreen extends StatefulWidget {
+  /// Which conversation to show. Null is the house group, whose controller the
+  /// dashboard keeps registered untagged; anything else is a direct thread's
+  /// conversation id, which is also the tag its controller lives under.
+  final String? tag;
+
+  const ChatScreen({super.key, this.tag});
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  ChatController get controller => Get.find<ChatController>(tag: widget.tag);
+
+  bool get _isDirect => widget.tag != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Being on screen is what marks a thread read — for the group that is the
+    // in-memory badge, for a direct chat the count in Firestore.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) controller.setChatScreenVisible(true);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Safe from here: with `false` this only flips a flag, it does not ask
+    // anything to rebuild.
+    controller.setChatScreenVisible(false);
+
+    // A direct chat's controller belongs to its screen — it holds two live
+    // Firestore listeners, and one per conversation ever opened would pile
+    // up. `force` because a GetxService is otherwise never taken down.
+    // Safe here: Flutter unmounts a subtree's children before the parent's
+    // `dispose`, so every builder listening to this controller is already
+    // gone.
+    final String? tag = widget.tag;
+    if (tag != null) Get.delete<ChatController>(tag: tag, force: true);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: CustomAppBar(
-        title: 'group_chat'.tr,
-        showBackButton: false,
-      ),
+      appBar: _buildAppBar(context),
       body: Column(
         children: [
+          // Held above the thread rather than in it: a pin is something the
+          // house wants seen no matter how far back it has scrolled.
+          if (!_isDirect) PinnedBanner(onTap: _openPinned),
           Expanded(
             child: GetBuilder<ChatController>(
+              tag: widget.tag,
               builder: (controller) {
                 // Messages still on their way out — uploading, or waiting
                 // for a connection — sit past the newest message, at the
@@ -49,7 +104,11 @@ class ChatScreen extends GetView<ChatController> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'start_conversation'.tr,
+                          _isDirect
+                              ? 'say_hi_to'.trParams(
+                                  {'name': controller.thread.peerName})
+                              : 'start_conversation'.tr,
+                          textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                         ),
                       ],
@@ -121,6 +180,171 @@ class ChatScreen extends GetView<ChatController> {
     );
   }
 
+  /// The header. A group says how many people are in it; a direct chat says
+  /// whether the other person is around, which is the thing a sender actually
+  /// wants to know before they type.
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    return CustomAppBar(
+      centerTitle: false,
+      titleWidget: GetBuilder<ChatController>(
+        tag: widget.tag,
+        builder: (c) => GetBuilder<ChatListController>(
+          // One builder for both halves of the header: the member stream the
+          // chat list already holds carries the presence dot *and* the faces
+          // the group icon is made of.
+          builder: (list) => Row(
+            children: [
+              _isDirect
+                  ? _peerAvatar(context, c.thread)
+                  : GroupAvatar(
+                      imageUrl: c.groupInfo.imageUrl,
+                      members: list.houseMembers,
+                      size: 40,
+                      gapColor: Theme.of(context).cardColor,
+                    ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      c.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.3,
+                        color: AppUi.body(context),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    _buildSubtitle(context, c, list),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: _isDirect ? null : [_buildGroupMenu(context)],
+    );
+  }
+
+  /// The group's own settings — what it is called, and what it looks like.
+  /// Nothing here belongs to a direct chat, which is named after the person
+  /// it is with.
+  Widget _buildGroupMenu(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert_rounded, color: AppUi.body(context)),
+      tooltip: 'options'.tr,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      onSelected: (value) {
+        if (value == 'settings') showGroupSettingsSheet(context);
+        if (value == 'pinned') _openPinned();
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'pinned',
+          child: Row(
+            children: [
+              Icon(Icons.push_pin_outlined,
+                  size: 19, color: AppUi.muted(context)),
+              const SizedBox(width: 12),
+              Text('pinned_messages'.tr),
+              // The banner only appears once something is pinned, so the
+              // count belongs here too — it is the one way in that is always
+              // on screen.
+              if (controller.pinnedCount > 0) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '${controller.pinnedCount}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'settings',
+          child: Row(
+            children: [
+              Icon(Icons.settings_outlined,
+                  size: 19, color: AppUi.muted(context)),
+              const SizedBox(width: 12),
+              Text('group_settings'.tr),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openPinned() => Get.to(() => const PinnedMessagesScreen());
+
+  /// "Active now", "Active 20m ago" — or, for the group, how many members it
+  /// has.
+  Widget _buildSubtitle(
+    BuildContext context,
+    ChatController c,
+    ChatListController list,
+  ) {
+    final ChatUser? peer = list.userByPhone(c.thread.peerPhone);
+    final bool online = _isDirect && (peer?.isOnline ?? false);
+
+    final String label = _isDirect
+        ? presenceLabel(peer)
+        : (list.memberCount > 0
+            ? 'member_count'.trParams({'count': '${list.memberCount}'})
+            : 'house_group_subtitle'.tr);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (online) ...[
+          Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(
+              color: Color(0xFF22C55E),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+        ],
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: online ? FontWeight.w600 : FontWeight.w400,
+              color: online ? const Color(0xFF16A34A) : AppUi.muted(context),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _peerAvatar(BuildContext context, ChatThread thread) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+    return ProfileAvatar(
+      name: thread.peerName,
+      phone: thread.peerPhone,
+      imageUrl: thread.peerImage,
+      size: 40,
+      background: primary.withOpacity(0.15),
+      foreground: primary,
+      fontSize: 15,
+    );
+  }
+
   Widget _buildMessageInput(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
@@ -139,6 +363,7 @@ class ChatScreen extends GetView<ChatController> {
           mainAxisSize: MainAxisSize.min,
           children: [
             GetBuilder<ChatController>(
+              tag: widget.tag,
               builder: (controller) {
                 return Column(
                   mainAxisSize: MainAxisSize.min,
@@ -170,6 +395,7 @@ class ChatScreen extends GetView<ChatController> {
                           // while editing: a picture cannot join a message
                           // that has already been sent.
                           GetBuilder<ChatController>(
+                            tag: widget.tag,
                             builder: (controller) =>
                                 controller.editingMessage != null
                                     ? const SizedBox(width: 16)
@@ -189,6 +415,7 @@ class ChatScreen extends GetView<ChatController> {
                           ),
                           Expanded(
                             child: GetBuilder<ChatController>(
+                              tag: widget.tag,
                               builder: (controller) => TextField(
                                 controller: controller.messageController,
                                 focusNode: controller.messageFocusNode,
@@ -233,6 +460,7 @@ class ChatScreen extends GetView<ChatController> {
                       // A tick rather than a paper plane while editing —
                       // nothing is being sent, something is being corrected.
                       child: GetBuilder<ChatController>(
+                        tag: widget.tag,
                         builder: (controller) => Icon(
                           controller.editingMessage != null
                               ? Icons.check_rounded
@@ -723,7 +951,15 @@ class _MessageBubble extends StatelessWidget {
 
   /// A small clock under the words while the message is on this device only
   /// — Firestore has it, the server does not yet. Gone the moment it lands.
+  ///
+  /// The words beside it only appear when the app knows it is offline. On a
+  /// working connection this state lasts a few hundred milliseconds, and a
+  /// line of text flashing under every sent message reads as a stutter; the
+  /// clock alone is enough. Waiting with no connection is the case that
+  /// actually needs explaining.
   Widget _buildPendingMark(BuildContext context) {
+    final bool explain = !controller.isOnline;
+
     return Padding(
       padding: EdgeInsets.only(
         top: 3,
@@ -736,14 +972,16 @@ class _MessageBubble extends StatelessWidget {
         children: [
           Icon(Icons.schedule_rounded,
               size: 11, color: Colors.white.withOpacity(0.75)),
-          const SizedBox(width: 3),
-          Text(
-            'waiting_to_sync'.tr,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.white.withOpacity(0.75),
+          if (explain) ...[
+            const SizedBox(width: 3),
+            Text(
+              'waiting_to_sync'.tr,
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.white.withOpacity(0.75),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -1050,6 +1288,7 @@ class _MessageBubble extends StatelessWidget {
     final bool canEdit = controller.canEdit(message);
     final bool canDelete = controller.canDelete(message);
     final bool hasText = message.text.trim().isNotEmpty;
+    final bool pinned = controller.isPinned(message.id);
     final Color error = Theme.of(context).colorScheme.error;
 
     Get.bottomSheet(
@@ -1064,6 +1303,20 @@ class _MessageBubble extends StatelessWidget {
                 controller.setReply(message);
               },
             ),
+            // Anyone may pin. Keeping a rent reminder from scrolling away is
+            // not an admin's errand, and asking one every time would mean it
+            // never happened.
+            if (controller.isGroupChat && message.id.isNotEmpty)
+              ListTile(
+                leading: Icon(pinned
+                    ? Icons.push_pin_outlined
+                    : Icons.push_pin_rounded),
+                title: Text(pinned ? 'unpin_message'.tr : 'pin_message'.tr),
+                onTap: () {
+                  closeOverlayRoute();
+                  controller.togglePin(message);
+                },
+              ),
             if (hasText)
               ListTile(
                 leading: const Icon(Icons.copy_rounded),
@@ -1501,10 +1754,15 @@ class _OutgoingBubble extends StatelessWidget {
     );
   }
 
-  /// "Sending" while the outbox is working, "waiting for connection" while
-  /// there is none to work with — so the sender knows which it is.
+  /// "Sending" while the outbox is working on it, "waiting for connection"
+  /// while it cannot — so the sender knows which it is.
+  ///
+  /// It used to be `isDelivering && isOnline`, which let a reachability probe
+  /// against an unrelated host overrule a send that was visibly in progress —
+  /// one slow probe put "waiting for connection" under a message already on
+  /// its way. See `ChatController.isSendingOut`.
   Widget _statusRow(BuildContext context) {
-    final bool delivering = controller.isDelivering && controller.isOnline;
+    final bool delivering = controller.isSendingOut;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

@@ -31,8 +31,9 @@ rules_version = '2';
 //    still claim an admin's phone number. Closing that needs real per-member
 //    auth — see the note at the bottom of this file.
 //
-// 3. Only `chats` is locked down.
-//    Every other collection keeps exactly the access it has today. They are
+// 3. Only the two chat collections are locked down.
+//    `chats` and `direct_chats/{id}/messages` share one set of rules. Every
+//    other collection keeps exactly the access it has today. They are
 //    listed one by one on purpose: a catch-all `match /{document=**}` would
 //    also match `chats/{id}`, and because Firestore grants access when ANY
 //    matching rule allows it, that single line would quietly undo everything
@@ -143,6 +144,89 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
+    // Direct chats.
+    //
+    // One document per pair of members, id `phoneA__phoneB` with the two
+    // sorted, holding the thread summary the chat list reads: who is in it,
+    // what was said last, and an unread count per participant. The messages
+    // themselves sit in a `messages` subcollection and follow exactly the
+    // group's rules — same five-minute window, same soft delete, same
+    // reactions — because they are the same messages in a different place.
+    //
+    // Note 2 at the top of this file applies here in full: identity is a
+    // claim, so these rules stop a modified client from rewriting authorship
+    // or moving the window, not from claiming somebody else's phone number.
+    // Until real per-member auth lands, a direct thread is private by
+    // convention rather than by proof.
+    // -------------------------------------------------------------------------
+    match /direct_chats/{conversationId} {
+
+      /// The summary is denormalised from the messages below and is rewritten
+      /// on every send, so there is nothing here to protect that the messages
+      /// do not already protect.
+      allow read, write: if client();
+
+      /// Read receipts, one document per participant.
+      match /seen/{phone} { allow read, write: if client(); }
+
+      match /messages/{messageId} {
+
+        function withinWindow() {
+          return resource.data.createdAt is timestamp
+              && request.time < resource.data.createdAt + duration.value(5, 'm');
+        }
+
+        function isAuthor(phone) {
+          return resource.data.sender_phone == phone;
+        }
+
+        function mayRevise(actor) {
+          return isAdmin(actor) || (isAuthor(actor) && withinWindow());
+        }
+
+        function isReaction() {
+          return touchesOnly(['reactions']) && resource.data.get('deleted', false) != true;
+        }
+
+        function isEdit() {
+          return touchesOnly(['text', 'edited_at', 'edited_by'])
+              && resource.data.get('deleted', false) != true
+              && request.resource.data.text is string
+              && request.resource.data.text.size() <= 5000
+              && request.resource.data.edited_at == request.time
+              && mayRevise(request.resource.data.edited_by);
+        }
+
+        function isSoftDelete() {
+          return touchesOnly([
+                   'deleted', 'deleted_by_admin', 'deleted_by', 'text',
+                   'image_url', 'image_width', 'image_height', 'reactions'
+                 ])
+              && resource.data.get('deleted', false) != true
+              && request.resource.data.deleted == true
+              && request.resource.data.text == ''
+              && !('image_url' in request.resource.data)
+              && mayRevise(request.resource.data.deleted_by);
+        }
+
+        allow read: if client();
+
+        allow create: if client()
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.sender_phone is string
+            && request.resource.data.sender_name is string
+            && request.resource.data.text is string
+            && request.resource.data.text.size() <= 5000
+            && !('deleted' in request.resource.data)
+            && !('edited_at' in request.resource.data);
+
+        allow update: if client() && (isReaction() || isEdit() || isSoftDelete());
+
+        allow delete: if false;
+      }
+    }
+
+    // -------------------------------------------------------------------------
     // Everything else — unchanged behaviour, signed-in clients only.
     //
     // Each of these deserves the same treatment as `chats` eventually: members
@@ -156,6 +240,12 @@ service cloud.firestore {
     match /expenses/{expenseId}   { allow read, write: if client(); }
     match /announcements/{id}     { allow read, write: if client(); }
     match /seen_status/{phone}    { allow read, write: if client(); }
+
+    /// Messages pinned above the group thread, one document per pinned
+    /// message keyed by that message's id. Anyone in the house may pin, unpin
+    /// and rearrange: what stays above the conversation is the house's call,
+    /// not an admin's, and the thread itself is untouched either way.
+    match /pinned_messages/{messageId} { allow read, write: if client(); }
     match /edit_logs/{logId}      { allow read, write: if client(); }
     match /monthly_bills/{month}  { allow read, write: if client(); }
     match /house_rules/{ruleId}   { allow read, write: if client(); }

@@ -842,6 +842,11 @@ class MonthlyStatsController extends GetxController implements GetxService {
           'total': AppUi.amount(bill.grandTotal),
           'count': '${bill.memberCount}',
         }),
+        data: {
+          'senderName': userName,
+          'senderPhone': userPhone,
+          'type': 'monthly_bill',
+        },
       );
       return;
     }

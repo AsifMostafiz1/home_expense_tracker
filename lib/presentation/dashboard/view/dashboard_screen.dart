@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../meal/view/meal_screen.dart';
 import '../../expense/view/expense_screen.dart';
-import '../../chat/view/chat_screen.dart';
+import '../../chat/view/chat_list_screen.dart';
 import '../../personal/view/personal_finance_screen.dart';
 import '../../profile/view/profile_screen.dart';
 import 'package:get/get.dart';
 import '../../profile/controller/profile_controller.dart';
 import '../../chat/controller/chat_controller.dart';
+import '../../chat/controller/chat_list_controller.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/widgets/due_banner.dart';
 import '../widgets/home_prompts.dart';
@@ -14,6 +15,18 @@ import '../widgets/home_prompts.dart';
 class DashboardScreen extends StatefulWidget {
   final int initialIndex;
   const DashboardScreen({super.key, this.initialIndex = 0});
+
+  /// Set while a home screen is mounted — see [selectTab].
+  static void Function(int)? _select;
+
+  /// Whether the home screen is up. A tapped notification asks this before it
+  /// decides whether to switch tabs or to rebuild the app around one.
+  static bool get isOpen => _select != null;
+
+  /// Moves to a tab from outside the widget tree, which is what a notification
+  /// tap does. Rebuilding the whole dashboard for this instead would re-run
+  /// every binding and every launch prompt under it.
+  static void selectTab(int index) => _select?.call(index);
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -27,6 +40,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    DashboardScreen._select = _selectTab;
     _selectedIndex = widget.initialIndex;
     // Pre-load data for other tabs
     Get.find<ProfileController>();
@@ -35,20 +49,35 @@ class _DashboardScreenState extends State<DashboardScreen>
     // with itself on dispose. It also works out this month's figure, which is
     // what the banner is waiting on.
     Get.find<MonthlyStatsController>();
-    final chatController = Get.find<ChatController>();
-    chatController.setChatScreenVisible(_selectedIndex == 2);
+    // Held, not read: the group thread's controller drives the tab badge and
+    // the preview on the chat list, so it has to be listening from launch
+    // rather than from the first time somebody opens the thread.
+    Get.find<ChatController>();
+    Get.find<ChatListController>();
 
     // Setting up the month's meals, the house rules, then the profile
-    // picture — see [HomePrompts].
+    // picture — see [HomePrompts]. Called off if a tapped notification has
+    // taken the reader somewhere by the time the queue gets its turn.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      HomePrompts.run();
+      HomePrompts.run(
+        isHomeOnTop: () =>
+            mounted && (ModalRoute.of(context)?.isCurrent ?? false),
+      );
     });
   }
 
   @override
   void dispose() {
+    // Only if it is still ours: a replacement dashboard registers itself
+    // before this one is torn down.
+    if (DashboardScreen._select == _selectTab) DashboardScreen._select = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _selectTab(int index) {
+    if (!mounted || index == _selectedIndex) return;
+    setState(() => _selectedIndex = index);
   }
 
   /// Only the rules are re-checked on the way back in. The other two asks
@@ -62,20 +91,20 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   /// The ledger sits after the chat rather than before it, so the index a
   /// notification tap already asks for — 2, the chat — still means the chat.
+  ///
+  /// The chat tab is the list of conversations now, not a thread: the group
+  /// and every direct chat open from it as their own routes, and each marks
+  /// itself read while it is on screen.
   static const List<Widget> _screens = <Widget>[
     MealScreen(),
     ExpenseScreen(),
-    ChatScreen(),
+    ChatListScreen(),
     PersonalFinanceScreen(),
     ProfileScreen(),
   ];
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    Get.find<ChatController>().setChatScreenVisible(index == 2);
-  }
+  void _onItemTapped(int index) => _selectTab(index);
+
 
   Widget _buildNavItem(IconData icon, String label, int index, {int badgeCount = 0}) {
     bool isSelected = _selectedIndex == index;
@@ -175,26 +204,31 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ],
           ),
+          // Both, because the number on the tab is the group's unread plus
+          // every direct thread's — and the two are counted in different
+          // places.
           child: GetBuilder<ChatController>(
-            builder: (chatController) {
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(Icons.restaurant_outlined, 'meal'.tr, 0),
-                  _buildNavItem(
-                      Icons.receipt_long_outlined, 'expense'.tr, 1),
-                  _buildNavItem(
-                    Icons.chat_bubble_outline_rounded,
-                    'chat'.tr,
-                    2,
-                    badgeCount: chatController.unseenCount
-                  ),
-                  _buildNavItem(Icons.account_balance_wallet_outlined,
-                      'nav_personal'.tr, 3),
-                  _buildNavItem(Icons.person_outline, 'profile'.tr, 4),
-                ],
-              );
-            },
+            builder: (_) => GetBuilder<ChatListController>(
+              builder: (chatList) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildNavItem(Icons.restaurant_outlined, 'meal'.tr, 0),
+                    _buildNavItem(
+                        Icons.receipt_long_outlined, 'expense'.tr, 1),
+                    _buildNavItem(
+                      Icons.chat_bubble_outline_rounded,
+                      'chat'.tr,
+                      2,
+                      badgeCount: chatList.totalUnread,
+                    ),
+                    _buildNavItem(Icons.account_balance_wallet_outlined,
+                        'nav_personal'.tr, 3),
+                    _buildNavItem(Icons.person_outline, 'profile'.tr, 4),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),

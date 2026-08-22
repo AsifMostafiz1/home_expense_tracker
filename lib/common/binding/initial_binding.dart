@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import '../../services/chat_outbox_service.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/member_avatar_service.dart';
+import '../../services/presence_service.dart';
 import '../../services/push_outbox_service.dart';
 import '../../services/receipt_outbox_service.dart';
 import '../../presentation/auth/binding/auth_binding.dart';
@@ -34,6 +35,11 @@ class InitialBinding extends Bindings {
     // avatars resolve against it, so it has to outlive the controller that
     // happens to be on screen.
     Get.put(MemberAvatarService(), permanent: true).load();
+
+    // Who is around right now — one field on the member's own user document,
+    // stamped while the app is in front. The chat list reads it back through
+    // the member stream it already holds.
+    Get.put(PresenceService(), permanent: true).init();
 
     AuthBinding().dependencies();
     MealBinding().dependencies();

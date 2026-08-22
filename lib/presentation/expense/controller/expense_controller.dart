@@ -466,6 +466,12 @@ class ExpenseController extends GetxController implements GetxService {
           title: 'Admin Updated Your Expense',
           body: '$currentUserName has updated your expense "${existingExpense.description}".',
           targetPhones: [finalUserPhone],
+          // The tap lands on the expense screen — see NotificationRouter.
+          data: {
+            'senderName': currentUserName,
+            'senderPhone': currentUserPhone,
+            'type': 'expense',
+          },
         ));
       }
 
@@ -576,6 +582,11 @@ class ExpenseController extends GetxController implements GetxService {
           title: 'Admin Deleted Your Expense',
           body: '$currentUserName has deleted your expense "${expense.description}".',
           targetPhones: [expense.userPhone],
+          data: {
+            'senderName': currentUserName,
+            'senderPhone': currentUserPhone,
+            'type': 'expense',
+          },
         ));
       }
       CustomSnackbar.show(

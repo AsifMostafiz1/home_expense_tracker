@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../services/notification_permission_service.dart';
+import '../../../services/notification_router.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../../dashboard/view/dashboard_screen.dart';
@@ -113,6 +114,11 @@ class SplashController extends GetxController {
     }
 
     Get.offAll(() => const DashboardScreen());
+
+    // A notification that started this launch has been waiting since main():
+    // there was no navigator then, and the version gate and the account check
+    // both had to be allowed to send the app elsewhere first.
+    unawaited(NotificationRouter().onAppReady());
   }
 
   /// The signed-in user's record.

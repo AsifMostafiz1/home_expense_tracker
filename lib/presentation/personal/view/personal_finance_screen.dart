@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
@@ -153,11 +152,113 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
         if (entries.isEmpty)
           _buildInlineEmpty(context, 'no_entries_this_month'.tr)
         else
-          for (final PersonalTransaction entry in entries) ...[
-            _buildTransactionTile(context, c, entry),
-            const SizedBox(height: 10),
+          for (final MoneyDay day in c.monthDays) ...[
+            _buildDayGroup(context, c, day),
+            const SizedBox(height: 18),
           ],
       ],
+    );
+  }
+
+  /// ------------------------------------------------------------- day group
+
+  /// One day's entries under one heading, the same shape the house expense
+  /// screen groups by — the two ledgers should read alike.
+  Widget _buildDayGroup(
+    BuildContext context,
+    PersonalController c,
+    MoneyDay day,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppUi.neutralSurface(context),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppUi.hairline(context)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.calendar_today_rounded,
+                      size: 12, color: AppUi.muted(context)),
+                  const SizedBox(width: 6),
+                  Text(
+                    AppUi.dayLabel(day.date),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppUi.body(context).withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Divider(color: AppUi.hairline(context), height: 1),
+            ),
+            const SizedBox(width: 12),
+            _buildDayTotal(context, day),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppUi.hairline(context)),
+            boxShadow: AppUi.softShadow(context),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (int i = 0; i < day.entries.length; i++) ...[
+                _buildTransactionRow(context, c, day.entries[i]),
+                if (i != day.entries.length - 1)
+                  Divider(
+                    height: 1,
+                    indent: 64,
+                    endIndent: 12,
+                    color: AppUi.hairline(context),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// What the day came to. One figure rather than two, because most days are
+  /// all spending — but it keeps the sign and the colour the rows use, so a
+  /// day that earned more than it spent says so.
+  Widget _buildDayTotal(BuildContext context, MoneyDay day) {
+    final double net = day.net;
+
+    if (net == 0) {
+      return Text(
+        AppUi.amount(0),
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: AppUi.muted(context),
+        ),
+      );
+    }
+
+    final MaterialColor tone = net > 0 ? Colors.green : Colors.deepOrange;
+    return Text(
+      '${net > 0 ? '+' : '−'}${AppUi.amount(net.abs())}',
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.bold,
+        color: AppUi.accent(context, tone),
+      ),
     );
   }
 
@@ -321,7 +422,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     );
   }
 
-  Widget _buildTransactionTile(
+  /// One entry, inside its day's card — so no border or radius of its own.
+  Widget _buildTransactionRow(
     BuildContext context,
     PersonalController c,
     PersonalTransaction entry,
@@ -330,18 +432,12 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     final MaterialColor tone = entry.isIncome ? Colors.green : Colors.deepOrange;
 
     return Material(
-      color: Theme.of(context).cardColor,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
+      color: Colors.transparent,
       child: InkWell(
         onTap: () => showTransactionSheet(context, entry: entry),
         onLongPress: () => _confirmDeleteTransaction(context, c, entry),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppUi.hairline(context)),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
           child: Row(
             children: [
               Container(
@@ -373,9 +469,10 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                     const SizedBox(height: 2),
                     Row(
                       children: [
+                        // Just the clock: the heading above already says
+                        // which day this was.
                         Text(
-                          '${DateFormat('dd MMM').format(entry.day)}'
-                          ' · ${entry.time.format(context)}',
+                          entry.time.format(context),
                           style: TextStyle(
                               fontSize: 11, color: AppUi.muted(context)),
                         ),

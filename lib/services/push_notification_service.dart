@@ -5,11 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_constant.dart';
 
 import 'dart:convert';
-import 'package:get/get.dart';
-import '../presentation/dashboard/view/dashboard_screen.dart';
 import 'package:http/http.dart' as http;
 import 'fcm_v1_service.dart';
-import '../common/binding/initial_binding.dart';
+import 'notification_router.dart';
 
 Future<void> _showNotificationIfAppropriate(RemoteMessage message) async {
   final data = message.data;
@@ -164,10 +162,26 @@ class PushNotificationService {
       _handleNotificationClick(message.data);
     });
 
-    RemoteMessage? initialMessage = await _fcm.getInitialMessage();
+    // Two ways a tap can have started this process, and both have to be
+    // asked: the system tray notification FCM itself posted, and the local
+    // one `_showNotificationIfAppropriate` posted from the background
+    // handler. Neither can navigate yet — `runApp` has not been called — so
+    // the router files them and the splash hands them back.
+    final RemoteMessage? initialMessage = await _fcm.getInitialMessage();
     if (initialMessage != null) {
       print('FCM: Notification opened from terminated state');
       _handleNotificationClick(initialMessage.data);
+    }
+
+    final NotificationAppLaunchDetails? launch =
+        await _localNotificationsPlugin.getNotificationAppLaunchDetails();
+    final String? launchPayload = launch?.notificationResponse?.payload;
+    if ((launch?.didNotificationLaunchApp ?? false) &&
+        launchPayload != null &&
+        launchPayload.isNotEmpty) {
+      print('FCM: Local notification opened from terminated state');
+      _handleNotificationClick(
+          Map<String, dynamic>.from(jsonDecode(launchPayload) as Map));
     }
 
     // Subscribe to topics.
@@ -314,17 +328,9 @@ class PushNotificationService {
     }
   }
 
-  void _handleNotificationClick(Map<String, dynamic> data) {
-    if (data['type'] == 'chat_message' || data['type'] == 'announcement') {
-      Get.offAll(() => const DashboardScreen(initialIndex: 2),
-          binding: InitialBinding());
-      return;
-    }
-
-    // Nothing to open for a rule change: the home screen raises the rules
-    // itself when any of them are still unagreed — see [HouseRulesGate].
-    if (data['type'] == 'house_rules') {
-      Get.offAll(() => const DashboardScreen(), binding: InitialBinding());
-    }
-  }
+  /// Every tap goes to the same place — see [NotificationRouter], which owns
+  /// the map from a notification's `type` to the screen it belongs to and
+  /// knows what to do when the tap arrives before there is a navigator.
+  void _handleNotificationClick(Map<String, dynamic> data) =>
+      NotificationRouter().handle(data);
 }

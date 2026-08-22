@@ -50,6 +50,9 @@ const app = env.authenticatedContext('anon-install-1').firestore();
 const app2 = env.authenticatedContext('anon-install-2').firestore();
 const guest = env.unauthenticatedContext().firestore();
 
+// Both phones, sorted and joined — see `ChatThread.conversationIdFor`.
+const DM = [MEMBER, OTHER].sort().join('__');
+
 const FRESH = 'msg_fresh';
 const OLD = 'msg_old';
 const OLD_OTHER = 'msg_old_other';
@@ -82,6 +85,30 @@ async function seed() {
       image_width: 800,
       image_height: 600,
       reactions: { [OTHER]: '👍' },
+      createdAt: Timestamp.fromMillis(Date.now() - 10 * 60 * 1000),
+    });
+
+    // A direct thread between MEMBER and OTHER: the summary the chat list
+    // reads, and the same two messages underneath it.
+    await setDoc(doc(db, `direct_chats/${DM}`), {
+      participants: [MEMBER, OTHER],
+      last_text: 'hello',
+      last_sender_phone: MEMBER,
+      last_has_image: false,
+      unread: { [OTHER]: 1 },
+    });
+    await setDoc(doc(db, `direct_chats/${DM}/messages/${FRESH}`), {
+      ...base,
+      createdAt: Timestamp.now(),
+    });
+    await setDoc(doc(db, `direct_chats/${DM}/messages/${OLD}`), {
+      ...base,
+      createdAt: Timestamp.fromMillis(Date.now() - 10 * 60 * 1000),
+    });
+    await setDoc(doc(db, `direct_chats/${DM}/messages/${OLD_OTHER}`), {
+      sender_name: 'Other',
+      sender_phone: OTHER,
+      text: 'not yours',
       createdAt: Timestamp.fromMillis(Date.now() - 10 * 60 * 1000),
     });
   });
@@ -168,6 +195,81 @@ const cases = [
     updateDoc(doc(app, `chats/${OLD_OTHER}`), { reactions: { [MEMBER]: '❤️' } })],
   ['a reaction write cannot smuggle in a text change', 'fail', () =>
     updateDoc(doc(app, `chats/${OLD_OTHER}`), { reactions: {}, text: 'sneaky' })],
+
+  // --- direct chats --------------------------------------------------------
+  //
+  // The same rules as the group, one collection deeper. Worth testing
+  // separately: they are a second copy of the same functions, and a typo in
+  // either would only show up in one half of the chat section.
+  ['app can read a direct thread', 'pass', () => getDoc(doc(app, `direct_chats/${DM}`))],
+  ['a signed-out client cannot read a direct thread', 'fail', () =>
+    getDoc(doc(guest, `direct_chats/${DM}`))],
+  ['app can read direct messages', 'pass', () =>
+    getDoc(doc(app, `direct_chats/${DM}/messages/${FRESH}`))],
+  ['a signed-out client cannot read direct messages', 'fail', () =>
+    getDoc(doc(guest, `direct_chats/${DM}/messages/${FRESH}`))],
+  ['app can send a direct message', 'pass', () =>
+    setDoc(doc(app, `direct_chats/${DM}/messages/dm1`), {
+      text: 'hi', sender_name: 'Member', sender_phone: MEMBER, createdAt: serverTimestamp(),
+    })],
+  ['app can bump the thread summary', 'pass', () =>
+    setDoc(doc(app, `direct_chats/${DM}`), {
+      last_text: 'hi', last_sender_phone: MEMBER, last_at: serverTimestamp(),
+    }, { merge: true })],
+  ['a signed-out client cannot send a direct message', 'fail', () =>
+    setDoc(doc(guest, `direct_chats/${DM}/messages/dm2`), {
+      text: 'hi', sender_name: 'Member', sender_phone: MEMBER, createdAt: serverTimestamp(),
+    })],
+  ['a self-chosen createdAt is rejected in a direct chat too', 'fail', () =>
+    setDoc(doc(app, `direct_chats/${DM}/messages/dm3`), {
+      text: 'hi', sender_name: 'Member', sender_phone: MEMBER,
+      createdAt: Timestamp.fromMillis(Date.now() + 60 * 60 * 1000),
+    })],
+  ['author edits own direct message inside 5 min', 'pass', () =>
+    updateDoc(doc(app, `direct_chats/${DM}/messages/${FRESH}`), edit(MEMBER, 'fixed'))],
+  ['author edits own direct message after 5 min', 'fail', () =>
+    updateDoc(doc(app, `direct_chats/${DM}/messages/${OLD}`), edit(MEMBER, 'too late'))],
+  ['admin edits an old direct message', 'pass', () =>
+    updateDoc(doc(app2, `direct_chats/${DM}/messages/${OLD}`), edit(ADMIN, 'admin fixed'))],
+  ['a member edits someone else\'s direct message', 'fail', () =>
+    updateDoc(doc(app, `direct_chats/${DM}/messages/${OLD_OTHER}`), edit(MEMBER, 'nope'))],
+  ['author deletes own direct message inside 5 min', 'pass', () =>
+    updateDoc(doc(app, `direct_chats/${DM}/messages/${FRESH}`), softDelete(MEMBER, false))],
+  ['author deletes own direct message after 5 min', 'fail', () =>
+    updateDoc(doc(app, `direct_chats/${DM}/messages/${OLD}`), softDelete(MEMBER, false))],
+  ['nobody can hard-delete a direct message', 'fail', () =>
+    deleteDoc(doc(app, `direct_chats/${DM}/messages/${FRESH}`))],
+  ['anyone reacts to a direct message, any age', 'pass', () =>
+    updateDoc(doc(app, `direct_chats/${DM}/messages/${OLD_OTHER}`), { reactions: { [MEMBER]: '❤️' } })],
+  ['app can write a direct read receipt', 'pass', () =>
+    setDoc(doc(app, `direct_chats/${DM}/seen/${OTHER}`), { lastSeenMessageId: FRESH })],
+  ['a signed-out client cannot read direct receipts', 'fail', () =>
+    getDoc(doc(guest, `direct_chats/${DM}/seen/${OTHER}`))],
+
+  // --- pinned messages -----------------------------------------------------
+  //
+  // Open to everyone on purpose: pinning is how the house keeps something
+  // above the conversation, and it writes nothing into the thread itself.
+  ['app can pin a message', 'pass', () =>
+    setDoc(doc(app, `pinned_messages/${FRESH}`), {
+      message_id: FRESH, text: 'rent is due on the 5th',
+      sender_name: 'Member', sender_phone: MEMBER, order: 0,
+      pinned_by: MEMBER, pinned_by_name: 'Member', pinned_at: serverTimestamp(),
+    })],
+  ['a member can pin somebody else\'s message', 'pass', () =>
+    setDoc(doc(app, `pinned_messages/${OLD_OTHER}`), {
+      message_id: OLD_OTHER, text: 'not yours', sender_phone: OTHER, order: 1,
+      pinned_by: MEMBER, pinned_by_name: 'Member', pinned_at: serverTimestamp(),
+    })],
+  ['app can read the pinned list', 'pass', () =>
+    getDoc(doc(app, `pinned_messages/${FRESH}`))],
+  ['app can rearrange a pin', 'pass', () =>
+    setDoc(doc(app, `pinned_messages/${FRESH}`), { order: 3 }, { merge: true })],
+  ['app can unpin', 'pass', () => deleteDoc(doc(app, `pinned_messages/${FRESH}`))],
+  ['a signed-out client cannot read pins', 'fail', () =>
+    getDoc(doc(guest, `pinned_messages/${FRESH}`))],
+  ['a signed-out client cannot pin', 'fail', () =>
+    setDoc(doc(guest, `pinned_messages/${OLD}`), { message_id: OLD, order: 0 })],
 
   // --- the rest of the app still works -------------------------------------
   ['app can write meals', 'pass', () =>

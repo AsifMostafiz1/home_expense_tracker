@@ -139,122 +139,123 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
     final bool gave = _flow == DebtFlow.gave;
     final MaterialColor accent = gave ? Colors.green : Colors.deepOrange;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppUi.muted(context).withOpacity(0.35),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+    // No keyboard inset here. Get.bottomSheet already pads its own route by
+    // `viewInsets.bottom`, so adding it again lifts the sheet a second
+    // keyboard-height off the bottom and leaves a gap between the two — the
+    // same trap the announcement sheet documents.
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppUi.muted(context).withOpacity(0.35),
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
-              Text(
-                _isEditing ? 'edit_entry'.tr : 'add_due_entry'.tr,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            Text(
+              _isEditing ? 'edit_entry'.tr : 'add_due_entry'.tr,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'due_entry_hint'.tr,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.45,
+                color: AppUi.muted(context),
               ),
-              const SizedBox(height: 6),
-              Text(
-                'due_entry_hint'.tr,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.45,
-                  color: AppUi.muted(context),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildFlowToggle(context),
-              const SizedBox(height: 18),
-              if (!_personFixed) ...[
-                CustomTextField(
-                  controller: _name,
-                  labelText: 'person_name'.tr,
-                  hintText: 'person_name_hint'.tr,
-                  prefixIcon: Icons.person_outline_rounded,
-                  errorText: _nameError,
-                  maxLength: 60,
-                  textCapitalization: TextCapitalization.words,
-                  onChanged: (_) {
-                    if (_nameError != null) setState(() => _nameError = null);
-                  },
-                ),
-                if (Get.find<PersonalController>().knownPeople.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  _buildKnownPeople(context),
-                ],
-                const SizedBox(height: 16),
-                CustomTextField(
-                  controller: _phone,
-                  labelText: 'phone_optional'.tr,
-                  hintText: '01XXXXXXXXX',
-                  prefixIcon: Icons.phone_outlined,
-                  keyboardType: TextInputType.phone,
-                  maxLength: 20,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9+\- ]')),
-                  ],
-                ),
-                const SizedBox(height: 16),
-              ],
+            ),
+            const SizedBox(height: 16),
+            _buildFlowToggle(context),
+            const SizedBox(height: 18),
+            if (!_personFixed) ...[
               CustomTextField(
-                controller: _amount,
-                labelText: 'amount'.tr,
-                hintText: '0',
-                prefixIcon: Icons.currency_exchange_rounded,
-                errorText: _amountError,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                ],
+                controller: _name,
+                labelText: 'person_name'.tr,
+                hintText: 'person_name_hint'.tr,
+                prefixIcon: Icons.person_outline_rounded,
+                errorText: _nameError,
+                maxLength: 60,
+                textCapitalization: TextCapitalization.words,
                 onChanged: (_) {
-                  if (_amountError != null) {
-                    setState(() => _amountError = null);
-                  }
+                  if (_nameError != null) setState(() => _nameError = null);
                 },
               ),
-              const SizedBox(height: 16),
-              _buildDateTimeRow(context, accent),
+              if (Get.find<PersonalController>().knownPeople.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _buildKnownPeople(context),
+              ],
               const SizedBox(height: 16),
               CustomTextField(
-                controller: _note,
-                labelText: 'note_optional'.tr,
-                hintText: 'due_note_hint'.tr,
-                prefixIcon: Icons.notes_rounded,
-                maxLines: 2,
-                maxLength: 140,
-                textCapitalization: TextCapitalization.sentences,
+                controller: _phone,
+                labelText: 'phone_optional'.tr,
+                hintText: '01XXXXXXXXX',
+                prefixIcon: Icons.phone_outlined,
+                keyboardType: TextInputType.phone,
+                maxLength: 20,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+\- ]')),
+                ],
               ),
-              const SizedBox(height: 22),
-              GetBuilder<PersonalController>(
-                builder: (c) => CustomButton(
-                  text: _isEditing ? 'save_changes'.tr : 'add_entry'.tr,
-                  height: 52,
-                  borderRadius: 14,
-                  color: accent.shade600,
-                  isLoading: c.isSaving,
-                  onPressed: _save,
-                ),
-              ),
+              const SizedBox(height: 16),
             ],
-          ),
+            CustomTextField(
+              controller: _amount,
+              labelText: 'amount'.tr,
+              hintText: '0',
+              prefixIcon: Icons.currency_exchange_rounded,
+              errorText: _amountError,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+              onChanged: (_) {
+                if (_amountError != null) {
+                  setState(() => _amountError = null);
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildDateTimeRow(context, accent),
+            const SizedBox(height: 16),
+            CustomTextField(
+              controller: _note,
+              labelText: 'note_optional'.tr,
+              hintText: 'due_note_hint'.tr,
+              prefixIcon: Icons.notes_rounded,
+              maxLines: 2,
+              maxLength: 140,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+            const SizedBox(height: 22),
+            GetBuilder<PersonalController>(
+              builder: (c) => CustomButton(
+                text: _isEditing ? 'save_changes'.tr : 'add_entry'.tr,
+                height: 52,
+                borderRadius: 14,
+                color: accent.shade600,
+                isLoading: c.isSaving,
+                onPressed: _save,
+              ),
+            ),
+          ],
         ),
       ),
     );

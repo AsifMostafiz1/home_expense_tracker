@@ -26,6 +26,13 @@ class HouseRulesGate {
 
   static bool _showing = false;
 
+  /// Whether the acknowledgement screen is in front of the user right now.
+  ///
+  /// It is mandatory and it is an ordinary route, so anything that pops its
+  /// way back to the home screen — a tapped notification — has to wait for it
+  /// rather than dismissing it.
+  static bool get isShowing => _showing;
+
   static Future<HouseRulesGateResult> maybeShow() async {
     if (_showing) return HouseRulesGateResult.notNeeded;
 

@@ -50,6 +50,11 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+    // Rebuilt rather than reused: a removed account is sent back through the
+    // splash by a notification tap, and `Get.put` on its own would hand back
+    // the controller from the first visit — which has already finished its
+    // checks and would never navigate again.
+    Get.delete<SplashController>(force: true);
     Get.put(SplashController());
     _intro.forward();
     _halo.repeat(reverse: true);

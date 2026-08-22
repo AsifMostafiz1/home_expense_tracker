@@ -123,6 +123,13 @@ class MemberController extends GetxController implements GetxService {
         body: (makeAdmin ? 'admin_granted_body' : 'admin_revoked_body')
             .trParams({'name': adminName}),
         targetPhones: [member.phone],
+        // The tap lands on their profile, where the role shows — see
+        // NotificationRouter.
+        data: {
+          'senderName': adminName,
+          'senderPhone': adminPhone,
+          'type': 'role',
+        },
       );
 
       CustomSnackbar.show(
@@ -180,6 +187,14 @@ class MemberController extends GetxController implements GetxService {
         title: 'account_removed_title'.tr,
         body: 'account_removed_body'.trParams({'name': adminName}),
         targetPhones: [member.phone],
+        // Tapping this has nowhere to go: the router sends them back through
+        // the splash, which re-reads the record and ends the session with a
+        // reason rather than dropping them into an app they have lost.
+        data: {
+          'senderName': adminName,
+          'senderPhone': adminPhone,
+          'type': 'account_removed',
+        },
       );
 
       CustomSnackbar.show(

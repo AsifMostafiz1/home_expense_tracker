@@ -56,6 +56,21 @@ class AppConstant {
   static const String collectionAnnouncements = 'announcements';
   static const String collectionChats = 'chats';
   static const String collectionSeenStatus = 'seen_status';
+
+  /// One document per pair of members — see `DirectThread`. The id is both
+  /// phone numbers, sorted and joined, so either end builds the same one.
+  /// Messages live in a `messages` subcollection under it, read receipts in
+  /// a `seen` one.
+  static const String collectionDirectChats = 'direct_chats';
+
+  /// Messages an occupant has pinned to the top of the group thread. One
+  /// document per pinned message, keyed by the message's own id — a message
+  /// can only be pinned once, and unpinning is deleting the document.
+  static const String collectionPinnedMessages = 'pinned_messages';
+
+  /// Subcollections of a direct thread.
+  static const String subcollectionMessages = 'messages';
+  static const String subcollectionSeen = 'seen';
   static const String collectionEditLogs = 'edit_logs';
 
   /// One document per month, keyed `YYYY-MM` — the house bills an admin sets
@@ -80,4 +95,9 @@ class AppConstant {
   
   static const double appVersion = 1.0;
   static const String docBusinessConfig = 'business_config';
+
+  /// The group chat's own identity — its name and its picture, set by an
+  /// admin from the thread's settings sheet. Lives under `config` because it
+  /// is one document for the whole house, not one per anything.
+  static const String docGroupChat = 'group_chat';
 }

@@ -6,7 +6,6 @@ import '../../member/view/member_screen.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/view/monthly_stats_screen.dart';
 import '../../house_rules/view/house_rules_screen.dart';
-import '../../personal/view/personal_finance_screen.dart';
 import '../../settings/view/settings_screen.dart';
 import '../widgets/profile_skeleton.dart';
 import 'edit_profile_screen.dart';
@@ -130,6 +129,11 @@ class ProfileScreen extends StatelessWidget {
                       // House Section — open to everyone: what the house pays
                       // and what each member owes is shared information. Only
                       // the actions inside are held back to admins.
+                      //
+                      // The member's own ledger used to sit under this in a
+                      // section of its own. It has a tab on the home bar now,
+                      // and a second door to the same screen one tap deeper
+                      // was only ever in the way.
                       _buildSectionLabel(context, 'HOUSE'.tr),
                       const SizedBox(height: 12),
                       Material(
@@ -140,86 +144,28 @@ class ProfileScreen extends StatelessWidget {
                           side: BorderSide(
                               color: Theme.of(context).dividerColor),
                         ),
-                        child: Column(
-                          children: [
-                            _buildListTile(
-                              context,
-                              icon: Icons.insights_rounded,
-                              title: 'monthly_statistics'.tr,
-                              subtitle: 'monthly_statistics_subtitle'.tr,
-                              // The saved months there carry a figure each;
-                              // the launch only worked out this one — see
-                              // MonthlyStatsController.ensureHistory.
-                              onTap: () {
-                                Get.find<MonthlyStatsController>()
-                                    .ensureHistory();
-                                Get.to(() => const MonthlyStatsScreen());
-                              },
-                            ),
-                            _buildDivider(context),
-                            _buildListTile(
-                              context,
-                              icon: Icons.gavel_rounded,
-                              title: 'house_rules'.tr,
-                              subtitle: 'house_rules_subtitle'.tr,
-                              onTap: () =>
-                                  Get.to(() => const HouseRulesScreen()),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Personal Section — one member's own money: their
-                      // income, their spending, and what is owed between them
-                      // and people outside the app. Nothing in here is shared
-                      // with the house, and nothing in it reads a meal.
-                      _buildSectionLabel(context, 'PERSONAL'.tr),
-                      const SizedBox(height: 12),
-                      Material(
-                        color: Theme.of(context).cardColor,
-                        clipBehavior: Clip.antiAlias,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                              color: Theme.of(context).dividerColor),
-                        ),
                         child: _buildListTile(
                           context,
-                          icon: Icons.account_balance_wallet_outlined,
-                          title: 'my_ledger'.tr,
-                          subtitle: 'my_ledger_subtitle'.tr,
-                          onTap: () =>
-                              Get.to(() => const PersonalFinanceScreen()),
+                          icon: Icons.insights_rounded,
+                          title: 'monthly_statistics'.tr,
+                          subtitle: 'monthly_statistics_subtitle'.tr,
+                          // The saved months there carry a figure each; the
+                          // launch only worked out this one — see
+                          // MonthlyStatsController.ensureHistory.
+                          onTap: () {
+                            Get.find<MonthlyStatsController>().ensureHistory();
+                            Get.to(() => const MonthlyStatsScreen());
+                          },
                         ),
                       ),
                       const SizedBox(height: 24),
 
-                      // App Section — app-wide settings, not house data, so
-                      // it stands apart. Everyone gets in: which version the
-                      // house is meant to run is worth seeing. The screen
-                      // itself hands the form to admins only.
-                      _buildSectionLabel(context, 'APP'.tr),
-                      const SizedBox(height: 12),
-                      Material(
-                        color: Theme.of(context).cardColor,
-                        clipBehavior: Clip.antiAlias,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                              color: Theme.of(context).dividerColor),
-                        ),
-                        child: _buildListTile(
-                          context,
-                          icon: Icons.settings_outlined,
-                          title: 'app_version'.tr,
-                          subtitle: 'app_version_subtitle'.tr,
-                          onTap: () => Get.to(() => const SettingsScreen()),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Account Section
+                      // Account Section — everything else this member might
+                      // want to open, in one list: who else is here, what has
+                      // been changed, their own details, the rules they have
+                      // agreed to, which version they are on, and how the app
+                      // looks. Subtitles are left off throughout; a card that
+                      // has some and not others reads as two lists.
                       _buildSectionLabel(context, 'ACCOUNT'.tr),
                       const SizedBox(height: 12),
                       // Material, not a decorated Container: ListTile paints
@@ -254,6 +200,24 @@ class ProfileScreen extends StatelessWidget {
                               icon: Icons.person_outline,
                               title: 'edit_profile'.tr,
                               onTap: () => Get.to(() => const EditProfileScreen()),
+                            ),
+                            _buildDivider(context),
+                            _buildListTile(
+                              context,
+                              icon: Icons.gavel_rounded,
+                              title: 'house_rules'.tr,
+                              onTap: () =>
+                                  Get.to(() => const HouseRulesScreen()),
+                            ),
+                            _buildDivider(context),
+                            // Everyone gets in: which version the house is
+                            // meant to run is worth seeing. The screen itself
+                            // hands the form to admins only.
+                            _buildListTile(
+                              context,
+                              icon: Icons.settings_outlined,
+                              title: 'app_version'.tr,
+                              onTap: () => Get.to(() => const SettingsScreen()),
                             ),
                             _buildDivider(context),
                             _buildListTile(

@@ -119,6 +119,52 @@ void main() {
     expect(person.isSettled, isTrue);
   });
 
+  test('the month list groups into days, newest first', () {
+    // The order the repository hands them over in.
+    final all = [
+      _tx('2026-08-22', 10),
+      _tx('2026-08-21', 635),
+      _tx('2026-08-20', 30),
+      _tx('2026-08-20', 20, income: true),
+    ];
+
+    final days = MoneyDay.group(all);
+    expect(days.map((d) => d.date), [
+      DateTime(2026, 8, 22),
+      DateTime(2026, 8, 21),
+      DateTime(2026, 8, 20),
+    ]);
+    expect(days.map((d) => d.entries.length), [1, 1, 2]);
+
+    // A day with both sides of the ledger in it nets out.
+    final twentieth = days.last;
+    expect(twentieth.income, 20);
+    expect(twentieth.expense, 30);
+    expect(twentieth.net, -10);
+  });
+
+  test('a day orders its own entries by the clock, latest first', () {
+    const morning = PersonalTransaction(
+      id: 'a',
+      amount: 10,
+      date: '2026-08-20',
+      timeHour: 9,
+      timeMinute: 5,
+    );
+    const evening = PersonalTransaction(
+      id: 'b',
+      amount: 30,
+      date: '2026-08-20',
+      timeHour: 19,
+      timeMinute: 21,
+    );
+
+    // Handed over in the wrong order on purpose — the grouping sorts rather
+    // than trusting its caller.
+    final days = MoneyDay.group([morning, evening]);
+    expect(days.single.entries.map((e) => e.id), ['b', 'a']);
+  });
+
   test('entries group by phone when there is one, by name otherwise', () {
     expect(_due(10, name: ' Rakib ').personKey, 'rakib');
     expect(

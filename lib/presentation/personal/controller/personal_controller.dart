@@ -156,6 +156,10 @@ class PersonalController extends GetxController implements GetxService {
         .toList(growable: false);
   }
 
+  /// This month's entries under the day each was recorded on — what the list
+  /// actually shows.
+  List<MoneyDay> get monthDays => MoneyDay.group(monthTransactions);
+
   MonthMoney get monthMoney => MonthMoney.of(selectedMonth, transactions);
 
   /// The last six months, oldest first — what the trend chart draws.

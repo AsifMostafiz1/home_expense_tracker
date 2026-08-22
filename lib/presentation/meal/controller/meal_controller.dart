@@ -659,6 +659,13 @@ class MealController extends GetxController implements GetxService {
         title: 'Admin Updated Your Meal',
         body: '$adminName has changed your meal count from $oldCount to $newCount on $formattedDate.',
         targetPhones: [otherUserPhone],
+        // The tap lands on the meal screen, where the corrected count is —
+        // see NotificationRouter.
+        data: {
+          'senderName': adminName,
+          'senderPhone': adminPhone,
+          'type': 'meal',
+        },
       ));
 
       await fetchMeals();
