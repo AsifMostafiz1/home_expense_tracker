@@ -69,6 +69,24 @@ class ExpenseController extends GetxController implements GetxService {
   final descriptionController = TextEditingController();
   String? amountError;
 
+  /// Set while an admin has the form open on someone else's behalf — from the
+  /// member sheet on the meal screen. A new entry is then saved under this
+  /// member rather than the signed-in user, and the date window reaches back
+  /// into months that have already closed, since that is what a correction to
+  /// someone's ledger usually needs.
+  String? memberName;
+  String? memberPhone;
+
+  bool get isMemberEntry => memberPhone != null && memberPhone!.isNotEmpty;
+
+  /// Points the form at [name]/[phone]. Called after [clearForm] or
+  /// [loadForEdit], both of which drop any earlier target.
+  void setMemberTarget({required String name, required String phone}) {
+    memberName = name;
+    memberPhone = phone;
+    update();
+  }
+
   DateTime selectedDate = DateTime.now();
   TimeOfDay selectedTime = TimeOfDay.now();
 
@@ -142,12 +160,16 @@ class ExpenseController extends GetxController implements GetxService {
     selectedDate = DateTime.now();
     selectedTime = TimeOfDay.now();
     selectedType = 'expense';
+    memberName = null;
+    memberPhone = null;
     clearReceiptSelection();
     update();
   }
 
   /// Fills the form from an existing entry, ready for the edit sheet.
   void loadForEdit(ExpenseModel item) {
+    memberName = null;
+    memberPhone = null;
     amountController.text = item.amount.toString();
     descriptionController.text = item.description;
     amountError = null;
@@ -382,8 +404,12 @@ class ExpenseController extends GetxController implements GetxService {
 
       if (currentUserName == null || currentUserPhone == null) return;
 
-      String finalUserName = existingExpense != null ? existingExpense.userName : currentUserName;
-      String finalUserPhone = existingExpense != null ? existingExpense.userPhone : currentUserPhone;
+      // An existing entry keeps its owner; a new one goes to the member the
+      // admin opened the form for, and to the signed-in user otherwise.
+      String finalUserName = existingExpense?.userName ??
+          (isMemberEntry ? memberName! : currentUserName);
+      String finalUserPhone = existingExpense?.userPhone ??
+          (isMemberEntry ? memberPhone! : currentUserPhone);
 
       final bool online = isOnline;
 
@@ -450,32 +476,47 @@ class ExpenseController extends GetxController implements GetxService {
         }
       }
 
-      if (existingExpense != null && finalUserPhone != currentUserPhone) {
+      // Somebody else's ledger was written to — whether the entry was
+      // corrected or added for them, it goes on the record.
+      if (finalUserPhone != currentUserPhone) {
+        final String entryName = data['description'] as String;
         await _logAdminEdit(
           adminName: currentUserName,
           adminPhone: currentUserPhone,
           targetName: finalUserName,
           targetPhone: finalUserPhone,
-          description: 'Expense "${existingExpense.description}" edited: amount ${existingExpense.amount} -> $amount',
+          description: existingExpense == null
+              ? 'Expense "$entryName" added: amount $amount on ${DateFormat('dd MMM, yyyy').format(selectedDate)}'
+              : 'Expense "${existingExpense.description}" edited: amount ${existingExpense.amount} -> $amount',
         );
 
+        // Only a change to an entry they already have is worth a notice. An
+        // entry added on their behalf is not — they were told about that
+        // spending elsewhere, and the edit log above still has it.
+        //
         // Not worth holding the sheet for: sent now if there is a connection,
         // filed for the next one if not. The log above is queued like any
         // other write.
-        unawaited(_pushOutbox.send(
-          title: 'Admin Updated Your Expense',
-          body: '$currentUserName has updated your expense "${existingExpense.description}".',
-          targetPhones: [finalUserPhone],
-          // The tap lands on the expense screen — see NotificationRouter.
-          data: {
-            'senderName': currentUserName,
-            'senderPhone': currentUserPhone,
-            'type': 'expense',
-          },
-        ));
+        if (existingExpense != null) {
+          unawaited(_pushOutbox.send(
+            title: 'Admin Updated Your Expense',
+            body:
+                '$currentUserName has updated your expense "${existingExpense.description}".',
+            targetPhones: [finalUserPhone],
+            // The tap lands on the expense screen — see NotificationRouter.
+            data: {
+              'senderName': currentUserName,
+              'senderPhone': currentUserPhone,
+              'type': 'expense',
+            },
+          ));
+        }
       }
 
-      // Saved — now the sheet can go.
+      // Saved — now the sheet can go, and the form stops pointing at whoever
+      // it was filled in for.
+      memberName = null;
+      memberPhone = null;
       clearReceiptSelection();
       closeOverlayRoute();
 

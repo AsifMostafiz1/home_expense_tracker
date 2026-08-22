@@ -50,6 +50,15 @@ class MealController extends GetxController implements GetxService {
   Map<String, int> dailyMeals = {};
   Map<String, int> totalDailyMeals = {};
   Map<String, List<Map<String, dynamic>>> userDailyMeals = {};
+
+  /// One member's meals across every month, keyed `yyyy-MM-dd` and filed under
+  /// their phone. Loaded when an admin opens that member's sheet.
+  ///
+  /// [userDailyMeals] only ever holds the month the summary was fetched for,
+  /// so paging the member calendar back to a month that has closed would show
+  /// empty days and edit against an "old" count of zero.
+  final Map<String, Map<String, int>> memberMeals = {};
+
   int myMealCount = 0;
   List<Map<String, dynamic>> otherUsersMeals = [];
   int totalMealCount = 0;
@@ -233,6 +242,25 @@ class MealController extends GetxController implements GetxService {
   /// Day-by-day editing is a correction to a month that has been filled in.
   /// Before that, the month has no rows to correct.
   bool get canEditDays => hasMealsForMonth(focusedDay);
+
+  /// What [memberMeals] holds for [phone] — empty until the load lands.
+  Map<String, int> memberMealsOf(String? phone) =>
+      (phone == null || phone.isEmpty)
+          ? const <String, int>{}
+          : (memberMeals[phone] ?? const <String, int>{});
+
+  /// Pulls every month of one member's meals, so an admin can correct a day
+  /// in a month the summary was not fetched for. Failure is silent: the sheet
+  /// simply falls back to the summary month it already has.
+  Future<void> loadMemberMeals(String? phone) async {
+    if (phone == null || phone.isEmpty) return;
+    try {
+      memberMeals[phone] = await repository.fetchDailyMeals(phone);
+      update();
+    } catch (e) {
+      debugPrint('Error fetching member meals: $e');
+    }
+  }
 
   void onDaySelected(DateTime selected, DateTime focused) {
     final now = DateTime.now();
@@ -521,8 +549,13 @@ class MealController extends GetxController implements GetxService {
 
   void showAdminUpdateMealBottomSheet(DateTime date, String otherUserName, String otherUserPhone) {
     String dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    int currentCount = 0;
-    if (userDailyMeals.containsKey(dateKey)) {
+
+    // The member's own map first — it covers every month, where
+    // [userDailyMeals] only covers the one the summary was fetched for. A day
+    // outside that month would otherwise read as zero and the edit log would
+    // record a change that never happened.
+    int? currentCount = memberMealsOf(otherUserPhone)[dateKey];
+    if (currentCount == null && userDailyMeals.containsKey(dateKey)) {
       final list = userDailyMeals[dateKey]!;
       for (var user in list) {
         if (user['name'] == otherUserName) {
@@ -531,8 +564,9 @@ class MealController extends GetxController implements GetxService {
         }
       }
     }
+    final int oldCount = currentCount ?? 0;
     
-    RxInt selectedCount = currentCount.obs;
+    RxInt selectedCount = oldCount.obs;
     List<String> months = ['jan'.tr, 'feb'.tr, 'mar'.tr, 'apr'.tr, 'may'.tr, 'jun'.tr, 'jul'.tr, 'aug'.tr, 'sep'.tr, 'oct'.tr, 'nov'.tr, 'dec'.tr];
     String formattedDate = '${date.day} ${months[date.month - 1]}, ${date.year}';
 
@@ -597,14 +631,14 @@ class MealController extends GetxController implements GetxService {
                     title: 'confirm_edit'.tr,
                     message: 'confirm_edit_meal'.trParams({
                       'name': otherUserName,
-                      'old': currentCount.toString(),
+                      'old': oldCount.toString(),
                       'new': newCount.toString(),
                       'date': formattedDate,
                     }),
                     confirmText: 'confirm'.tr,
                     confirmColor: Colors.blue.shade600,
                     onConfirm: () => _updateOtherUserMeal(date, newCount,
-                        currentCount, otherUserName, otherUserPhone),
+                        oldCount, otherUserName, otherUserPhone),
                   );
                 },
                 style: ElevatedButton.styleFrom(
@@ -633,6 +667,13 @@ class MealController extends GetxController implements GetxService {
       if (adminName == null || adminPhone == null) return;
 
       await repository.updateMeal(otherUserName, otherUserPhone, date, newCount);
+
+      // The member's own map is what the sheet's calendar and the next edit
+      // read, and the summary refresh below only covers the month on screen —
+      // so a correction to any other month is written straight into it.
+      final String dateKey =
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      memberMeals[otherUserPhone]?[dateKey] = newCount;
 
       // Log the edit
       List<String> months = ['jan'.tr, 'feb'.tr, 'mar'.tr, 'apr'.tr, 'may'.tr, 'jun'.tr, 'jul'.tr, 'aug'.tr, 'sep'.tr, 'oct'.tr, 'nov'.tr, 'dec'.tr];

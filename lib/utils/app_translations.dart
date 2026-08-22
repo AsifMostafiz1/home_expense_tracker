@@ -209,6 +209,9 @@ class AppTranslations extends Translations {
               'Add this month\'s meals first — then you can change any day',
           'bulk_meal_hint': 'Fill the whole month in one tap — 1 meal on weekdays, 2 on Friday & Saturday. You can fine-tune any day afterwards.',
           'admin_edit_hint': 'Admin: tap a day to edit @name\'s meals',
+          'admin_month_hint':
+              'Use the arrows to reach an earlier month',
+          'expense_saved_under': 'This expense will be saved under @name',
           'confirm_delete_expense_for': 'Are you sure you want to delete this expense for @name?',
           'announcement_empty_hint': 'Announcements posted by members will show up here.',
           'resolve': 'Resolve',
@@ -940,6 +943,8 @@ class AppTranslations extends Translations {
               'আগে এই মাসের মিল যোগ করুন — তারপর যেকোনো দিন বদলাতে পারবেন',
           'bulk_meal_hint': 'এক ট্যাপে পুরো মাসের মিল যোগ করুন — সাধারণ দিনে ১টি, শুক্র ও শনিবারে ২টি। পরে যেকোনো দিন আলাদাভাবে পরিবর্তন করা যাবে।',
           'admin_edit_hint': 'অ্যাডমিন: @name এর মিল সম্পাদনা করতে যেকোনো দিনে ট্যাপ করুন',
+          'admin_month_hint': 'আগের মাসে যেতে তীর চিহ্ন ব্যবহার করুন',
+          'expense_saved_under': 'এই খরচটি @name এর নামে সংরক্ষণ হবে',
           'confirm_delete_expense_for': 'আপনি কি নিশ্চিত যে আপনি @name এর এই খরচটি মুছে ফেলতে চান?',
           'announcement_empty_hint': 'সদস্যদের দেওয়া ঘোষণাগুলো এখানে দেখা যাবে।',
           'resolve': 'সমাধান হয়েছে',

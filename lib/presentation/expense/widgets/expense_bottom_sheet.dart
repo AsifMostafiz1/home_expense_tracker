@@ -168,6 +168,38 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                         fontWeight: FontWeight.bold,
                       ),
                 ),
+                // Whose ledger this lands in — the one thing that is not
+                // obvious when an admin fills the form in for someone else.
+                if (item == null && controller.isMemberEntry) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppUi.tint(context, Colors.blue),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.withOpacity(0.25)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.admin_panel_settings_rounded,
+                            size: 16, color: AppUi.accent(context, Colors.blue)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'expense_saved_under'
+                                .trParams({'name': controller.memberName ?? ''}),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppUi.accent(context, Colors.blue),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
 
                 // Date and Time Row
@@ -177,7 +209,13 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                       child: InkWell(
                         onTap: () async {
                           DateTime now = DateTime.now();
-                          DateTime firstDate = DateTime(now.year, now.month, 1);
+                          // An admin working on a member's ledger is often
+                          // correcting a month that has already closed, so
+                          // their window reaches back the same two months the
+                          // meal calendar does.
+                          DateTime firstDate = controller.isMemberEntry
+                              ? DateTime(now.year, now.month - 2, 1)
+                              : DateTime(now.year, now.month, 1);
                           DateTime lastDate = DateTime(now.year, now.month + 2, 0); // End of next month
 
                           DateTime initialDate = controller.selectedDate;
