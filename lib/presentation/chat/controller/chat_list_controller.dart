@@ -83,15 +83,36 @@ class ChatListController extends GetxController implements GetxService {
     myPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
     myName = prefs.getString(AppConstant.keyUserName) ?? '';
 
+    await _listen();
+  }
+
+  /// Subscribes to the two streams the list is made of, dropping any earlier
+  /// pair first so a refresh cannot end up with two listeners on one path.
+  ///
+  /// Completes when the members stream has delivered its first snapshot —
+  /// what a pull-to-refresh spinner should be waiting on — or gives up after
+  /// [_refreshTimeout], so a dead connection spins for a moment rather than
+  /// forever.
+  Future<void> _listen() async {
+    await _membersSubscription?.cancel();
+    await _threadsSubscription?.cancel();
+
+    final Completer<void> firstBatch = Completer<void>();
+    void settle() {
+      if (!firstBatch.isCompleted) firstBatch.complete();
+    }
+
     _membersSubscription = repository.getChatUsersStream().listen(
       (users) {
         _members = users;
         isLoading = false;
+        settle();
         update();
       },
       onError: (Object e) {
         debugPrint('ChatList: members stream failed — $e');
         isLoading = false;
+        settle();
         update();
       },
     );
@@ -103,7 +124,31 @@ class ChatListController extends GetxController implements GetxService {
       },
       onError: (Object e) => debugPrint('ChatList: threads stream failed — $e'),
     );
+
+    await firstBatch.future.timeout(_refreshTimeout, onTimeout: () {});
   }
+
+  static const Duration _refreshTimeout = Duration(seconds: 8);
+
+  /// Pull-to-refresh.
+  ///
+  /// The rows come off live streams, so in the ordinary case there is nothing
+  /// stale to fetch — but a listener that died while the phone was offline
+  /// stays dead, and that is exactly when somebody pulls. Re-subscribing gets
+  /// a fresh snapshot and a live connection back; the presence labels are
+  /// recomputed on the way out.
+  Future<void> refreshList() async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
+    try {
+      await _listen();
+    } finally {
+      _isRefreshing = false;
+      update();
+    }
+  }
+
+  bool _isRefreshing = false;
 
   /// Every member but the one holding the phone, each carrying whatever
   /// conversation already exists with them.

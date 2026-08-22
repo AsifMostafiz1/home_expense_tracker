@@ -183,6 +183,7 @@ class ChatController extends GetxController implements GetxService {
     messageController.removeListener(_onTextChanged);
     messageController.dispose();
     messageFocusNode.dispose();
+    searchController.dispose();
     scrollController.dispose();
     super.onClose();
   }
@@ -686,6 +687,112 @@ class ChatController extends GetxController implements GetxService {
       });
     }
     return true;
+  }
+
+  // ---------------------------------------------------------------------
+  // Searching the conversation
+  // ---------------------------------------------------------------------
+
+  /// What the header turns into while somebody is looking for something.
+  final TextEditingController searchController = TextEditingController();
+
+  bool isSearching = false;
+  String searchQuery = '';
+
+  /// The messages the search reads. Deeper than [messages] — that window is
+  /// only what the thread draws — so a search reaches back past what has been
+  /// scrolled to. Filled once when the search opens.
+  List<ChatMessageModel> _searchPool = [];
+  bool isSearchLoading = false;
+
+  void toggleSearch() {
+    if (isSearching) {
+      closeSearch();
+    } else {
+      isSearching = true;
+      update();
+      _loadSearchPool();
+    }
+  }
+
+  void closeSearch() {
+    isSearching = false;
+    searchQuery = '';
+    searchController.clear();
+    _searchPool = [];
+    isSearchLoading = false;
+    update();
+  }
+
+  void onSearchChanged(String value) {
+    if (value == searchQuery) return;
+    searchQuery = value;
+    update();
+  }
+
+  /// One read of the thread's history, merged over what is already on screen
+  /// so a message sent a second ago — or still queued offline — is findable
+  /// too. A failure is not fatal: the loaded thread is still searchable.
+  Future<void> _loadSearchPool() async {
+    isSearchLoading = true;
+    update();
+    try {
+      final List<ChatMessageModel> fetched =
+          await repository.fetchMessagesForSearch(
+              conversationId: conversationId);
+      _searchPool = _mergeWithLoaded(fetched);
+    } catch (e) {
+      debugPrint('Chat: search history failed — $e');
+      _searchPool = List<ChatMessageModel>.from(messages);
+    } finally {
+      isSearchLoading = false;
+      if (isSearching) update();
+    }
+  }
+
+  /// The live thread wins on any id the two have in common: it carries edits
+  /// and deletes the one-shot read may have missed.
+  List<ChatMessageModel> _mergeWithLoaded(List<ChatMessageModel> fetched) {
+    final Map<String, ChatMessageModel> byId = {
+      for (final ChatMessageModel m in fetched) m.id: m,
+      for (final ChatMessageModel m in messages) m.id: m,
+    };
+    final List<ChatMessageModel> merged = byId.values.toList();
+    merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return merged;
+  }
+
+  /// Newest first, matching either the words of a message or the name of
+  /// whoever wrote it — "shahin" is as reasonable a thing to type as "bazar".
+  /// Deleted messages have nothing left to match.
+  List<ChatMessageModel> get searchResults {
+    final String needle = searchQuery.trim().toLowerCase();
+    if (needle.isEmpty) return const [];
+
+    final List<ChatMessageModel> pool =
+        _searchPool.isEmpty ? messages : _searchPool;
+
+    return pool
+        .where((m) =>
+            !m.deleted &&
+            (m.text.toLowerCase().contains(needle) ||
+                m.senderName.toLowerCase().contains(needle)))
+        .toList();
+  }
+
+  /// Closes the search and lands on the message itself.
+  ///
+  /// The search reaches further back than the thread holds, so a hit from
+  /// months ago may have nothing on screen to scroll to — that says so rather
+  /// than swallowing the tap, the same way a pin does.
+  void openSearchResult(String messageId) {
+    closeSearch();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!scrollToMessage(messageId)) {
+        CustomSnackbar.show(
+            type: SnackbarType.info, message: 'message_not_loaded'.tr);
+      }
+    });
   }
 
   void _highlightMessage(String messageId) {

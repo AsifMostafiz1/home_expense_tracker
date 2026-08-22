@@ -9,6 +9,17 @@ import '../model/pinned_message_model.dart';
 abstract class ChatRepository {
   Stream<List<ChatMessageModel>> getMessagesStream({String? conversationId});
 
+  /// The window a search reads, which is deeper than the thread keeps in
+  /// memory — somebody looking for what was said about the gas bill is
+  /// usually looking further back than the last hundred messages.
+  ///
+  /// One read, newest first; the matching is done on the device, because
+  /// Firestore cannot look inside a string.
+  Future<List<ChatMessageModel>> fetchMessagesForSearch({
+    String? conversationId,
+    int limit,
+  });
+
   /// [peerPhone] is only read for a direct send, where the thread's summary
   /// document has to know who the unread count belongs to.
   Future<void> sendMessage(

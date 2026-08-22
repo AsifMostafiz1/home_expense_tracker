@@ -185,6 +185,7 @@ class AppTranslations extends Translations {
           'from_date': 'From @date',
           'until_date': 'Until @date',
           'clear_filters': 'Clear Filters',
+          'clear': 'Clear',
           'confirm_edit': 'Confirm Edit',
           'confirm_edit_meal': 'Are you sure you want to change @name\'s meal count from @old to @new on @date?',
           'update_user_meal': 'Update @name\'s Meal',
@@ -707,6 +708,11 @@ class AppTranslations extends Translations {
               'Hold any message in the group chat and choose Pin, so it stays above the conversation.',
           'message_not_loaded':
               'That message is too far back to jump to. Scroll up to load it.',
+          'search_messages': 'Search this conversation',
+          'search_messages_hint':
+              'Type a word, or a name, to find it in this conversation.',
+          'no_messages_found': 'Nothing matches that',
+          'searching_older_messages': 'Still looking through older messages…',
           'message': 'Message',
 
           // Sharing a month's figures into the chat.
@@ -901,6 +907,7 @@ class AppTranslations extends Translations {
           'from_date': '@date থেকে',
           'until_date': '@date পর্যন্ত',
           'clear_filters': 'ফিল্টার মুছুন',
+          'clear': 'মুছুন',
           'confirm_edit': 'সম্পাদনা নিশ্চিত করুন',
           'confirm_edit_meal': 'আপনি কি নিশ্চিত যে আপনি @date তারিখে @name এর মিল সংখ্যা @old থেকে পরিবর্তন করে @new করতে চান?',
           'update_user_meal': '@name এর মিল আপডেট করুন',
@@ -1419,6 +1426,11 @@ class AppTranslations extends Translations {
               'গ্রুপ চ্যাটে যেকোনো বার্তা চেপে ধরে "পিন করুন" বেছে নিন, তাহলে সেটি কথোপকথনের উপরে থাকবে।',
           'message_not_loaded':
               'বার্তাটি অনেক আগের, সরাসরি যাওয়া যাচ্ছে না। উপরে স্ক্রল করে লোড করুন।',
+          'search_messages': 'এই কথোপকথনে খুঁজুন',
+          'search_messages_hint':
+              'কোনো শব্দ বা নাম লিখুন, এই কথোপকথনে খুঁজে দেখা হবে।',
+          'no_messages_found': 'কিছু মেলেনি',
+          'searching_older_messages': 'পুরনো বার্তাগুলোতেও খোঁজা হচ্ছে…',
           'message': 'বার্তা',
 
           // Sharing a month's figures into the chat.

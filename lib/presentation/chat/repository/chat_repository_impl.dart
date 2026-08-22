@@ -215,6 +215,26 @@ class ChatRepositoryImpl implements ChatRepository {
             .toList());
   }
 
+  @override
+  Future<List<ChatMessageModel>> fetchMessagesForSearch({
+    String? conversationId,
+    int limit = 500,
+  }) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot =
+        await _messages(conversationId)
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .get();
+
+    return snapshot.docs
+        .map((doc) => ChatMessageModel.fromMap(
+              doc.id,
+              doc.data(),
+              isPending: doc.metadata.hasPendingWrites,
+            ))
+        .toList();
+  }
+
   CollectionReference<Map<String, dynamic>> get _pinned =>
       _firestore.collection(AppConstant.collectionPinnedMessages);
 

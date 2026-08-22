@@ -90,66 +90,73 @@ class ChatListScreen extends StatelessWidget {
     final List<ChatListEntry> others = c.otherMembers;
     final bool searching = c.query.trim().isNotEmpty;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      children: [
-        // The group is the house's own thread — always there, never filtered
-        // away by a search for a person's name.
-        if (!searching) ...[
-          _GroupCard(members: c.houseMembers, onTap: c.openGroup),
-          const SizedBox(height: 20),
-          if (c.onlineMembers.isNotEmpty) ...[
-            _SectionLabel(text: 'active_now'.tr),
-            const SizedBox(height: 10),
-            _OnlineStrip(
-              members: c.onlineMembers,
-              onTap: c.openDirect,
+    return RefreshIndicator(
+      color: Theme.of(context).colorScheme.primary,
+      onRefresh: c.refreshList,
+      child: ListView(
+        // Short lists — a house of three — still have to be draggable, or
+        // there is nothing to pull.
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          // The group is the house's own thread — always there, never filtered
+          // away by a search for a person's name.
+          if (!searching) ...[
+            _GroupCard(members: c.houseMembers, onTap: c.openGroup),
+            const SizedBox(height: 20),
+            if (c.onlineMembers.isNotEmpty) ...[
+              _SectionLabel(text: 'active_now'.tr),
+              const SizedBox(height: 10),
+              _OnlineStrip(
+                members: c.onlineMembers,
+                onTap: c.openDirect,
+              ),
+              const SizedBox(height: 20),
+            ],
+          ],
+          if (recent.isNotEmpty) ...[
+            _SectionLabel(
+              text: 'direct_messages'.tr,
+              trailing: c.directUnread > 0
+                  ? 'unread_count'.trParams({'count': '${c.directUnread}'})
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            _PeopleCard(
+              children: recent
+                  .map((entry) => _ChatRow(
+                        entry: entry,
+                        myPhone: c.myPhone,
+                        onTap: () => c.openDirect(entry.user),
+                      ))
+                  .toList(),
             ),
             const SizedBox(height: 20),
           ],
+          if (others.isNotEmpty) ...[
+            _SectionLabel(
+              text: recent.isEmpty && !searching
+                  ? 'start_a_chat'.tr
+                  : 'other_members'.tr,
+            ),
+            const SizedBox(height: 8),
+            _PeopleCard(
+              children: others
+                  .map((entry) => _ChatRow(
+                        entry: entry,
+                        myPhone: c.myPhone,
+                        onTap: () => c.openDirect(entry.user),
+                      ))
+                  .toList(),
+            ),
+          ],
+          if (recent.isEmpty && others.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 60),
+              child: _EmptyState(searching: searching),
+            ),
         ],
-        if (recent.isNotEmpty) ...[
-          _SectionLabel(
-            text: 'direct_messages'.tr,
-            trailing: c.directUnread > 0
-                ? 'unread_count'.trParams({'count': '${c.directUnread}'})
-                : null,
-          ),
-          const SizedBox(height: 8),
-          _PeopleCard(
-            children: recent
-                .map((entry) => _ChatRow(
-                      entry: entry,
-                      myPhone: c.myPhone,
-                      onTap: () => c.openDirect(entry.user),
-                    ))
-                .toList(),
-          ),
-          const SizedBox(height: 20),
-        ],
-        if (others.isNotEmpty) ...[
-          _SectionLabel(
-            text: recent.isEmpty && !searching
-                ? 'start_a_chat'.tr
-                : 'other_members'.tr,
-          ),
-          const SizedBox(height: 8),
-          _PeopleCard(
-            children: others
-                .map((entry) => _ChatRow(
-                      entry: entry,
-                      myPhone: c.myPhone,
-                      onTap: () => c.openDirect(entry.user),
-                    ))
-                .toList(),
-          ),
-        ],
-        if (recent.isEmpty && others.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 60),
-            child: _EmptyState(searching: searching),
-          ),
-      ],
+      ),
     );
   }
 }

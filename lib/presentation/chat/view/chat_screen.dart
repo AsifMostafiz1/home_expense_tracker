@@ -20,10 +20,41 @@ import '../model/outgoing_image_model.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/view/monthly_stats_screen.dart';
 import '../widgets/chat_presence.dart';
+import '../widgets/chat_search_results.dart';
 import '../widgets/group_avatar.dart';
 import '../widgets/group_settings_sheet.dart';
 import '../widgets/pinned_banner.dart';
 import 'pinned_messages_screen.dart';
+
+/// The little round button that lives inside the search pill. An `IconButton`
+/// carries a 48px touch target that will not fit in a 42px bar, so this keeps
+/// the tap area to what the pill has room for.
+class _SearchIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _SearchIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 17, color: AppUi.muted(context)),
+        ),
+      ),
+    );
+  }
+}
 
 /// One conversation, whichever it is.
 ///
@@ -76,109 +107,141 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return GetBuilder<ChatController>(
+      tag: widget.tag,
+      // Back closes the search before it closes the conversation — leaving
+      // the thread from a list of results is not what that gesture means.
+      builder: (c) => PopScope(
+        canPop: !c.isSearching,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && c.isSearching) c.closeSearch();
+        },
+        child: _buildScaffold(context),
+      ),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: _buildAppBar(context),
-      body: Column(
-        children: [
-          // Held above the thread rather than in it: a pin is something the
-          // house wants seen no matter how far back it has scrolled.
-          if (!_isDirect) PinnedBanner(onTap: _openPinned),
-          Expanded(
-            child: GetBuilder<ChatController>(
-              tag: widget.tag,
-              builder: (controller) {
-                // Messages still on their way out — uploading, or waiting
-                // for a connection — sit past the newest message, at the
-                // bottom of a reversed list.
-                final int pending = controller.outgoing.length;
+      // Both halves of the screen swap when a search opens, so both hang off
+      // the same builder rather than the header being redrawn by hand.
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: GetBuilder<ChatController>(
+          tag: widget.tag,
+          builder: (c) => _buildAppBar(context),
+        ),
+      ),
+      body: GetBuilder<ChatController>(
+        tag: widget.tag,
+        builder: (c) => c.isSearching
+            ? ChatSearchResults(controller: c)
+            : _buildThread(context),
+      ),
+    );
+  }
 
-                if (controller.messages.isEmpty && pending == 0) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade300),
-                        const SizedBox(height: 16),
-                        Text(
-                          'no_messages_yet'.tr,
-                          style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _isDirect
-                              ? 'say_hi_to'.trParams(
-                                  {'name': controller.thread.peerName})
-                              : 'start_conversation'.tr,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  );
-                }
+  Widget _buildThread(BuildContext context) {
+    return Column(
+      children: [
+        // Held above the thread rather than in it: a pin is something the
+        // house wants seen no matter how far back it has scrolled.
+        if (!_isDirect) PinnedBanner(onTap: _openPinned),
+        Expanded(
+          child: GetBuilder<ChatController>(
+            tag: widget.tag,
+            builder: (controller) {
+              // Messages still on their way out — uploading, or waiting
+              // for a connection — sit past the newest message, at the
+              // bottom of a reversed list.
+              final int pending = controller.outgoing.length;
 
-                return ListView.builder(
-                  controller: controller.scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                  itemCount: controller.messages.length + pending,
-                  itemBuilder: (context, position) {
-                    if (position < pending) {
-                      // Newest first, like everything else in a reversed list.
-                      return _OutgoingBubble(
-                        item: controller.outgoing[pending - 1 - position],
-                        controller: controller,
-                      );
-                    }
+              if (controller.messages.isEmpty && pending == 0) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text(
+                        'no_messages_yet'.tr,
+                        style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _isDirect
+                            ? 'say_hi_to'.trParams(
+                                {'name': controller.thread.peerName})
+                            : 'start_conversation'.tr,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                );
+              }
 
-                    final int index = position - pending;
-                    final message = controller.messages[index];
-                    final isMe = message.senderPhone == controller.userPhone;
-
-                    bool isFirstInGroup = true;
-                    bool isLastInGroup = true;
-                    bool showDateHeader = false;
-
-                    if (index < controller.messages.length - 1) {
-                      final nextMessage = controller.messages[index + 1];
-                      if (nextMessage.senderPhone == message.senderPhone) {
-                        isFirstInGroup = false;
-                      }
-
-                      final messageDate = DateFormat('yyyy-MM-dd').format(message.createdAt);
-                      final nextMessageDate = DateFormat('yyyy-MM-dd').format(nextMessage.createdAt);
-                      if (messageDate != nextMessageDate) {
-                        showDateHeader = true;
-                      }
-                    } else {
-                      showDateHeader = true;
-                    }
-
-                    if (index > 0) {
-                      final nextMessage = controller.messages[index - 1];
-                      if (nextMessage.senderPhone == message.senderPhone) {
-                        isLastInGroup = false;
-                      }
-                    }
-
-                    return _MessageBubble(
-                      key: controller.getKeyForMessage(message.id),
-                      message: message,
-                      isMe: isMe,
-                      isFirstInGroup: isFirstInGroup,
-                      isLastInGroup: isLastInGroup,
-                      showDateHeader: showDateHeader,
+              return ListView.builder(
+                controller: controller.scrollController,
+                reverse: true,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                itemCount: controller.messages.length + pending,
+                itemBuilder: (context, position) {
+                  if (position < pending) {
+                    // Newest first, like everything else in a reversed list.
+                    return _OutgoingBubble(
+                      item: controller.outgoing[pending - 1 - position],
                       controller: controller,
                     );
-                  },
-                );
-              },
-            ),
+                  }
+
+                  final int index = position - pending;
+                  final message = controller.messages[index];
+                  final isMe = message.senderPhone == controller.userPhone;
+
+                  bool isFirstInGroup = true;
+                  bool isLastInGroup = true;
+                  bool showDateHeader = false;
+
+                  if (index < controller.messages.length - 1) {
+                    final nextMessage = controller.messages[index + 1];
+                    if (nextMessage.senderPhone == message.senderPhone) {
+                      isFirstInGroup = false;
+                    }
+
+                    final messageDate = DateFormat('yyyy-MM-dd').format(message.createdAt);
+                    final nextMessageDate = DateFormat('yyyy-MM-dd').format(nextMessage.createdAt);
+                    if (messageDate != nextMessageDate) {
+                      showDateHeader = true;
+                    }
+                  } else {
+                    showDateHeader = true;
+                  }
+
+                  if (index > 0) {
+                    final nextMessage = controller.messages[index - 1];
+                    if (nextMessage.senderPhone == message.senderPhone) {
+                      isLastInGroup = false;
+                    }
+                  }
+
+                  return _MessageBubble(
+                    key: controller.getKeyForMessage(message.id),
+                    message: message,
+                    isMe: isMe,
+                    isFirstInGroup: isFirstInGroup,
+                    isLastInGroup: isLastInGroup,
+                    showDateHeader: showDateHeader,
+                    controller: controller,
+                  );
+                },
+              );
+            },
           ),
-          _buildMessageInput(context),
-        ],
-      ),
+        ),
+        _buildMessageInput(context),
+      ],
     );
   }
 
@@ -186,6 +249,8 @@ class _ChatScreenState extends State<ChatScreen> {
   /// whether the other person is around, which is the thing a sender actually
   /// wants to know before they type.
   PreferredSizeWidget _buildAppBar(BuildContext context) {
+    if (controller.isSearching) return _buildSearchAppBar(context);
+
     return CustomAppBar(
       centerTitle: false,
       titleWidget: GetBuilder<ChatController>(
@@ -230,7 +295,101 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
       ),
-      actions: _isDirect ? null : [_buildGroupMenu(context)],
+      actions: [
+        IconButton(
+          tooltip: 'search'.tr,
+          icon: Icon(Icons.search_rounded, color: AppUi.body(context)),
+          onPressed: controller.toggleSearch,
+        ),
+        if (!_isDirect) _buildGroupMenu(context) else const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  /// The header while a search is open: the field takes the whole bar, and
+  /// the only way out is the cross — the thread is not on screen to go back
+  /// to.
+  PreferredSizeWidget _buildSearchAppBar(BuildContext context) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+    final bool typed = controller.searchQuery.trim().isNotEmpty;
+    final int matches = typed ? controller.searchResults.length : 0;
+
+    return CustomAppBar(
+      centerTitle: false,
+      // The arrow leaves the search, not the conversation — the same thing
+      // the back gesture does while this bar is up.
+      leading: IconButton(
+        tooltip: 'cancel'.tr,
+        icon: Icon(Icons.arrow_back_ios, size: 20, color: AppUi.body(context)),
+        onPressed: controller.closeSearch,
+      ),
+      titleWidget: Container(
+        height: 42,
+        padding: const EdgeInsets.only(left: 14, right: 5),
+        decoration: BoxDecoration(
+          color: AppUi.neutralSurface(context),
+          borderRadius: BorderRadius.circular(21),
+          border: Border.all(color: primary.withOpacity(0.35), width: 1.2),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.search_rounded, size: 19, color: primary),
+            const SizedBox(width: 9),
+            Expanded(
+              child: TextField(
+                controller: controller.searchController,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                onChanged: controller.onSearchChanged,
+                cursorColor: primary,
+                cursorWidth: 1.6,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  height: 1.2,
+                  color: AppUi.body(context),
+                ),
+                decoration: InputDecoration(
+                  hintText: 'search_messages'.tr,
+                  hintStyle: TextStyle(
+                    color: AppUi.muted(context),
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+            // How many hits, right where the eye already is while typing —
+            // the list below does not have to be looked at to know whether
+            // the word is in here at all.
+            if (typed) ...[
+              Text(
+                '$matches',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: matches == 0 ? AppUi.muted(context) : primary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              // Empties the field without closing the search: the next word
+              // is usually typed straight after the last one failed.
+              _SearchIconButton(
+                icon: Icons.close_rounded,
+                tooltip: 'clear'.tr,
+                onTap: () {
+                  controller.searchController.clear();
+                  controller.onSearchChanged('');
+                },
+              ),
+            ] else
+              const SizedBox(width: 4),
+          ],
+        ),
+      ),
+      actions: const [SizedBox(width: 14)],
     );
   }
 
