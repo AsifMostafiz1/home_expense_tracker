@@ -185,6 +185,15 @@ class AppTranslations extends Translations {
           'from_date': 'From @date',
           'until_date': 'Until @date',
           'clear_filters': 'Clear Filters',
+          // Publishing a new build — see SettingsController.
+          'update_available_title': 'Update available',
+          'update_available_body':
+              'Version @version is out. Tap to download it.',
+          'everyone_up_to_date':
+              'Everybody is already on this version — nobody was notified.',
+          'update_notified': '@count member(s) were told to update',
+          'failed_notify_update':
+              'Saved, but the update notice could not be sent.',
           'clear': 'Clear',
           'confirm_edit': 'Confirm Edit',
           'confirm_edit_meal': 'Are you sure you want to change @name\'s meal count from @old to @new on @date?',
@@ -907,6 +916,15 @@ class AppTranslations extends Translations {
           'from_date': '@date থেকে',
           'until_date': '@date পর্যন্ত',
           'clear_filters': 'ফিল্টার মুছুন',
+          // নতুন ভার্সন প্রকাশ — SettingsController দেখুন।
+          'update_available_title': 'নতুন আপডেট এসেছে',
+          'update_available_body':
+              '@version সংস্করণ এসেছে। ডাউনলোড করতে ট্যাপ করুন।',
+          'everyone_up_to_date':
+              'সবার কাছেই এই সংস্করণ আছে — কাউকে জানানো হয়নি।',
+          'update_notified': '@count জনকে আপডেটের কথা জানানো হয়েছে',
+          'failed_notify_update':
+              'সংরক্ষণ হয়েছে, তবে আপডেটের বার্তাটি পাঠানো যায়নি।',
           'clear': 'মুছুন',
           'confirm_edit': 'সম্পাদনা নিশ্চিত করুন',
           'confirm_edit_meal': 'আপনি কি নিশ্চিত যে আপনি @date তারিখে @name এর মিল সংখ্যা @old থেকে পরিবর্তন করে @new করতে চান?',

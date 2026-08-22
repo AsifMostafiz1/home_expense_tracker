@@ -54,6 +54,31 @@ class SettingsRepositoryImpl implements SettingsRepository {
   }
 
   @override
+  Future<List<String>> fetchPhonesBehind(double version) async {
+    if (version <= 0) return const [];
+
+    // Read whole, filtered here: "behind" is a comparison against a field
+    // that may be a number, a string, or missing altogether, and Firestore
+    // cannot ask that question. A house is a handful of documents.
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await FirebaseFirestore
+        .instance
+        .collection(AppConstant.collectionUsers)
+        .get();
+
+    final List<String> phones = [];
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+        in snapshot.docs) {
+      final Map<String, dynamic> data = doc.data();
+      if (data['removed'] == true) continue;
+
+      final double installed =
+          AppConfigModel.versionOf(data[AppConstant.fieldAppVersion]);
+      if (installed < version) phones.add(doc.id);
+    }
+    return phones;
+  }
+
+  @override
   Future<void> saveAppConfig(Map<String, dynamic> data,
       {String by = ''}) async {
     // Merged: the document is shared with anything else the app may keep in

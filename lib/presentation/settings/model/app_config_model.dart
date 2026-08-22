@@ -19,7 +19,16 @@ class AppConfigModel {
     this.updatedAt,
   });
 
-  double get versionValue => double.tryParse(appVersion.trim()) ?? 0;
+  double get versionValue => versionOf(appVersion);
+
+  /// A version number out of whatever it was stored as. The config document
+  /// keeps a string, a device stamps a number on its own record, and an
+  /// account that has never stamped one has nothing at all — which counts as
+  /// behind every published version.
+  static double versionOf(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse((value ?? '').toString().trim()) ?? 0;
+  }
 
   bool get isEmpty => appVersion.isEmpty && downloadLink.isEmpty;
 

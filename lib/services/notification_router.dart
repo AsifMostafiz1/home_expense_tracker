@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../common/binding/initial_binding.dart';
 import '../presentation/chat/controller/chat_controller.dart';
@@ -43,7 +44,11 @@ enum NotificationDestination {
 
   /// The account is gone. Nothing to open: back through the splash, which
   /// re-reads the record and ends the session with a reason.
-  signedOut(tab: -1);
+  signedOut(tab: -1),
+
+  /// A new build to install. Nothing inside the app answers this — the tap
+  /// goes to wherever the build is hosted.
+  appUpdate(tab: -1);
 
   const NotificationDestination({required this.tab});
 
@@ -104,6 +109,8 @@ class NotificationRouter {
         return NotificationDestination.profile;
       case 'account_removed':
         return NotificationDestination.signedOut;
+      case 'app_update':
+        return NotificationDestination.appUpdate;
       default:
         return NotificationDestination.meals;
     }
@@ -167,6 +174,14 @@ class NotificationRouter {
       return;
     }
 
+    // Straight to the download rather than into the app: the whole point of
+    // the notice is the file, and the splash gate is what decides whether
+    // this build may still be used in the meantime.
+    if (destination == NotificationDestination.appUpdate) {
+      await _openDownloadLink(data);
+      return;
+    }
+
     // Nothing opens for somebody who is not signed in — the notification
     // outlived the session it belonged to.
     final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -206,7 +221,26 @@ class NotificationRouter {
       case NotificationDestination.expenses:
       case NotificationDestination.profile:
       case NotificationDestination.signedOut:
+      case NotificationDestination.appUpdate:
         break;
+    }
+  }
+
+  /// Opens wherever the new build is hosted, in the browser.
+  ///
+  /// A notice with no link — or one saved wrong — leaves the app where it
+  /// was rather than throwing the reader out of it; the update screen the
+  /// next launch raises carries the same link and can be retried there.
+  Future<void> _openDownloadLink(Map<String, dynamic> data) async {
+    final String link = (data['downloadLink'] ?? '').toString().trim();
+    final Uri? uri = link.isEmpty ? null : Uri.tryParse(link);
+    if (uri == null || !uri.isAbsolute) return;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return;
+
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('NotificationRouter: could not open $link — $e');
     }
   }
 

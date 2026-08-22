@@ -30,6 +30,16 @@ Future<void> _showNotificationIfAppropriate(RemoteMessage message) async {
     return;
   }
 
+  // A new-version notice is only for a device that does not have it yet.
+  // The admin's device works out who to send it to from what each device
+  // last recorded at launch, which is one launch out of date the moment
+  // somebody installs the update — so the build itself has the last word.
+  if (data['type'] == 'app_update') {
+    final double published =
+        double.tryParse((data['version'] ?? '').toString().trim()) ?? 0;
+    if (published <= AppConstant.appVersion) return;
+  }
+
   String displayTitle = title;
 
   // Format currentUserName for mention checking (e.g. "Mohammad Mostafa" -> "MohammadMostafa")
@@ -238,6 +248,12 @@ class PushNotificationService {
     /// Public URL of a picture to show inside the notification — a chat photo
     /// is worth seeing from the shade.
     String? imageUrl,
+
+    /// Send the payload without a `notification` block, so the receiving
+    /// device decides whether to raise it at all rather than the system tray
+    /// showing it on arrival. What the new-version notice needs: only a
+    /// device that is actually behind should see one.
+    bool dataOnly = false,
   }) async {
     try {
       final String accessToken = await FcmV1Service().getAccessToken();
@@ -274,11 +290,12 @@ class PushNotificationService {
         final payload = {
           'message': {
             'topic': topic,
-            'notification': {
-              'title': title,
-              'body': body,
-              if (imageUrl != null) 'image': imageUrl,
-            },
+            if (!dataOnly)
+              'notification': {
+                'title': title,
+                'body': body,
+                if (imageUrl != null) 'image': imageUrl,
+              },
             'data': {
               'title': title,
               'body': body,
@@ -288,10 +305,11 @@ class PushNotificationService {
             },
             'android': {
               'priority': 'high',
-              'notification': {
-                'channel_id': 'high_importance_channel',
-                if (imageUrl != null) 'image': imageUrl,
-              }
+              if (!dataOnly)
+                'notification': {
+                  'channel_id': 'high_importance_channel',
+                  if (imageUrl != null) 'image': imageUrl,
+                },
             },
             'apns': {
               'payload': {

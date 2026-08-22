@@ -94,6 +94,10 @@ class AppConstant {
   static const String collectionPersonalDebts = 'personal_debts';
   
   static const double appVersion = 1.0;
+
+  /// Where each device records the build it is running, on the member's own
+  /// record — what tells an admin who a new-version notice is for.
+  static const String fieldAppVersion = 'app_version';
   static const String docBusinessConfig = 'business_config';
 
   /// The group chat's own identity — its name and its picture, set by an

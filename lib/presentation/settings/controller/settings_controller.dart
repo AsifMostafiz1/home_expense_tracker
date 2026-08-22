@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../common/widgets/custom_snackbar.dart';
+import '../../../services/push_notification_service.dart';
+import '../../../services/push_outbox_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../model/app_config_model.dart';
@@ -25,6 +27,7 @@ class SettingsController extends GetxController implements GetxService {
 
   bool isAdminUser = false;
   String userName = '';
+  String userPhone = '';
 
   AppConfigModel? config;
 
@@ -61,6 +64,7 @@ class SettingsController extends GetxController implements GetxService {
   Future<void> _loadSession() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     userName = prefs.getString(AppConstant.keyUserName) ?? '';
+    userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
     isAdminUser = prefs.getString(AppConstant.keyIsAdmin) == '1';
     update();
   }
@@ -173,11 +177,19 @@ class SettingsController extends GetxController implements GetxService {
         updatedBy: userName,
       );
 
+      // Read before the save overwrites it: whether this publishes something
+      // new to download is the difference between the two.
+      final double previous = config?.versionValue ?? 0;
+
       await repository.saveAppConfig(next.toMap(), by: userName);
       await load(background: true);
 
       CustomSnackbar.show(
           type: SnackbarType.success, message: 'config_saved'.tr);
+
+      if (next.versionValue > previous) {
+        await _notifyMembersBehind(next);
+      }
       return true;
     } catch (e) {
       debugPrint('Error saving app config: $e');
@@ -187,6 +199,70 @@ class SettingsController extends GetxController implements GetxService {
     } finally {
       isSaving = false;
       update();
+    }
+  }
+
+  /// Tells the members who have to install the new build — and only them.
+  ///
+  /// Who is behind comes from what each device stamped on its own record at
+  /// its last launch, so somebody already running this version is not asked
+  /// to install it again. That stamp is one launch out of date the moment
+  /// somebody updates, so the notice carries the version with it and a device
+  /// that turns out to be current drops it on arrival rather than showing it
+  /// — see `PushNotificationService`.
+  ///
+  /// Only a version that went *up* gets here: correcting the download link,
+  /// or fixing a typo in the number, is not a release.
+  Future<void> _notifyMembersBehind(AppConfigModel next) async {
+    try {
+      final List<String> phones =
+          await repository.fetchPhonesBehind(next.versionValue);
+      // This device is publishing it; whether it is behind is between the
+      // admin and the splash screen.
+      phones.remove(userPhone);
+
+      if (phones.isEmpty) {
+        CustomSnackbar.show(
+            type: SnackbarType.info, message: 'everyone_up_to_date'.tr);
+        return;
+      }
+
+      final Map<String, String> payload = {
+        'type': 'app_update',
+        'version': next.appVersion,
+        'downloadLink': next.downloadLink,
+        'senderName': userName,
+        'senderPhone': userPhone,
+      };
+
+      if (Get.isRegistered<PushOutboxService>()) {
+        // Through the outbox: publishing a version while the admin's own
+        // connection is down must still reach people once it is back.
+        await Get.find<PushOutboxService>().send(
+          title: 'update_available_title'.tr,
+          body: 'update_available_body'.trParams({'version': next.appVersion}),
+          targetPhones: phones,
+          data: payload,
+          dataOnly: true,
+        );
+      } else {
+        await PushNotificationService().sendPushNotification(
+          title: 'update_available_title'.tr,
+          body: 'update_available_body'.trParams({'version': next.appVersion}),
+          targetPhones: phones,
+          data: payload,
+          dataOnly: true,
+        );
+      }
+
+      CustomSnackbar.show(
+        type: SnackbarType.success,
+        message: 'update_notified'.trParams({'count': '${phones.length}'}),
+      );
+    } catch (e) {
+      debugPrint('Config: update notice failed — $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_notify_update'.tr);
     }
   }
 }

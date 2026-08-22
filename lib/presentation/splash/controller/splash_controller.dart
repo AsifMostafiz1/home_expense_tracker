@@ -111,6 +111,7 @@ class SplashController extends GetxController {
         return;
       }
       await _syncSession(prefs, account);
+      _stampInstalledVersion(prefs, account);
     }
 
     Get.offAll(() => const DashboardScreen());
@@ -159,6 +160,36 @@ class SplashController extends GetxController {
     if (name.isNotEmpty) {
       await prefs.setString(AppConstant.keyUserName, name);
     }
+  }
+
+  /// Records which build this device is on, against the member's own record.
+  ///
+  /// Nothing here reads it — an admin publishing a new version does, to work
+  /// out who still has to install it and leave everybody else alone. Written
+  /// only when it changed, never awaited, and a failure costs nothing: the
+  /// next launch writes it again.
+  void _stampInstalledVersion(
+    SharedPreferences prefs,
+    Map<String, dynamic> account,
+  ) {
+    final String phone = prefs.getString(AppConstant.keyUserPhone) ?? '';
+    if (phone.isEmpty) return;
+
+    final double recorded =
+        AppConfigModel.versionOf(account[AppConstant.fieldAppVersion]);
+    if (recorded == AppConstant.appVersion) return;
+
+    unawaited(
+      FirebaseFirestore.instance
+          .collection(AppConstant.collectionUsers)
+          .doc(phone)
+          .set({
+            AppConstant.fieldAppVersion: AppConstant.appVersion,
+            'app_version_at': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .catchError(
+              (Object e) => debugPrint('Splash: version stamp failed — $e')),
+    );
   }
 
   Future<void> _clearSession(SharedPreferences prefs) async {

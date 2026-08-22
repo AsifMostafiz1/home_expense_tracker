@@ -18,6 +18,10 @@ class PendingPush {
   final Map<String, String> data;
   final String? imageUrl;
 
+  /// Sent without a `notification` block, leaving the receiving device to
+  /// decide whether to raise it — see `PushNotificationService`.
+  final bool dataOnly;
+
   /// How many times sending has been tried and failed. Past a limit the
   /// notification is dropped: a message nobody could deliver five times is a
   /// broken message, not a slow network, and it must not jam the queue.
@@ -29,6 +33,7 @@ class PendingPush {
     this.targetPhones,
     this.data = const {},
     this.imageUrl,
+    this.dataOnly = false,
     this.attempts = 0,
   });
 
@@ -38,6 +43,7 @@ class PendingPush {
         'targetPhones': targetPhones,
         'data': data,
         'imageUrl': imageUrl,
+        'dataOnly': dataOnly,
         'attempts': attempts,
       };
 
@@ -48,6 +54,7 @@ class PendingPush {
         data: Map<String, String>.from(
             (json['data'] as Map?) ?? const <String, String>{}),
         imageUrl: json['imageUrl'] as String?,
+        dataOnly: json['dataOnly'] == true,
         attempts: (json['attempts'] as num?)?.toInt() ?? 0,
       );
 }
@@ -133,6 +140,7 @@ class PushOutboxService extends GetxController implements GetxService {
     List<String>? targetPhones,
     Map<String, String> data = const {},
     String? imageUrl,
+    bool dataOnly = false,
   }) async {
     final PendingPush push = PendingPush(
       title: title,
@@ -140,6 +148,7 @@ class PushOutboxService extends GetxController implements GetxService {
       targetPhones: targetPhones,
       data: data,
       imageUrl: imageUrl,
+      dataOnly: dataOnly,
     );
 
     if (_worthTrying) {
@@ -162,6 +171,7 @@ class PushOutboxService extends GetxController implements GetxService {
         targetPhones: push.targetPhones,
         data: push.data,
         imageUrl: push.imageUrl,
+        dataOnly: push.dataOnly,
       );
       if (!sent) push.attempts++;
       return sent;
