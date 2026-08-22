@@ -52,6 +52,10 @@ class OutgoingMessage {
   /// this lands. Null for the group.
   final String? peerPhone;
 
+  /// What tapping the delivered message opens — see `ChatMessageModel.action`.
+  /// Null for anything somebody typed.
+  final String? action;
+
   /// The outbox's own copy of the picture, when there is one. Null for text.
   final String? imagePath;
   final double? imageWidth;
@@ -90,6 +94,7 @@ class OutgoingMessage {
     required this.text,
     this.conversationId,
     this.peerPhone,
+    this.action,
     this.imagePath,
     this.imageWidth,
     this.imageHeight,
@@ -144,6 +149,7 @@ class OutgoingMessage {
         'text': text,
         'conversationId': conversationId,
         'peerPhone': peerPhone,
+        'action': action,
         'imagePath': imagePath,
         'imageWidth': imageWidth,
         'imageHeight': imageHeight,
@@ -169,6 +175,7 @@ class OutgoingMessage {
       text: (json['text'] ?? '') as String,
       conversationId: json['conversationId'] as String?,
       peerPhone: json['peerPhone'] as String?,
+      action: json['action'] as String?,
       imagePath: json['imagePath'] as String?,
       imageWidth: (json['imageWidth'] as num?)?.toDouble(),
       imageHeight: (json['imageHeight'] as num?)?.toDouble(),

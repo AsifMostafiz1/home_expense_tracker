@@ -6,6 +6,9 @@ import 'package:demo_project/presentation/personal/model/personal_summary.dart';
 import 'package:demo_project/presentation/personal/model/personal_transaction.dart';
 import 'package:demo_project/presentation/personal/view/personal_finance_screen.dart';
 import 'package:demo_project/presentation/personal/view/person_ledger_screen.dart';
+import 'package:demo_project/presentation/chat/model/chat_message_model.dart';
+import 'package:demo_project/presentation/monthly_stats/model/month_cost_summary.dart';
+import 'package:demo_project/presentation/monthly_stats/model/month_summary_message.dart';
 
 PersonalTransaction _tx(String date, double amount, {bool income = false}) =>
     PersonalTransaction(
@@ -217,5 +220,141 @@ void main() {
   test('screens are constructible', () {
     expect(const PersonalFinanceScreen(), isNotNull);
     expect(const PersonLedgerScreen(personKey: 'rakib'), isNotNull);
+  });
+
+  group('a month shared as a chat message', () {
+    const owes = MemberCostSummary(
+      phone: '01711',
+      name: 'Rakib',
+      isMe: false,
+      inBills: true,
+      rent: 3000,
+      sharedBills: 500,
+      mealCount: 28,
+      mealCost: 1470,
+      otherCost: 320,
+      mealPaid: 1040,
+      otherPaid: 0,
+    );
+
+    // More paid in than charged — the house owes this one.
+    const isOwed = MemberCostSummary(
+      phone: '01822',
+      name: 'Shetu',
+      isMe: false,
+      inBills: true,
+      rent: 1000,
+      sharedBills: 0,
+      mealCount: 10,
+      mealCost: 500,
+      otherCost: 100,
+      mealPaid: 2400,
+      otherPaid: 0,
+    );
+
+    const alreadyPaid = MemberCostSummary(
+      phone: '01933',
+      name: 'Mostafiz',
+      isMe: true,
+      inBills: true,
+      rent: 3000,
+      sharedBills: 500,
+      mealCount: 20,
+      mealCost: 1000,
+      otherCost: 320,
+      mealPaid: 0,
+      otherPaid: 0,
+      settled: true,
+      settledAmount: 4820,
+    );
+
+    final summary = MonthCostSummary(
+      month: DateTime(2026, 8),
+      mealMonth: DateTime(2026, 7),
+      bill: null,
+      mealRate: 52.5,
+      otherRate: 320,
+      totalMeals: 234,
+      members: const [owes, isOwed, alreadyPaid],
+    );
+
+    test('the house message names everyone and nobody twice', () {
+      final text = MonthSummaryMessage.forHouse(summary);
+
+      for (final name in ['Rakib', 'Shetu', 'Mostafiz']) {
+        expect(text, contains(name),
+            reason: '$name is missing from the group message');
+        expect(RegExp(name).allMatches(text).length, 1);
+      }
+      expect(text, contains('2026'));
+    });
+
+    test('the message is names and amounts, and nothing else', () {
+      final text = MonthSummaryMessage.forHouse(summary);
+
+      // The rates, the house total and who has paid up all live on the
+      // ledger. Repeating them here is what made a wall of text.
+      expect(text, isNot(contains('234')), reason: 'total meals leaked in');
+      expect(text, isNot(contains('52.5')), reason: 'the meal rate leaked in');
+      expect(text, isNot(contains('320')), reason: 'the other rate leaked in');
+      expect(text, isNot(contains('✅')));
+
+      // Three members, one line each, under a heading and a blank line.
+      expect(text.split('\n').where((l) => l.startsWith('•')).length, 3);
+    });
+
+    test("a member's message carries their figure and nobody else's", () {
+      final text = MonthSummaryMessage.forMember(summary, owes);
+
+      expect(text, isNot(contains('Shetu')));
+      expect(text, isNot(contains('Mostafiz')));
+      // 3000 + 500 + 1470 + 320 = 5290 charged, 1040 paid, 4250 owed. Only
+      // the last of those belongs in the message.
+      expect(text, contains('4,250'));
+      expect(text, isNot(contains('5,290')));
+      expect(text, isNot(contains('1,040')));
+    });
+
+    test('somebody the house owes is not asked for money', () {
+      expect(isOwed.willGet, isTrue);
+      final text = MonthSummaryMessage.forMember(summary, isOwed);
+      // 1000 + 500 + 100 = 1600 charged against 2400 paid.
+      expect(text, contains('800'));
+      // Never as a negative figure — the sign is carried by the words.
+      expect(text, isNot(contains('-800')));
+      expect(text, isNot(contains('\u2212800')));
+    });
+
+    test('a message the app composed says what tapping it opens', () {
+      // The footer and the navigation both hang off this, so a shared
+      // summary that carried no action would be a dead end.
+      const shared = ChatMessageModel.actionMonthlySummary;
+      expect(shared, isNotEmpty);
+
+      final tappable = ChatMessageModel(
+        id: 'm1',
+        text: MonthSummaryMessage.forHouse(summary),
+        senderName: 'Mostafiz',
+        senderPhone: '01933',
+        createdAt: DateTime(2026, 8, 31),
+        action: shared,
+      );
+      expect(tappable.hasAction, isTrue);
+      expect(tappable.toMap()['action'], shared);
+
+      // A round trip through Firestore keeps it.
+      expect(
+        ChatMessageModel.fromMap('m1', {'action': shared}).action,
+        shared,
+      );
+
+      // And an ordinary typed message carries none, so its bubble keeps the
+      // clock its tap has always shown.
+      expect(ChatMessageModel.fromMap('m2', const {}).hasAction, isFalse);
+      expect(
+        ChatMessageModel.fromMap('m3', const {'action': ''}).hasAction,
+        isFalse,
+      );
+    });
   });
 }

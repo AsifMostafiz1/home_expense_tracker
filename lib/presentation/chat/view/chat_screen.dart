@@ -17,6 +17,8 @@ import '../controller/chat_list_controller.dart';
 import '../model/chat_message_model.dart';
 import '../model/chat_thread_model.dart';
 import '../model/outgoing_image_model.dart';
+import '../../monthly_stats/controller/monthly_stats_controller.dart';
+import '../../monthly_stats/view/monthly_stats_screen.dart';
 import '../widgets/chat_presence.dart';
 import '../widgets/group_avatar.dart';
 import '../widgets/group_settings_sheet.dart';
@@ -841,7 +843,13 @@ class _MessageBubble extends StatelessWidget {
                                         HapticFeedback.mediumImpact();
                                         _showReactionPicker(context, controller, message, _layerLink, isMe);
                                       },
-                                onTap: () => controller.toggleTimeDisplay(message.id),
+                                // A message the app composed goes where it
+                                // came from; anything somebody typed shows
+                                // its clock instead.
+                                onTap: message.hasAction && !message.deleted
+                                    ? () => _openAction(context)
+                                    : () =>
+                                        controller.toggleTimeDisplay(message.id),
                                 child: Container(
                                   // A picture sits tight against the bubble
                                   // edge; only text needs the roomy padding.
@@ -899,6 +907,8 @@ class _MessageBubble extends StatelessWidget {
                                             ),
                                           ),
                                         ),
+                                      if (message.hasAction && !message.deleted)
+                                        _buildActionFooter(context),
                                       if (message.isEdited) _buildEditedMark(context),
                                       if (isMe && message.isPending)
                                         _buildPendingMark(context),
@@ -947,6 +957,61 @@ class _MessageBubble extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// `Tap to see details` under a message the app composed.
+  ///
+  /// Rendered from the message's action rather than written into its words,
+  /// so the line and the behaviour cannot disagree — and so it arrives in
+  /// each reader's own language rather than the sender's.
+  Widget _buildActionFooter(BuildContext context) {
+    final Color color = isMe
+        ? Colors.white.withOpacity(0.9)
+        : Theme.of(context).colorScheme.primary;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 8,
+        left: message.hasImage ? 8 : 0,
+        right: message.hasImage ? 8 : 0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Divider(height: 1, thickness: 1, color: color.withOpacity(0.25)),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.insights_rounded, size: 13, color: color),
+              const SizedBox(width: 6),
+              Text(
+                'tap_to_see_details'.tr,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Opens whatever the message points at. An action this build does not know
+  /// — one added by a newer version — leaves the words on screen and does
+  /// nothing, which is the only safe answer.
+  void _openAction(BuildContext context) {
+    if (message.action != ChatMessageModel.actionMonthlySummary) return;
+    // The months there each carry a figure; the launch only worked out this
+    // one — see MonthlyStatsController.ensureHistory.
+    if (Get.isRegistered<MonthlyStatsController>()) {
+      Get.find<MonthlyStatsController>().ensureHistory();
+    }
+    Get.to(() => const MonthlyStatsScreen());
   }
 
   /// A small clock under the words while the message is on this device only

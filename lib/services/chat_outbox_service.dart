@@ -126,6 +126,7 @@ class ChatOutboxService extends GetxController implements GetxService {
     required String text,
     String? conversationId,
     String? peerPhone,
+    String? action,
     File? image,
     double? imageWidth,
     double? imageHeight,
@@ -157,6 +158,7 @@ class ChatOutboxService extends GetxController implements GetxService {
       text: text,
       conversationId: conversationId,
       peerPhone: peerPhone,
+      action: action,
       imagePath: storedPath,
       imageWidth: imageWidth,
       imageHeight: imageHeight,
@@ -286,6 +288,7 @@ class ChatOutboxService extends GetxController implements GetxService {
         imageHeight: item.imageHeight,
         conversationId: item.conversationId,
         peerPhone: item.peerPhone,
+        action: item.action,
       );
     } catch (e) {
       // The write did not take. Put the message back where it was so nothing

@@ -97,6 +97,7 @@ class ChatRepositoryImpl implements ChatRepository {
     double? imageHeight,
     String? conversationId,
     String? peerPhone,
+    String? action,
   }) async {
     final message = ChatMessageModel(
       id: '', // Firestore will auto-generate
@@ -115,6 +116,7 @@ class ChatRepositoryImpl implements ChatRepository {
       imageUrl: imageUrl,
       imageWidth: imageWidth,
       imageHeight: imageHeight,
+      action: action,
     );
 
     if (conversationId == null) {

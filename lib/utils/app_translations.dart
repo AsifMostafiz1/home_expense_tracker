@@ -70,6 +70,10 @@ class AppTranslations extends Translations {
           'update': 'Update',
           'delete': 'Delete',
           'cancel': 'Cancel',
+          'exit_app': 'Close the app?',
+          'exit_app_message':
+              'You are on the home screen. Pressing back again closes Meal Tracker.',
+          'exit': 'Close',
           'delete_expense': 'Delete Expense',
           'confirm_delete': 'Are you sure you want to delete this item?',
           'current_month': 'Current Month',
@@ -704,6 +708,16 @@ class AppTranslations extends Translations {
           'message_not_loaded':
               'That message is too far back to jump to. Scroll up to load it.',
           'message': 'Message',
+
+          // Sharing a month's figures into the chat.
+          'share_as_message': 'Share as a message',
+          'send_summary_to': 'Send this summary to',
+          'send_to_group_hint': "Everyone's figures, in the group chat",
+          'send_to_personal': 'Or one person',
+          'summary_sent_to_group': 'Summary sent to the group chat',
+          'summary_sent_to': 'Summary sent to @name',
+          'failed_send_summary': 'Could not send that summary',
+          'tap_to_see_details': 'Tap to see details',
         },
         'bn_BD': {
           'app_name': 'মিল ট্র্যাকার',
@@ -772,6 +786,10 @@ class AppTranslations extends Translations {
           'update': 'আপডেট',
           'delete': 'মুছে ফেলুন',
           'cancel': 'বাতিল',
+          'exit_app': 'অ্যাপ বন্ধ করবেন?',
+          'exit_app_message':
+              'আপনি হোম স্ক্রিনে আছেন। আবার ব্যাক চাপলে মিল ট্র্যাকার বন্ধ হয়ে যাবে।',
+          'exit': 'বন্ধ করুন',
           'delete_expense': 'খরচ মুছে ফেলুন',
           'confirm_delete': 'আপনি কি নিশ্চিত যে আপনি এই আইটেমটি মুছে ফেলতে চান?',
           'current_month': 'বর্তমান মাস',
@@ -1402,6 +1420,16 @@ class AppTranslations extends Translations {
           'message_not_loaded':
               'বার্তাটি অনেক আগের, সরাসরি যাওয়া যাচ্ছে না। উপরে স্ক্রল করে লোড করুন।',
           'message': 'বার্তা',
+
+          // Sharing a month's figures into the chat.
+          'share_as_message': 'মেসেজ হিসেবে পাঠান',
+          'send_summary_to': 'হিসাবটি পাঠান',
+          'send_to_group_hint': 'সবার হিসাব, গ্রুপ চ্যাটে',
+          'send_to_personal': 'অথবা একজনকে',
+          'summary_sent_to_group': 'গ্রুপ চ্যাটে হিসাব পাঠানো হয়েছে',
+          'summary_sent_to': '@name কে হিসাব পাঠানো হয়েছে',
+          'failed_send_summary': 'হিসাবটি পাঠানো যায়নি',
+          'tap_to_see_details': 'বিস্তারিত দেখতে ট্যাপ করুন',
         },
       };
 }

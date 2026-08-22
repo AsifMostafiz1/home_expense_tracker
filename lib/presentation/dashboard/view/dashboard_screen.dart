@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../common/widgets/confirm_dialog.dart';
 import '../../meal/view/meal_screen.dart';
 import '../../expense/view/expense_screen.dart';
 import '../../chat/view/chat_list_screen.dart';
@@ -105,6 +107,31 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   void _onItemTapped(int index) => _selectTab(index);
 
+  /// The home screen is the last route on the stack, so the system back
+  /// gesture would drop the app straight to the launcher. Held, and answered
+  /// here instead: away from the meal tab, back means "back to the meal
+  /// tab" — the tabs are not a stack, so the first one stands in for the way
+  /// out — and on the meal tab it asks before the app goes anywhere.
+  void _handleBack(bool didPop, Object? result) {
+    if (didPop || !mounted) return;
+
+    if (_selectedIndex != 0) {
+      _selectTab(0);
+      return;
+    }
+
+    // A held back button fires more than once; without this the second press
+    // stacks a duplicate dialog behind the first.
+    if (Get.isDialogOpen ?? false) return;
+
+    showConfirmDialog(
+      title: 'exit_app'.tr,
+      message: 'exit_app_message'.tr,
+      confirmText: 'exit'.tr,
+      onConfirm: () => SystemNavigator.pop(),
+    );
+  }
+
 
   Widget _buildNavItem(IconData icon, String label, int index, {int badgeCount = 0}) {
     bool isSelected = _selectedIndex == index;
@@ -187,6 +214,14 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleBack,
+      child: _buildHome(context),
+    );
+  }
+
+  Widget _buildHome(BuildContext context) {
     return Scaffold(
       // Above every tab's app bar, in the place the offline strip uses.
       body: DueBanner(child: _screens[_selectedIndex]),

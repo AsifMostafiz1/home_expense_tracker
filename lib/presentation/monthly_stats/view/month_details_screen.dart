@@ -10,6 +10,7 @@ import '../model/month_cost_summary.dart';
 import '../widgets/member_cost_ledger.dart';
 import '../widgets/my_month_card.dart';
 import '../widgets/monthly_stats_skeletons.dart';
+import '../widgets/share_summary_sheet.dart';
 import 'monthly_bill_screen.dart';
 
 /// Stable per-member accent, matching the members and bill screens.
@@ -42,14 +43,10 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
           appBar: CustomAppBar(
             title: AppUi.monthLabel(c.month),
             actions: [
-              // The one way into the bill form for a month that already
-              // exists — and only for someone who may change it.
-              if (c.isAdminUser)
-                IconButton(
-                  tooltip: 'edit_bills'.tr,
-                  icon: const Icon(Icons.edit_outlined, size: 21),
-                  onPressed: () => _openBillForm(c),
-                ),
+              // Everything an admin can do to a month that already exists.
+              // Both entries are theirs alone, so a member gets no menu at
+              // all rather than an empty one.
+              if (c.isAdminUser) _buildMenu(context, c),
               const SizedBox(width: 4),
             ],
           ),
@@ -105,6 +102,47 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
         );
       },
     );
+  }
+
+  Widget _buildMenu(BuildContext context, MonthDetailsController c) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert_rounded, size: 22),
+      tooltip: 'options'.tr,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      onSelected: (value) {
+        if (value == 'edit') _openBillForm(c);
+        if (value == 'share') _share(context, c);
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 19, color: AppUi.muted(context)),
+              const SizedBox(width: 12),
+              Text('edit_bills'.tr),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'share',
+          child: Row(
+            children: [
+              Icon(Icons.forum_outlined, size: 19, color: AppUi.muted(context)),
+              const SizedBox(width: 12),
+              Text('share_as_message'.tr),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Nothing to share until the figures are worked out.
+  void _share(BuildContext context, MonthDetailsController c) {
+    final MonthCostSummary? summary = c.summary;
+    if (summary == null) return;
+    showShareSummarySheet(context, summary);
   }
 
   Future<void> _openBillForm(MonthDetailsController c) async {

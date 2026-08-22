@@ -37,6 +37,20 @@ class ChatMessageModel {
   final DateTime? editedAt;
   final String? editedByPhone;
 
+  /// What tapping this message opens, when it is more than words.
+  ///
+  /// Null for anything somebody typed. A message the app composed on their
+  /// behalf — the month ledger shared into the chat — carries the screen it
+  /// came from, so the bubble can offer a way back to it instead of the
+  /// reader having to go looking.
+  ///
+  /// A plain key rather than a route: what a build does with it is that
+  /// build's business, and an older one simply shows the words.
+  final String? action;
+
+  /// The month ledger, shared as a message. See [action].
+  static const String actionMonthlySummary = 'monthly_summary';
+
   final Map<String, String>? reactions;
 
   /// True while this message — or an edit, a reaction, a delete on it — is
@@ -62,9 +76,12 @@ class ChatMessageModel {
     this.deletedByAdmin = false,
     this.editedAt,
     this.editedByPhone,
+    this.action,
     this.reactions,
     this.isPending = false,
   });
+
+  bool get hasAction => action != null && action!.isNotEmpty;
 
   bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
 
@@ -114,6 +131,9 @@ class ChatMessageModel {
       deletedByAdmin: map['deleted_by_admin'] == true,
       editedAt: (map['edited_at'] as Timestamp?)?.toDate(),
       editedByPhone: map['edited_by'],
+      action: (map['action'] ?? '').toString().isEmpty
+          ? null
+          : map['action'].toString(),
       reactions: map['reactions'] != null ? Map<String, String>.from(map['reactions']) : null,
       isPending: isPending,
     );
@@ -133,6 +153,7 @@ class ChatMessageModel {
       if (imageUrl != null) 'image_url': imageUrl,
       if (imageWidth != null) 'image_width': imageWidth,
       if (imageHeight != null) 'image_height': imageHeight,
+      if (action != null) 'action': action,
       if (reactions != null) 'reactions': reactions,
     };
   }

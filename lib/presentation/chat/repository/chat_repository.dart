@@ -22,6 +22,9 @@ abstract class ChatRepository {
     double? imageHeight,
     String? conversationId,
     String? peerPhone,
+
+    /// What tapping the message opens — see `ChatMessageModel.action`.
+    String? action,
   });
 
   /// Rewrites the text of an existing message, stamping who changed it.
