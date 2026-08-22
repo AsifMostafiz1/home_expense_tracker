@@ -304,34 +304,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ? 'member_count'.trParams({'count': '${list.memberCount}'})
             : 'house_group_subtitle'.tr);
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (online) ...[
-          Container(
-            width: 7,
-            height: 7,
-            decoration: const BoxDecoration(
-              color: Color(0xFF22C55E),
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 5),
-        ],
-        Flexible(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: online ? FontWeight.w600 : FontWeight.w400,
-              color: online ? const Color(0xFF16A34A) : AppUi.muted(context),
-            ),
-          ),
-        ),
-      ],
-    );
+    return PresenceLine(label: label, online: online, fontSize: 12);
   }
 
   Widget _peerAvatar(BuildContext context, ChatThread thread) {
@@ -1187,7 +1160,12 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildSeenAvatars(BuildContext context) {
-    final seenBy = controller.messageSeenBy[message.id] ?? [];
+    // The writer of a message is never one of the people who "saw" it — their
+    // own send marks it read on their device, which would otherwise put their
+    // face in the row under their own bubble.
+    final seenBy = (controller.messageSeenBy[message.id] ?? [])
+        .where((status) => status['userPhone']?.toString() != message.senderPhone)
+        .toList();
     if (seenBy.isEmpty) return const SizedBox.shrink();
 
     return Padding(

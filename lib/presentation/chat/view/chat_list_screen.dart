@@ -437,6 +437,14 @@ class _ChatRow extends StatelessWidget {
                           : AppUi.muted(context),
                     ),
                   ),
+                  const SizedBox(height: 3),
+                  // The same line the chat header carries, so opening a row
+                  // tells you nothing new about whether they are around.
+                  PresenceLine(
+                    label: presenceLabel(entry.user),
+                    online: entry.user.isOnline,
+                    fontSize: 11,
+                  ),
                 ],
               ),
             ),

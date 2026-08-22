@@ -33,6 +33,58 @@ String presenceLabel(ChatUser? user) {
   return 'offline'.tr;
 }
 
+/// The presence line itself — a green dot while somebody is around, the
+/// aged-out wording once they are not. The chat header and every row in the
+/// list draw the same thing, only at different sizes.
+class PresenceLine extends StatelessWidget {
+  /// Usually [presenceLabel] of the person; the group header passes its own
+  /// wording, which is never "online".
+  final String label;
+  final bool online;
+  final double fontSize;
+
+  const PresenceLine({
+    super.key,
+    required this.label,
+    required this.online,
+    this.fontSize = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (online) ...[
+          Container(
+            width: fontSize * 0.58,
+            height: fontSize * 0.58,
+            decoration: const BoxDecoration(
+              color: kOnlineDot,
+              shape: BoxShape.circle,
+            ),
+          ),
+          SizedBox(width: fontSize * 0.42),
+        ],
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: online ? FontWeight.w600 : FontWeight.w400,
+              color: online
+                  ? kOnlineText
+                  : Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// When the last message landed, at the width a list row can spare: the clock
 /// for today, the day name this week, the date beyond that.
 String chatTimeLabel(DateTime? at) {
