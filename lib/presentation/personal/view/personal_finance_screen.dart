@@ -45,6 +45,12 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
 
   bool get _onDues => _tabs.index == 1;
 
+  /// Whether the six-month chart is open. Held here rather than inside the
+  /// chart: the list disposes what scrolls out of it, and a fold that reset
+  /// itself on every scroll would be an annoyance rather than a setting.
+  /// Shut to begin with — the month on screen is what the tab is for.
+  bool _trendOpen = false;
+
   @override
   Widget build(BuildContext context) {
     final Color primary = Theme.of(context).colorScheme.primary;
@@ -113,7 +119,12 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
         const SizedBox(height: 14),
         _buildWalletHero(context, c),
         const SizedBox(height: 14),
-        MoneyTrendChart(months: c.trend, focused: c.selectedMonth),
+        MoneyTrendChart(
+          months: c.trend,
+          focused: c.selectedMonth,
+          expanded: _trendOpen,
+          onToggle: () => setState(() => _trendOpen = !_trendOpen),
+        ),
         if (spending.isNotEmpty) ...[
           const SizedBox(height: 14),
           CategoryBreakdown(

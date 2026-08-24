@@ -215,6 +215,28 @@ void main() {
     expect(find.text(DateFormat('dd MMM, yyyy').format(now)), findsNothing);
   });
 
+  testWidgets('the six-month chart starts folded and opens on a tap',
+      (tester) async {
+    await pumpLedger(tester);
+
+    // Folded: the title and the six-month totals, no chart and no hint.
+    expect(find.text('Last six months'), findsOneWidget);
+    expect(find.text('৳225,000'), findsOneWidget); // income over six months
+    expect(find.text('৳143,888.5'), findsOneWidget); // expense over six months
+    expect(find.text('Tap a month to see its numbers'), findsNothing);
+
+    await tester.tap(find.text('Last six months'));
+    await tester.pumpAndSettle();
+
+    // Open: the chart and its hint, and the totals give way to the legend.
+    expect(find.text('Tap a month to see its numbers'), findsOneWidget);
+    expect(find.text('৳225,000'), findsNothing);
+
+    await tester.tap(find.text('Last six months'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tap a month to see its numbers'), findsNothing);
+  });
+
   testWidgets('a house row is marked and offers no menu', (tester) async {
     await pumpLedger(tester);
 

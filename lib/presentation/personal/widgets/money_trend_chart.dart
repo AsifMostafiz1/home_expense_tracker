@@ -13,6 +13,16 @@ import '../model/personal_summary.dart';
 /// Tapping a month reads it out underneath — bars answer "which month was
 /// heavy", but the actual taka is what anybody asks next, and a chart nobody
 /// can interrogate is decoration.
+///
+/// Folded away to start with. History is the thing you go looking for, not
+/// the thing you came for, and this month's own figures sit right above it —
+/// so the chart earns its 200 pixels only once it is asked for. Folded, it
+/// still answers the six-month totals: a section that collapses to a bare
+/// title is one nobody bothers opening again.
+///
+/// Open or shut is the caller's to hold. This widget is rebuilt and thrown
+/// away as the list scrolls, and a fold that forgot itself every time it left
+/// the screen would be worse than no fold at all.
 class MoneyTrendChart extends StatefulWidget {
   final List<MonthMoney> months;
 
@@ -20,10 +30,15 @@ class MoneyTrendChart extends StatefulWidget {
   /// ones on either side of it while nothing is picked.
   final DateTime focused;
 
+  final bool expanded;
+  final VoidCallback onToggle;
+
   const MoneyTrendChart({
     super.key,
     required this.months,
     required this.focused,
+    required this.expanded,
+    required this.onToggle,
   });
 
   static const Color income = Color(0xFF2E9E6B);
@@ -59,79 +74,177 @@ class _MoneyTrendChartState extends State<MoneyTrendChart> {
     setState(() => _selected = _selected == index ? null : index);
   }
 
+  bool get _empty => widget.months.every((month) => month.isEmpty);
+
+  double get _sixMonthIncome =>
+      widget.months.fold<double>(0, (sum, month) => sum + month.income);
+
+  double get _sixMonthExpense =>
+      widget.months.fold<double>(0, (sum, month) => sum + month.expense);
+
   @override
   Widget build(BuildContext context) {
-    final bool empty = widget.months.every((month) => month.isEmpty);
-    final MonthMoney? picked =
-        _selected == null ? null : widget.months[_selected!];
-
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppUi.hairline(context)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      // The height glides; what is inside is swapped rather than cross-faded,
+      // so a shut card costs nothing to lay out and the chart is only built
+      // once it is actually on screen.
+      clipBehavior: Clip.antiAlias,
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            if (widget.expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
+                child: _buildChart(context),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The whole strip is the target, not just the chevron — a 20-pixel arrow
+  /// is a poor thing to ask a thumb to find.
+  Widget _buildHeader(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: widget.onToggle,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+          child: Row(
             children: [
               Expanded(
-                child: Text(
-                  'last_six_months'.tr,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.bold,
-                    color: AppUi.body(context),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'last_six_months'.tr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                        color: AppUi.body(context),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Shut, this is what the card is for; open, it is the
+                    // chart's legend. Either way it is the same two dots
+                    // against the same two words.
+                    widget.expanded
+                        ? _buildLegend(context)
+                        : _buildFoldedTotals(context),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Tooltip(
+                message: (widget.expanded ? 'hide_chart' : 'show_chart').tr,
+                child: AnimatedRotation(
+                  turns: widget.expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeInOut,
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 22,
+                    color: AppUi.muted(context),
                   ),
                 ),
               ),
-              _legendDot(context, MoneyTrendChart.income, 'income'.tr),
-              const SizedBox(width: 12),
-              _legendDot(context, MoneyTrendChart.expense, 'expense_word'.tr),
             ],
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 148,
-            child: empty
-                ? Center(
-                    child: Text(
-                      'nothing_to_chart'.tr,
-                      style:
-                          TextStyle(fontSize: 12, color: AppUi.muted(context)),
-                    ),
-                  )
-                : LayoutBuilder(
-                    builder: (context, constraints) => GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTapDown: (details) => _handleTap(
-                          details.localPosition, constraints.maxWidth),
-                      child: CustomPaint(
-                        size: Size.infinite,
-                        painter: _TrendPainter(
-                          months: widget.months,
-                          focused: widget.focused,
-                          selected: _selected,
-                          income: MoneyTrendChart.income,
-                          expense: MoneyTrendChart.expense,
-                          grid: AppUi.hairline(context),
-                          label: AppUi.muted(context),
-                          focusedLabel: AppUi.body(context),
-                        ),
+        ),
+      ),
+    );
+  }
+
+  /// What the six months came to, for a card nobody has opened.
+  Widget _buildFoldedTotals(BuildContext context) {
+    if (_empty) {
+      return Text(
+        'nothing_to_chart'.tr,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+      );
+    }
+
+    return Wrap(
+      spacing: 14,
+      runSpacing: 4,
+      children: [
+        _readoutValue(
+            context, 'income'.tr, _sixMonthIncome, MoneyTrendChart.income),
+        _readoutValue(context, 'expense_word'.tr, _sixMonthExpense,
+            MoneyTrendChart.expense),
+      ],
+    );
+  }
+
+  Widget _buildLegend(BuildContext context) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 4,
+      children: [
+        _legendDot(context, MoneyTrendChart.income, 'income'.tr),
+        _legendDot(context, MoneyTrendChart.expense, 'expense_word'.tr),
+      ],
+    );
+  }
+
+  Widget _buildChart(BuildContext context) {
+    final MonthMoney? picked =
+        _selected == null ? null : widget.months[_selected!];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 148,
+          child: _empty
+              ? Center(
+                  child: Text(
+                    'nothing_to_chart'.tr,
+                    style: TextStyle(fontSize: 12, color: AppUi.muted(context)),
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) => GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (details) =>
+                        _handleTap(details.localPosition, constraints.maxWidth),
+                    child: CustomPaint(
+                      size: Size.infinite,
+                      painter: _TrendPainter(
+                        months: widget.months,
+                        focused: widget.focused,
+                        selected: _selected,
+                        income: MoneyTrendChart.income,
+                        expense: MoneyTrendChart.expense,
+                        grid: AppUi.hairline(context),
+                        label: AppUi.muted(context),
+                        focusedLabel: AppUi.body(context),
                       ),
                     ),
                   ),
-          ),
-          if (!empty) ...[
-            const SizedBox(height: 10),
-            picked == null
-                ? _buildHint(context)
-                : _buildReadout(context, picked),
-          ],
+                ),
+        ),
+        if (!_empty) ...[
+          const SizedBox(height: 10),
+          picked == null ? _buildHint(context) : _buildReadout(context, picked),
         ],
-      ),
+      ],
     );
   }
 
@@ -141,9 +254,13 @@ class _MoneyTrendChartState extends State<MoneyTrendChart> {
       children: [
         Icon(Icons.touch_app_outlined, size: 13, color: AppUi.muted(context)),
         const SizedBox(width: 6),
-        Text(
-          'tap_a_month'.tr,
-          style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+        Flexible(
+          child: Text(
+            'tap_a_month'.tr,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+          ),
         ),
       ],
     );
