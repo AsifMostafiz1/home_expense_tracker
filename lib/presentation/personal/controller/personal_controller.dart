@@ -144,9 +144,18 @@ class PersonalController extends GetxController implements GetxService {
 
   /// The current month is as far forward as the ledger goes — money is
   /// recorded after it moves, not before.
+  ///
+  /// One exception: the house expense screen records into next month as well
+  /// as this one, and the copy of such an entry lands here. A month that has
+  /// something in it has to be reachable, or the entry counts towards the
+  /// totals while being impossible to look at.
   bool get canGoForward {
     final DateTime now = DateTime.now();
-    return selectedMonth.isBefore(DateTime(now.year, now.month));
+    if (selectedMonth.isBefore(DateTime(now.year, now.month))) return true;
+
+    final String next = PersonalTransaction.monthKeyOf(
+        DateTime(selectedMonth.year, selectedMonth.month + 1));
+    return transactions.any((entry) => entry.monthKey == next);
   }
 
   List<PersonalTransaction> get monthTransactions {
@@ -219,6 +228,10 @@ class PersonalController extends GetxController implements GetxService {
       await repository.saveTransaction(PersonalTransaction(
         id: existing?.id ?? '',
         ownerPhone: userPhone,
+        // Carried, not dropped: a copy of a house expense stays marked as one
+        // whatever route reaches this. The screen keeps those out of the
+        // editor, and this is what makes a way past it harmless.
+        source: existing?.source ?? '',
         flow: flow,
         amount: amount,
         category: category,

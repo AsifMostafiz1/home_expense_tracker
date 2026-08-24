@@ -45,6 +45,12 @@ class PersonalCategory {
   static List<PersonalCategory> forIncome(bool isIncome) =>
       isIncome ? income : expense;
 
+  /// The bucket a house expense lands in when it is copied into the payer's
+  /// own ledger. The house's `expense` type is the shared groceries, so it is
+  /// food; `others` is the gas, the wifi and the rest, which is not.
+  static String forHouseExpense(String houseType) =>
+      houseType == 'others' ? 'other_expense' : 'food';
+
   /// The category behind a stored key, whichever side it belongs to.
   static PersonalCategory of(String key) {
     for (final PersonalCategory category in expense) {

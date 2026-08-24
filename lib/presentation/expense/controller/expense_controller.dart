@@ -17,6 +17,9 @@ import '../../../services/receipt_outbox_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/app_enums.dart';
 import '../../../utils/supabase_config.dart';
+import '../../personal/model/personal_category.dart';
+import '../../personal/model/personal_transaction.dart';
+import '../../personal/repository/personal_repository.dart';
 import '../model/expense_model.dart';
 import '../repository/expense_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -157,7 +160,10 @@ class ExpenseController extends GetxController implements GetxService {
     amountController.clear();
     descriptionController.clear();
     amountError = null;
-    selectedDate = DateTime.now();
+    // Today while this month is the one on screen, and the 1st while "Next
+    // month" is: an entry started from that tab belongs in that month, and
+    // today's date would file it into a month the tab does not even show.
+    selectedDate = targetMonth;
     selectedTime = TimeOfDay.now();
     selectedType = 'expense';
     memberName = null;
@@ -458,6 +464,15 @@ class ExpenseController extends GetxController implements GetxService {
         await repository.updateExpense(expenseId, data);
       }
 
+      // Money spent for the house is still money that left the payer's own
+      // pocket, so the entry is copied into their ledger as it is written.
+      await _mirrorToPersonal(
+        expenseId: expenseId,
+        ownerPhone: finalUserPhone,
+        description: data['description'] as String,
+        amount: amount,
+      );
+
       if (deferredReceipt != null) {
         await _outbox.enqueue(
           expenseId: expenseId,
@@ -567,6 +582,60 @@ class ExpenseController extends GetxController implements GetxService {
     }
   }
 
+  /// ------------------------------------------------------- personal mirror
+
+  /// Copies a house entry into the ledger of whoever it was paid by.
+  ///
+  /// The copy is filed under the house entry's own id, so an edit here
+  /// rewrites it and a delete here removes it — no lookup, and nothing to
+  /// reconcile when a write is still queued offline. It carries
+  /// `source: house`, which is what keeps the personal screen from letting it
+  /// be edited or deleted from that side: the two would otherwise drift.
+  ///
+  /// This holds for an admin filling the form in for a member too — the copy
+  /// follows the entry's owner, not whoever is typing.
+  ///
+  /// Best effort: the house entry is saved either way, and a copy that did
+  /// not go through is not worth failing the save over. Written before the
+  /// screen refreshes, so it is already in the local store by the time the
+  /// member's own ledger reads it back.
+  Future<void> _mirrorToPersonal({
+    required String expenseId,
+    required String ownerPhone,
+    required String description,
+    required double amount,
+  }) async {
+    if (ownerPhone.isEmpty) return;
+
+    try {
+      await Get.find<PersonalRepository>().saveTransaction(PersonalTransaction(
+        id: expenseId,
+        ownerPhone: ownerPhone,
+        flow: MoneyFlow.expense,
+        amount: amount,
+        category: PersonalCategory.forHouseExpense(selectedType),
+        note: description,
+        date: PersonalTransaction.keyOf(selectedDate),
+        timeHour: selectedTime.hour,
+        timeMinute: selectedTime.minute,
+        source: PersonalTransaction.sourceHouse,
+      ));
+    } catch (e) {
+      debugPrint('Expense: personal copy failed — $e');
+    }
+  }
+
+  /// Takes the copy back out again. A house entry from before this existed
+  /// simply has no copy — deleting a document that is not there is not an
+  /// error in Firestore, so there is nothing to check for first.
+  Future<void> _removePersonalMirror(String expenseId) async {
+    try {
+      await Get.find<PersonalRepository>().deleteTransaction(expenseId);
+    } catch (e) {
+      debugPrint('Expense: personal copy delete failed — $e');
+    }
+  }
+
   /// Records an admin's change to someone else's entry. Queued offline like
   /// every other write; the future is not awaited for the server, since it
   /// would never resolve there.
@@ -598,6 +667,7 @@ class ExpenseController extends GetxController implements GetxService {
       isLoading = true;
       update();
       await repository.deleteExpense(expense.id);
+      await _removePersonalMirror(expense.id);
 
       // The receipt goes with the entry — nothing points at it any more.
       // Whether it was uploaded or still waiting to be.

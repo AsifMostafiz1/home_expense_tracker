@@ -322,6 +322,9 @@ class AppTranslations extends Translations {
           'edit_entry': 'Edit entry',
           'delete_entry': 'Delete entry',
           'confirm_delete_entry': 'This entry will be removed from your ledger.',
+          'from_house_expense': 'HOUSE',
+          'house_entry_locked':
+              'This one came from the house expense — open the House Expense screen to change or remove it.',
           'entry_saved': 'Saved to your ledger',
           'entry_deleted': 'Entry deleted',
           'failed_save_entry': 'Could not save the entry',
@@ -1055,6 +1058,9 @@ class AppTranslations extends Translations {
           'edit_entry': 'হিসাব সম্পাদনা',
           'delete_entry': 'হিসাব মুছুন',
           'confirm_delete_entry': 'এই এন্ট্রিটি আপনার হিসাব থেকে মুছে যাবে।',
+          'from_house_expense': 'বাসা',
+          'house_entry_locked':
+              'এটি বাসার খরচ থেকে এসেছে — বদলাতে বা মুছতে হলে বাসার খরচ স্ক্রিন থেকে করুন।',
           'entry_saved': 'আপনার হিসাবে যোগ হয়েছে',
           'entry_deleted': 'এন্ট্রি মুছে ফেলা হয়েছে',
           'failed_save_entry': 'এন্ট্রিটি সংরক্ষণ করা যায়নি',

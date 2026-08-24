@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
+import '../../../common/widgets/custom_snackbar.dart';
+import '../../../utils/app_enums.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/personal_controller.dart';
 import '../model/debt_entry.dart';
@@ -430,12 +432,19 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   ) {
     final PersonalCategory category = PersonalCategory.of(entry.category);
     final MaterialColor tone = entry.isIncome ? Colors.green : Colors.deepOrange;
+    // Paid for the house: shown here because the money was this member's, but
+    // the entry belongs to the house screen and is only changed there.
+    final bool fromHouse = entry.isFromHouse;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => showTransactionSheet(context, entry: entry),
-        onLongPress: () => _confirmDeleteTransaction(context, c, entry),
+        onTap: () => fromHouse
+            ? _explainHouseEntry()
+            : showTransactionSheet(context, entry: entry),
+        onLongPress: () => fromHouse
+            ? _explainHouseEntry()
+            : _confirmDeleteTransaction(context, c, entry),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
           child: Row(
@@ -490,6 +499,10 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                             ),
                           ),
                         ],
+                        if (fromHouse) ...[
+                          const SizedBox(width: 6),
+                          const _HouseTag(),
+                        ],
                         if (entry.pending) ...[
                           const SizedBox(width: 6),
                           Icon(Icons.cloud_upload_outlined,
@@ -510,8 +523,20 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                 ),
               ),
               // The long press does the same thing, but a menu is the only
-              // one of the two anybody finds.
-              _buildEntryMenu(context, c, entry),
+              // one of the two anybody finds. A house row has neither choice
+              // to offer, so it says why instead.
+              if (fromHouse)
+                IconButton(
+                  icon: Icon(Icons.lock_outline_rounded,
+                      size: 18, color: AppUi.muted(context)),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  splashRadius: 18,
+                  tooltip: 'from_house_expense'.tr,
+                  onPressed: _explainHouseEntry,
+                )
+              else
+                _buildEntryMenu(context, c, entry),
             ],
           ),
         ),
@@ -561,6 +586,17 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// Why a house row will not open. Editing it here would leave the house's
+  /// own copy behind and the two would stop agreeing, so the change has to be
+  /// made where the entry was recorded.
+  void _explainHouseEntry() {
+    CustomSnackbar.show(
+      type: SnackbarType.info,
+      message: 'house_entry_locked'.tr,
+      duration: const Duration(seconds: 4),
     );
   }
 
@@ -784,6 +820,45 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
               fontSize: 13,
               height: 1.45,
               color: AppUi.muted(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// The mark on a row that came from the house expense screen — small, next to
+/// the category, so a ledger that suddenly has entries nobody typed here still
+/// explains itself.
+/// ---------------------------------------------------------------------------
+
+class _HouseTag extends StatelessWidget {
+  const _HouseTag();
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = AppUi.accent(context, Colors.indigo);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppUi.tint(context, Colors.indigo),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.home_rounded, size: 10, color: accent),
+          const SizedBox(width: 3),
+          Text(
+            'from_house_expense'.tr,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+              color: accent,
             ),
           ),
         ],

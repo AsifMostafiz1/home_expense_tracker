@@ -18,6 +18,11 @@ class PersonalTransaction {
   final String category;
   final String note;
 
+  /// Where the row came from. Empty for one the member typed in themselves;
+  /// [sourceHouse] for the copy of a shared house expense, which is written
+  /// and removed by the house screen and is read-only here.
+  final String source;
+
   /// The day the money moved, as `yyyy-MM-dd` — the same shape the meal
   /// documents use, so a month is a string comparison rather than a range
   /// query needing its own index.
@@ -43,11 +48,20 @@ class PersonalTransaction {
     this.date = '',
     this.timeHour = 0,
     this.timeMinute = 0,
+    this.source = '',
     this.createdAt,
     this.pending = false,
   });
 
+  /// A row that belongs to the house expense screen — the member paid for the
+  /// house, so it counts against their own money too, but the entry itself is
+  /// owned over there. Its document id is the house expense's own id, so an
+  /// edit or a delete there reaches this copy without a lookup.
+  static const String sourceHouse = 'house';
+
   bool get isIncome => flow == MoneyFlow.income;
+
+  bool get isFromHouse => source == sourceHouse;
 
   DateTime get day => DateTime.tryParse(date) ?? DateTime.now();
 
@@ -93,6 +107,7 @@ class PersonalTransaction {
       date: (map['date'] ?? '').toString(),
       timeHour: (map['time_hour'] as num?)?.toInt() ?? 0,
       timeMinute: (map['time_minute'] as num?)?.toInt() ?? 0,
+      source: (map['source'] ?? '').toString(),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       pending: pending,
     );
@@ -107,6 +122,7 @@ class PersonalTransaction {
         'date': date,
         'time_hour': timeHour,
         'time_minute': timeMinute,
+        'source': source,
       };
 
   PersonalTransaction copyWith({
@@ -129,6 +145,7 @@ class PersonalTransaction {
       date: date ?? this.date,
       timeHour: timeHour ?? this.timeHour,
       timeMinute: timeMinute ?? this.timeMinute,
+      source: source,
       createdAt: createdAt,
       pending: pending,
     );

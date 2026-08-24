@@ -217,6 +217,46 @@ void main() {
     expect(due.toMap()['time_minute'], 5);
   });
 
+  test('a house expense copy says where it came from', () {
+    const mine = PersonalTransaction(amount: 100, date: '2026-08-20');
+    expect(mine.isFromHouse, isFalse);
+    expect(mine.toMap()['source'], '');
+
+    const copied = PersonalTransaction(
+      id: 'expense-doc-id',
+      amount: 100,
+      date: '2026-08-20',
+      source: PersonalTransaction.sourceHouse,
+    );
+    expect(copied.isFromHouse, isTrue);
+    expect(copied.toMap()['source'], 'house');
+
+    // A row written before the copies existed is the member's own.
+    final old = PersonalTransaction.fromMap('x', {
+      'amount': 50,
+      'date': '2026-07-01',
+      'type': 'expense',
+    });
+    expect(old.isFromHouse, isFalse);
+
+    // And the flag survives being read back and edited.
+    final read = PersonalTransaction.fromMap('expense-doc-id', copied.toMap());
+    expect(read.isFromHouse, isTrue);
+    expect(read.copyWith(amount: 120).isFromHouse, isTrue);
+  });
+
+  test('a house expense copy lands in the bucket its type belongs to', () {
+    // The shared groceries.
+    expect(PersonalCategory.forHouseExpense('expense'), 'food');
+    // The gas, the wifi and the rest.
+    expect(PersonalCategory.forHouseExpense('others'), 'other_expense');
+    // Both keys are real categories, so the row draws with an icon.
+    expect(PersonalCategory.of(PersonalCategory.forHouseExpense('expense')).key,
+        isNot(PersonalCategory.unknown.key));
+    expect(PersonalCategory.of(PersonalCategory.forHouseExpense('others')).key,
+        isNot(PersonalCategory.unknown.key));
+  });
+
   test('screens are constructible', () {
     expect(const PersonalFinanceScreen(), isNotNull);
     expect(const PersonLedgerScreen(personKey: 'rakib'), isNotNull);
