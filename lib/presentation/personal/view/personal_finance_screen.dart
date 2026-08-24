@@ -12,6 +12,7 @@ import '../model/personal_category.dart';
 import '../model/personal_summary.dart';
 import '../model/personal_transaction.dart';
 import '../widgets/category_breakdown.dart';
+import '../widgets/category_entries_sheet.dart';
 import '../widgets/debt_entry_sheet.dart';
 import '../widgets/money_trend_chart.dart';
 import '../widgets/personal_skeletons.dart';
@@ -39,6 +40,37 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     ..addListener(() => setState(() {}));
 
   @override
+  void initState() {
+    super.initState();
+    // The screen is rebuilt every time the tab is entered; the controller is
+    // not. So this is where "opening the ledger" gets to mean this month.
+    Get.find<PersonalController>().resetToCurrentMonth();
+  }
+
+  /// Pull-to-refresh means start again.
+  ///
+  /// Everything this visit had set goes back to how the screen opens: the
+  /// month, the filter over the list, the chart somebody unfolded, the column
+  /// they tapped inside it. A half refresh is the confusing one — rows
+  /// changing underneath a filter that stayed put, or a fresh read landing in
+  /// a month nobody is looking at any more.
+  ///
+  /// Not the tab, though: which book is open is where the reader is, not
+  /// something they set, and throwing them back to the other one is not a
+  /// refresh.
+  Future<void> _refreshMoney(PersonalController c) async {
+    setState(() {
+      _entryFlow = null;
+      _trendOpen = false;
+      _resetToken++;
+    });
+    // Silent, and it does not need to be anything else — the setState above
+    // is already rebuilding everything that reads the month.
+    c.resetToCurrentMonth();
+    await c.refreshAll();
+  }
+
+  @override
   void dispose() {
     _tabs.dispose();
     super.dispose();
@@ -51,6 +83,16 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   /// itself on every scroll would be an annoyance rather than a setting.
   /// Shut to begin with — the month on screen is what the tab is for.
   bool _trendOpen = false;
+
+  /// Which side of the month's list is being shown, or null for both. Lives
+  /// with the screen rather than the controller: it is a way of reading this
+  /// visit, not a setting, and arriving at the ledger should show everything.
+  MoneyFlow? _entryFlow;
+
+  /// Bumped by a refresh, and used as the trend chart's key. The chart holds
+  /// one thing of its own — which column was tapped — and a new key is what
+  /// gets rid of it, since nothing out here can reach in and clear it.
+  int _resetToken = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +127,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
             children: [
               RefreshIndicator(
                 color: primary,
-                onRefresh: c.refreshAll,
+                onRefresh: () => _refreshMoney(c),
                 child: c.isLoading
                     ? const PersonalMoneySkeleton()
                     : _buildMoneyTab(context, c),
@@ -111,6 +153,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     final List<PersonalTransaction> entries = c.monthTransactions;
     final List<CategoryTotal> spending = c.categoryTotals(income: false);
     final List<CategoryTotal> earning = c.categoryTotals(income: true);
+    final List<MoneyDay> days = c.monthDays(flow: _entryFlow);
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -121,6 +164,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
         _buildWalletHero(context, c),
         const SizedBox(height: 14),
         MoneyTrendChart(
+          key: ValueKey<int>(_resetToken),
           months: c.trend,
           focused: c.selectedMonth,
           expanded: _trendOpen,
@@ -132,6 +176,11 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
             totals: spending,
             total: month.expense,
             title: 'where_money_went'.tr,
+            onTap: (bucket) => showCategoryEntriesSheet(
+              context,
+              category: bucket.category,
+              income: false,
+            ),
           ),
         ],
         if (earning.isNotEmpty) ...[
@@ -140,41 +189,129 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
             totals: earning,
             total: month.income,
             title: 'where_money_came_from'.tr,
+            onTap: (bucket) => showCategoryEntriesSheet(
+              context,
+              category: bucket.category,
+              income: true,
+            ),
           ),
         ],
         const SizedBox(height: 22),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'this_months_entries'.tr.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
-                  color: AppUi.muted(context),
-                ),
-              ),
-            ),
-            Text(
-              '${entries.length}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                color: AppUi.muted(context),
-              ),
-            ),
-          ],
+        Text(
+          'this_months_entries'.tr.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+            color: AppUi.muted(context),
+          ),
         ),
+        if (entries.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _buildFlowFilter(context, c),
+        ],
         const SizedBox(height: 12),
         if (entries.isEmpty)
           _buildInlineEmpty(context, 'no_entries_this_month'.tr)
+        else if (days.isEmpty)
+          _buildInlineEmpty(context, 'no_entries_of_kind'.tr)
         else
-          for (final MoneyDay day in c.monthDays) ...[
+          for (final MoneyDay day in days) ...[
             _buildDayGroup(context, c, day),
             const SizedBox(height: 18),
           ],
       ],
+    );
+  }
+
+  /// Which side of the month to read.
+  ///
+  /// Chips rather than a segmented bar, and each carrying its own count: the
+  /// counts are the reason to reach for this at all — a month of forty rows
+  /// with one salary in it is a month where "Income 1" is the whole answer,
+  /// and nobody has to tap to find that out.
+  Widget _buildFlowFilter(BuildContext context, PersonalController c) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _flowChip(context, null, 'filter_all'.tr, null, c.monthCount()),
+        _flowChip(
+          context,
+          MoneyFlow.income,
+          'income'.tr,
+          Icons.north_east_rounded,
+          c.monthCount(flow: MoneyFlow.income),
+          tone: Colors.green,
+        ),
+        _flowChip(
+          context,
+          MoneyFlow.expense,
+          'expense_word'.tr,
+          Icons.south_west_rounded,
+          c.monthCount(flow: MoneyFlow.expense),
+          tone: Colors.deepOrange,
+        ),
+      ],
+    );
+  }
+
+  Widget _flowChip(
+    BuildContext context,
+    MoneyFlow? flow,
+    String label,
+    IconData? icon,
+    int count, {
+    MaterialColor? tone,
+  }) {
+    final bool selected = _entryFlow == flow;
+    final MaterialColor colour = tone ?? Colors.blueGrey;
+    final Color accent = AppUi.accent(context, colour);
+
+    return GestureDetector(
+      // Tapping the chip already on is not an accident worth acting on.
+      onTap: selected ? null : () => setState(() => _entryFlow = flow),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppUi.tint(context, colour)
+              : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? accent.withOpacity(0.6) : AppUi.hairline(context),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon,
+                  size: 13,
+                  color: selected ? accent : AppUi.muted(context)),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                color: selected ? accent : AppUi.body(context),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w900,
+                color: selected ? accent : AppUi.muted(context),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -136,6 +136,22 @@ class PersonalController extends GetxController implements GetxService {
     update();
   }
 
+  /// Points the ledger at the month that is actually running.
+  ///
+  /// The controller outlives the screen: it is registered for the whole
+  /// session, so its two listeners are not torn down every time the tab is
+  /// left. Which means a month somebody walked back to would still be up the
+  /// next time they opened the ledger — and opening it means "now", not
+  /// wherever it was last put down.
+  ///
+  /// Deliberately silent. The caller is a screen in `initState`, about to
+  /// build and read this anyway; asking for a rebuild from inside a build is
+  /// what throws, and nothing else on screen reads the month.
+  void resetToCurrentMonth() {
+    final DateTime now = DateTime.now();
+    selectedMonth = DateTime(now.year, now.month);
+  }
+
   void previousMonth() =>
       goToMonth(DateTime(selectedMonth.year, selectedMonth.month - 1));
 
@@ -166,8 +182,17 @@ class PersonalController extends GetxController implements GetxService {
   }
 
   /// This month's entries under the day each was recorded on — what the list
-  /// actually shows.
-  List<MoneyDay> get monthDays => MoneyDay.group(monthTransactions);
+  /// actually shows. [flow] narrows it to one side; null is both.
+  List<MoneyDay> monthDays({MoneyFlow? flow}) => MoneyDay.group(
+        flow == null
+            ? monthTransactions
+            : monthTransactions.where((entry) => entry.flow == flow),
+      );
+
+  /// How many of this month's entries fall on [flow], or all of them for null.
+  int monthCount({MoneyFlow? flow}) => flow == null
+      ? monthTransactions.length
+      : monthTransactions.where((entry) => entry.flow == flow).length;
 
   MonthMoney get monthMoney => MonthMoney.of(selectedMonth, transactions);
 

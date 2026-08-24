@@ -9,7 +9,9 @@ import 'package:demo_project/presentation/personal/model/debt_entry.dart';
 import 'package:demo_project/presentation/personal/model/personal_transaction.dart';
 import 'package:demo_project/presentation/personal/repository/personal_repository.dart';
 import 'package:demo_project/presentation/personal/view/personal_finance_screen.dart';
+import 'package:demo_project/presentation/personal/widgets/category_breakdown.dart';
 import 'package:demo_project/utils/app_translations.dart';
+import 'package:demo_project/utils/app_ui.dart';
 
 /// The ledger, with no Firestore behind it — the screen only ever sees two
 /// streams, so a fake is a pair of values.
@@ -75,6 +77,7 @@ void main() {
       date: _dayIn(0, 5),
       flow: MoneyFlow.income,
       category: 'salary',
+      note: 'Monthly pay',
     ),
     PersonalTransaction(
       id: '4',
@@ -308,6 +311,113 @@ void main() {
 
     // The hero and the total line at the foot of the statement.
     expect(find.text('৳250'), findsNWidgets(2));
+  });
+
+  testWidgets('opening the ledger comes back to this month', (tester) async {
+    await pumpLedger(tester);
+
+    final DateTime now = DateTime.now();
+    final DateTime lastMonth = DateTime(now.year, now.month - 1);
+
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text(AppUi.monthLabel(lastMonth)), findsOneWidget);
+
+    // Away to another screen and back. The controller survives that — it is
+    // registered for the session — but the month it was left on should not.
+    await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(GetMaterialApp(
+      translations: AppTranslations(),
+      locale: const Locale('en', 'US'),
+      home: const PersonalFinanceScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppUi.monthLabel(DateTime(now.year, now.month))),
+        findsOneWidget);
+    expect(find.text(AppUi.monthLabel(lastMonth)), findsNothing);
+  });
+
+  testWidgets('the list filters down to one side of the month',
+      (tester) async {
+    await pumpLedger(tester);
+
+    // Two entries in the month on screen: pay in, a house copy out.
+    expect(find.text('Monthly pay'), findsOneWidget);
+    expect(find.text('Bazar for the house'), findsOneWidget);
+
+    // Expense only: the pay row goes, the house copy stays. `.last` because
+    // the wallet card above carries the same two words as its labels.
+    await tester.tap(find.text('Expense').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Bazar for the house'), findsOneWidget);
+    expect(find.text('Monthly pay'), findsNothing);
+
+    // Income only: the other way round.
+    await tester.tap(find.text('Income').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Bazar for the house'), findsNothing);
+    expect(find.text('Monthly pay'), findsOneWidget);
+
+    // And back to both.
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bazar for the house'), findsOneWidget);
+    expect(find.text('Monthly pay'), findsOneWidget);
+  });
+
+  testWidgets('a category bar opens the entries behind it', (tester) async {
+    await pumpLedger(tester);
+
+    // The month switcher's own arrow is the same glyph, so the finder has to
+    // be pinned to the breakdown card.
+    await tester.tap(find
+        .descendant(
+          of: find.byType(CategoryBreakdown),
+          matching: find.byIcon(Icons.chevron_right_rounded),
+        )
+        .first);
+    await tester.pumpAndSettle();
+
+    // The sheet is headed by the category, the month and what it came to —
+    // month and count share one line, so match inside it.
+    expect(find.textContaining('1 entries'), findsOneWidget);
+    expect(find.text('Bazar for the house'), findsWidgets);
+    // The figure is in the sheet's header and its day heading, on top of the
+    // screen it was opened from — the count above is the unique assertion.
+    expect(find.text('−৳88,888.5'), findsWidgets);
+  });
+
+  testWidgets('a refresh puts the whole visit back to how it opened',
+      (tester) async {
+    await pumpLedger(tester);
+
+    final DateTime now = DateTime.now();
+    final DateTime lastMonth = DateTime(now.year, now.month - 1);
+
+    // Set the three things a visit can change.
+    await tester.tap(find.text('Expense').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Last six months'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Monthly pay'), findsNothing); // filtered to expense
+    expect(find.text('Tap a month to see its numbers'), findsOneWidget);
+    expect(find.text(AppUi.monthLabel(lastMonth)), findsOneWidget);
+
+    // Pull down.
+    await tester.fling(
+        find.byType(ListView).first, const Offset(0, 400), 1200);
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppUi.monthLabel(DateTime(now.year, now.month))),
+        findsOneWidget);
+    expect(find.text('Monthly pay'), findsOneWidget); // filter cleared
+    expect(find.text('Bazar for the house'), findsOneWidget);
+    expect(find.text('Tap a month to see its numbers'), findsNothing);
   });
 
   testWidgets('a house row is marked and offers no menu', (tester) async {

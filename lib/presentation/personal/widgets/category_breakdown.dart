@@ -18,12 +18,17 @@ class CategoryBreakdown extends StatelessWidget {
   /// Longer lists are cut here — the tail of a spending month is noise.
   final int max;
 
+  /// Opens the rows behind a bar. Without it the list is inert, which is what
+  /// the dues screen wants and the month does not.
+  final ValueChanged<CategoryTotal>? onTap;
+
   const CategoryBreakdown({
     super.key,
     required this.totals,
     required this.total,
     required this.title,
     this.max = 5,
+    this.onTap,
   });
 
   @override
@@ -53,7 +58,22 @@ class CategoryBreakdown extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           for (final CategoryTotal entry in shown) ...[
-            _buildRow(context, entry),
+            if (onTap == null)
+              _buildRow(context, entry)
+            else
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => onTap!(entry),
+                  borderRadius: BorderRadius.circular(12),
+                  // The row is inset rather than padded so the ripple reaches
+                  // past the text without the bar moving in from the edge.
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: _buildRow(context, entry),
+                  ),
+                ),
+              ),
             const SizedBox(height: 12),
           ],
           if (hidden > 0)
@@ -123,6 +143,9 @@ class CategoryBreakdown extends StatelessWidget {
                       style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
                     ),
                   ),
+                  if (onTap != null)
+                    Icon(Icons.chevron_right_rounded,
+                        size: 16, color: AppUi.muted(context)),
                 ],
               ),
               const SizedBox(height: 6),
