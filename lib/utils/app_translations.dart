@@ -311,6 +311,16 @@ class AppTranslations extends Translations {
           'wallet_in_hand': 'What you have in hand right now',
           'wallet_as_of': 'Where it stood at the end of @month',
           'wallet_short': 'More has gone out than has come in',
+          'wallet_with_dues': 'Your money, and the dues on either side of it',
+          'how_it_adds_up': 'How it adds up',
+          'carried_in_detail': 'Everything recorded up to the end of @when',
+          'month_by_month': 'Month by month',
+          'month_in_out': '@income came in · @expense went out',
+          'wallet_dues_note':
+              'Dues count towards this. What you are owed is money on its way '
+              'to you, what you owe is money on its way out — neither has '
+              'moved yet, so this is what you are worth rather than what is '
+              'in your pocket.',
           'carried_in': 'Carried in',
           'saved_this_month': 'Kept this month',
           'overspent_this_month': 'Overspent this month',
@@ -1058,6 +1068,15 @@ class AppTranslations extends Translations {
           'wallet_in_hand': 'এই মুহূর্তে আপনার হাতে যা আছে',
           'wallet_as_of': '@month শেষে যা ছিল',
           'wallet_short': 'আয়ের চেয়ে খরচ বেশি হয়ে গেছে',
+          'wallet_with_dues': 'আপনার টাকা, সাথে দেনা-পাওনা দুই দিকই',
+          'how_it_adds_up': 'হিসাবটা যেভাবে দাঁড়ায়',
+          'carried_in_detail': '@when পর্যন্ত সব হিসাব',
+          'month_by_month': 'মাস ধরে ধরে',
+          'month_in_out': '@income এসেছে · @expense গেছে',
+          'wallet_dues_note':
+              'দেনা-পাওনাও এই হিসাবে ধরা আছে। যা পাবেন তা আপনার দিকে আসছে, যা '
+              'দিবেন তা চলে যাচ্ছে — কোনোটাই এখনো হাতবদল হয়নি, তাই এটি আপনার '
+              'হাতের টাকা নয়, সব মিলিয়ে আপনার অবস্থান।',
           'carried_in': 'আগের জমা',
           'saved_this_month': 'এ মাসে জমেছে',
           'overspent_this_month': 'এ মাসে বেশি খরচ হয়েছে',

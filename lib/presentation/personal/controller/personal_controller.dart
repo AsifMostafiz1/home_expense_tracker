@@ -171,9 +171,27 @@ class PersonalController extends GetxController implements GetxService {
 
   MonthMoney get monthMoney => MonthMoney.of(selectedMonth, transactions);
 
-  /// What is left in hand as the month on screen closes — every month before
-  /// it carried forward, plus this one. See [WalletBalance].
-  WalletBalance get wallet => WalletBalance.of(selectedMonth, transactions);
+  /// What the member is worth as the month on screen closes — every month
+  /// before it carried forward, plus this one, plus the dues on either side.
+  /// See [WalletBalance].
+  WalletBalance get wallet =>
+      WalletBalance.of(selectedMonth, transactions, debts: debts);
+
+  /// The months that balance is built out of — this year one by one, and
+  /// everything older as a single figure carried into it.
+  WalletTimeline get walletTimeline =>
+      WalletTimeline.of(selectedMonth, transactions);
+
+  /// The people behind its dues, as they stood when that month closed — the
+  /// same cut [wallet] takes, so the two agree. Squared-off accounts are left
+  /// out: they add nothing, and a statement is a list of what moved it.
+  List<PersonBalance> get walletPeople {
+    final String key = PersonalTransaction.monthKeyOf(selectedMonth);
+    return PersonBalance.group(debts.where((entry) =>
+            entry.monthKey.isNotEmpty && entry.monthKey.compareTo(key) <= 0))
+        .where((person) => !person.isSettled)
+        .toList();
+  }
 
   /// The last six months, oldest first — what the trend chart draws.
   List<MonthMoney> get trend {
@@ -283,30 +301,7 @@ class PersonalController extends GetxController implements GetxService {
   /// ------------------------------------------------------------ dena-paona
 
   /// One row per person, biggest outstanding first, settled accounts last.
-  List<PersonBalance> get people {
-    final Map<String, List<DebtEntry>> grouped = {};
-    for (final DebtEntry entry in debts) {
-      grouped.putIfAbsent(entry.personKey, () => []).add(entry);
-    }
-
-    final List<PersonBalance> list = grouped.entries.map((group) {
-      // The most recent spelling of the name wins — entries arrive newest
-      // first, so a person renamed on a later row is shown by that name.
-      final DebtEntry newest = group.value.first;
-      return PersonBalance(
-        key: group.key,
-        name: newest.personName,
-        phone: newest.personPhone,
-        entries: group.value,
-      );
-    }).toList();
-
-    list.sort((a, b) {
-      if (a.isSettled != b.isSettled) return a.isSettled ? 1 : -1;
-      return b.balance.abs().compareTo(a.balance.abs());
-    });
-    return list;
-  }
+  List<PersonBalance> get people => PersonBalance.group(debts);
 
   PersonBalance? personFor(String key) {
     for (final PersonBalance person in people) {

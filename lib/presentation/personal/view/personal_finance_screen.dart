@@ -17,6 +17,7 @@ import '../widgets/money_trend_chart.dart';
 import '../widgets/personal_skeletons.dart';
 import '../widgets/transaction_sheet.dart';
 import 'person_ledger_screen.dart';
+import 'wallet_breakdown_screen.dart';
 
 /// A member's own books, kept apart from everything the house shares.
 ///
@@ -394,17 +395,45 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           Row(
             children: [
               Expanded(
-                child: Text(
-                  _signed(wallet.balance, plus: false),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 34,
-                    height: 1.1,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
-                  ),
+                // The button hugs the figure rather than sitting at the far
+                // edge: it is about this number, not about the card.
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        walletFigure(wallet.balance),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                          height: 1.1,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Material(
+                      // Transparent, and above the gradient — an ink splash
+                      // paints on the nearest Material, which without this is
+                      // the page underneath and therefore invisible.
+                      color: Colors.transparent,
+                      child: IconButton(
+                        onPressed: () =>
+                            Get.to(() => const WalletBreakdownScreen()),
+                        icon: const Icon(Icons.info_outline_rounded),
+                        iconSize: 18,
+                        color: Colors.white70,
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                            minWidth: 34, minHeight: 34),
+                        splashRadius: 18,
+                        tooltip: 'how_it_adds_up'.tr,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               // Nothing recorded this month moved nothing — a "+৳0" pill
@@ -417,12 +446,14 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            wallet.isShort
-                ? 'wallet_short'.tr
-                : isThisMonth
-                    ? 'wallet_in_hand'.tr
-                    : 'wallet_as_of'
-                        .trParams({'month': AppUi.monthLabel(c.selectedMonth)}),
+            !isThisMonth
+                ? 'wallet_as_of'
+                    .trParams({'month': AppUi.monthLabel(c.selectedMonth)})
+                : wallet.isShort
+                    ? 'wallet_short'.tr
+                    : wallet.hasDues
+                        ? 'wallet_with_dues'.tr
+                        : 'wallet_in_hand'.tr,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -441,13 +472,16 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
               color: Colors.white.withOpacity(0.16),
               borderRadius: BorderRadius.circular(16),
             ),
+            // The money only. The dues are in the figure above and named in
+            // the line under it; spelling them out again here would give two
+            // rows of five numbers to a card whose job is to carry one.
+            // The button beside the balance is where they are itemised.
             child: Row(
               children: [
                 _heroStat(
                     'carried_in'.tr, wallet.opening, Icons.history_rounded),
                 _heroStatDivider(),
-                _heroStat(
-                    'income'.tr, month.income, Icons.north_east_rounded),
+                _heroStat('income'.tr, month.income, Icons.north_east_rounded),
                 _heroStatDivider(),
                 _heroStat(
                     'expense_word'.tr, month.expense, Icons.south_west_rounded),
@@ -494,13 +528,6 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     });
   }
 
-  /// `৳70` / `−৳70`, and `+৳70` where the gain is the point. The minus sign is
-  /// the typographic one: a hyphen next to figures this size reads as a dash.
-  String _signed(double value, {bool plus = true}) {
-    final String sign = value < 0 ? '−' : (plus ? '+' : '');
-    return '$sign${AppUi.amount(value.abs())}';
-  }
-
   Widget _heroStat(String label, double value, IconData icon) {
     return Expanded(
       child: Column(
@@ -522,7 +549,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           ),
           const SizedBox(height: 3),
           Text(
-            _signed(value, plus: false),
+            walletFigure(value),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(

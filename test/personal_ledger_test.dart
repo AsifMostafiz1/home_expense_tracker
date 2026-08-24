@@ -74,6 +74,108 @@ void main() {
     expect(WalletBalance.of(DateTime(2026, 6), all).balance, 0);
   });
 
+  test('the statement splits this year by month and rolls up the rest', () {
+    final all = [
+      _tx('2025-03-10', 200, income: true), // a closed year
+      _tx('2025-11-02', 100), //  ... and a spend in it
+      _tx('2026-07-04', 250, income: true),
+      _tx('2026-07-19', 50),
+      _tx('2026-08-06', 100, income: true),
+      _tx('2026-09-01', 999), // a month not reached yet
+    ];
+
+    final timeline = WalletTimeline.of(DateTime(2026, 8), all);
+    expect(timeline.year, 2026);
+    // 2025 comes in as one figure: 200 earned less 100 spent.
+    expect(timeline.broughtForward, 100);
+    expect(timeline.hasBroughtForward, isTrue);
+
+    // This year, month by month, oldest first — and September left out.
+    expect(timeline.months.map((month) => month.month.month), [7, 8]);
+    expect(timeline.months.first.net, 200);
+    expect(timeline.months.last.net, 100);
+
+    // Which is exactly the money side of the wallet it explains.
+    final wallet = WalletBalance.of(DateTime(2026, 8), all);
+    expect(
+      timeline.broughtForward +
+          timeline.months.fold<double>(0, (sum, m) => sum + m.net),
+      wallet.money,
+    );
+
+    // The month being looked at is always a line, even with nothing in it.
+    final quiet = WalletTimeline.of(DateTime(2026, 10), all);
+    expect(quiet.months.map((month) => month.month.month), [7, 8, 9, 10]);
+    expect(quiet.months.last.isEmpty, isTrue);
+
+    // A ledger that only ever ran this year has nothing to carry in.
+    final fresh = WalletTimeline.of(DateTime(2026, 8), [_tx('2026-08-06', 10)]);
+    expect(fresh.hasBroughtForward, isFalse);
+    expect(fresh.months.length, 1);
+  });
+
+  test('the wallet counts the dues on both sides', () {
+    final money = [
+      _tx('2026-07-02', 100, income: true), // July, carried forward
+      _tx('2026-08-05', 100, income: true), // August
+    ];
+    final dues = [
+      _due(100), // handed over — to come back
+      _due(50, gave: false, name: 'Karim'), // taken — to be paid back
+    ];
+
+    final wallet =
+        WalletBalance.of(DateTime(2026, 8), money, debts: dues);
+    expect(wallet.opening, 100);
+    expect(wallet.net, 100);
+    expect(wallet.money, 200);
+    expect(wallet.receivable, 100);
+    expect(wallet.payable, 50);
+    expect(wallet.dues, 50);
+    expect(wallet.balance, 250);
+    expect(wallet.hasDues, isTrue);
+
+    // Without the dues it is the money alone, and says there are none.
+    final moneyOnly = WalletBalance.of(DateTime(2026, 8), money);
+    expect(moneyOnly.balance, 200);
+    expect(moneyOnly.hasDues, isFalse);
+  });
+
+  test('a due settled between two people takes only one side', () {
+    // 1,000 lent, 600 paid back: 400 still to come, not 1,000 to come and
+    // 600 to go — which would net out the same and inflate both totals.
+    final wallet = WalletBalance.of(DateTime(2026, 8), const [], debts: [
+      _due(1000),
+      _due(600, gave: false),
+    ]);
+    expect(wallet.receivable, 400);
+    expect(wallet.payable, 0);
+    expect(wallet.balance, 400);
+
+    // Squared off entirely, that person is on neither side.
+    final settled = WalletBalance.of(DateTime(2026, 8), const [], debts: [
+      _due(1000),
+      _due(1000, gave: false),
+    ]);
+    expect(settled.hasDues, isFalse);
+    expect(settled.balance, 0);
+  });
+
+  test('dues are cut at the same month the money is', () {
+    // Every fixture due is dated 2026-08-10.
+    final august = WalletBalance.of(DateTime(2026, 8), const [], debts: [
+      _due(100),
+    ]);
+    expect(august.receivable, 100);
+
+    // Looking back at July, a due taken on in August has not happened yet.
+    final july = WalletBalance.of(DateTime(2026, 7), const [], debts: [
+      _due(100),
+    ]);
+    expect(july.receivable, 0);
+    expect(july.balance, 0);
+  });
+
   test('a wallet that has spent more than it earned says so', () {
     final all = [
       _tx('2026-08-01', 100, income: true),

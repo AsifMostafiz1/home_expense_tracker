@@ -15,8 +15,9 @@ import 'package:demo_project/utils/app_translations.dart';
 /// streams, so a fake is a pair of values.
 class _FakeLedger implements PersonalRepository {
   final List<PersonalTransaction> rows;
+  final List<DebtEntry> dues;
 
-  _FakeLedger(this.rows);
+  _FakeLedger(this.rows, {this.dues = const []});
 
   @override
   Stream<List<PersonalTransaction>> watchTransactions(String ownerPhone) =>
@@ -24,7 +25,7 @@ class _FakeLedger implements PersonalRepository {
 
   @override
   Stream<List<DebtEntry>> watchDebts(String ownerPhone) =>
-      Stream<List<DebtEntry>>.value(const []);
+      Stream<List<DebtEntry>>.value(dues);
 
   @override
   Future<void> saveTransaction(PersonalTransaction transaction) async {}
@@ -88,6 +89,7 @@ void main() {
   Future<void> pumpLedger(
     WidgetTester tester, {
     List<PersonalTransaction>? rows,
+    List<DebtEntry> dues = const [],
   }) async {
     SharedPreferences.setMockInitialValues({
       'userPhone': '01711111111',
@@ -102,7 +104,7 @@ void main() {
     addTearDown(tester.view.reset);
 
     Get.testMode = true;
-    Get.put<PersonalRepository>(_FakeLedger(rows ?? ledger));
+    Get.put<PersonalRepository>(_FakeLedger(rows ?? ledger, dues: dues));
     Get.put(PersonalController(repository: Get.find<PersonalRepository>()));
     addTearDown(Get.reset);
 
@@ -235,6 +237,77 @@ void main() {
     await tester.tap(find.text('Last six months'));
     await tester.pumpAndSettle();
     expect(find.text('Tap a month to see its numbers'), findsNothing);
+  });
+
+  testWidgets('the wallet carries the dues, and shows its working',
+      (tester) async {
+    // July carried forward +100, August +100, owed 100, owing 50 — so 250.
+    await pumpLedger(
+      tester,
+      rows: [
+        PersonalTransaction(
+          id: '1',
+          amount: 100,
+          date: _dayIn(1, 2),
+          flow: MoneyFlow.income,
+          category: 'salary',
+        ),
+        PersonalTransaction(
+          id: '2',
+          amount: 100,
+          date: _dayIn(0, 5),
+          flow: MoneyFlow.income,
+          category: 'salary',
+        ),
+      ],
+      dues: [
+        DebtEntry(
+          id: 'd1',
+          personName: 'Rakib',
+          flow: DebtFlow.gave,
+          amount: 100,
+          date: _dayIn(0, 6),
+        ),
+        DebtEntry(
+          id: 'd2',
+          personName: 'Karim',
+          flow: DebtFlow.got,
+          amount: 50,
+          date: _dayIn(0, 7),
+        ),
+      ],
+    );
+
+    expect(find.text('৳250'), findsOneWidget);
+    expect(find.text('Your money, and the dues on either side of it'),
+        findsOneWidget);
+    // The dues are in that figure, not spelled out on the card — the strip
+    // under it stays the money alone.
+    expect(find.text('Total to get'), findsNothing);
+    expect(find.text('Total to pay'), findsNothing);
+
+    // The button beside the balance opens the statement behind it.
+    await tester.tap(find.byIcon(Icons.info_outline_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('MONTH BY MONTH'), findsOneWidget);
+    expect(find.text('DUES'), findsOneWidget);
+
+    // Two months of +৳100 — or, if this month happens to be January, one of
+    // them folded into the previous year's carry — and Rakib's ৳100 to come.
+    expect(find.text('+৳100'), findsNWidgets(3));
+    expect(find.text('+৳200'), findsOneWidget); // the money subtotal
+
+    // The dues are named, one line each, not one lump.
+    expect(find.text('Rakib'), findsOneWidget);
+    expect(find.text('You will get'), findsOneWidget);
+    expect(find.text('Karim'), findsOneWidget);
+    expect(find.text('You have to pay'), findsOneWidget);
+    expect(find.text('−৳50'), findsOneWidget);
+    expect(find.text('+৳50'), findsOneWidget); // the dues subtotal
+
+    // The hero and the total line at the foot of the statement.
+    expect(find.text('৳250'), findsNWidgets(2));
   });
 
   testWidgets('a house row is marked and offers no menu', (tester) async {

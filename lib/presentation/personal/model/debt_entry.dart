@@ -74,6 +74,9 @@ class DebtEntry {
 
   int get minuteOfDay => timeHour * 60 + timeMinute;
 
+  /// `2026-08` — what the wallet cuts a month on, as in [PersonalTransaction].
+  String get monthKey => date.length >= 7 ? date.substring(0, 7) : '';
+
   /// Positive when it adds to what is owed *to* the owner.
   double get signedAmount => isGave ? amount : -amount;
 
@@ -194,6 +197,43 @@ class PersonBalance {
       out[entry.id] = running;
     }
     return out;
+  }
+
+  /// One row per person, biggest outstanding first and settled accounts last.
+  ///
+  /// A static rather than a getter on the controller, because the wallet
+  /// groups its own slice of the ledger — the entries up to a given month —
+  /// and the two have to group it the same way, or a breakdown will not add
+  /// up to the balance it is breaking down.
+  static List<PersonBalance> group(Iterable<DebtEntry> entries) {
+    final Map<String, List<DebtEntry>> grouped = {};
+    for (final DebtEntry entry in entries) {
+      grouped.putIfAbsent(entry.personKey, () => <DebtEntry>[]).add(entry);
+    }
+
+    final List<PersonBalance> list = grouped.entries.map((group) {
+      // Newest first, sorted here rather than trusted from the caller: the
+      // name shown is the most recent spelling of it, so which row comes
+      // first has to mean something.
+      final List<DebtEntry> rows = List<DebtEntry>.from(group.value)
+        ..sort((a, b) {
+          final int byDate = b.date.compareTo(a.date);
+          return byDate != 0 ? byDate : b.minuteOfDay.compareTo(a.minuteOfDay);
+        });
+
+      return PersonBalance(
+        key: group.key,
+        name: rows.first.personName,
+        phone: rows.first.personPhone,
+        entries: List<DebtEntry>.unmodifiable(rows),
+      );
+    }).toList();
+
+    list.sort((a, b) {
+      if (a.isSettled != b.isSettled) return a.isSettled ? 1 : -1;
+      return b.balance.abs().compareTo(a.balance.abs());
+    });
+    return list;
   }
 
   DateTime? get lastActivity {
