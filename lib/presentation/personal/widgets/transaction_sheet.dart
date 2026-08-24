@@ -23,16 +23,44 @@ Future<void> showTransactionSheet(
   MoneyFlow flow = MoneyFlow.expense,
 }) {
   return Get.bottomSheet(
-    _TransactionSheet(entry: entry, initialFlow: entry?.flow ?? flow),
+    _TransactionSheet(
+      entry: entry,
+      initialFlow: entry?.flow ?? flow,
+      initialDate:
+          _defaultDayIn(Get.find<PersonalController>().selectedMonth),
+    ),
     isScrollControlled: true,
   );
+}
+
+/// The day a new entry starts on, given the month being looked at.
+///
+/// Today while that is this month — somebody adding as they go means now. Any
+/// other month and today is not even in it, so the entry would file itself
+/// into a month the screen is not showing: the 1st of the month on screen is
+/// what was meant. A month not yet reached has no day that has happened, so
+/// it falls back to today, which is also the furthest the picker will go.
+DateTime _defaultDayIn(DateTime month) {
+  final DateTime now = DateTime.now();
+  if (month.year == now.year && month.month == now.month) return now;
+
+  final DateTime first = DateTime(month.year, month.month, 1);
+  return first.isAfter(now) ? now : first;
 }
 
 class _TransactionSheet extends StatefulWidget {
   final PersonalTransaction? entry;
   final MoneyFlow initialFlow;
 
-  const _TransactionSheet({this.entry, required this.initialFlow});
+  /// Where a new entry's date starts. An entry being edited ignores it and
+  /// keeps its own day.
+  final DateTime initialDate;
+
+  const _TransactionSheet({
+    this.entry,
+    required this.initialFlow,
+    required this.initialDate,
+  });
 
   @override
   State<_TransactionSheet> createState() => _TransactionSheetState();
@@ -48,7 +76,7 @@ class _TransactionSheetState extends State<_TransactionSheet> {
   late String _category = widget.entry?.category ??
       PersonalCategory.forIncome(_flow == MoneyFlow.income).first.key;
 
-  late DateTime _date = widget.entry?.day ?? DateTime.now();
+  late DateTime _date = widget.entry?.day ?? widget.initialDate;
   late TimeOfDay _time =
       widget.entry?.time ?? TimeOfDay.fromDateTime(DateTime.now());
 
@@ -83,10 +111,19 @@ class _TransactionSheetState extends State<_TransactionSheet> {
 
   Future<void> _pickDate() async {
     final DateTime now = DateTime.now();
+    final DateTime first = DateTime(now.year - 3);
+
+    // The picker asserts on a start it would not let you choose, and the day
+    // on the form can sit outside the window — an entry copied from the house
+    // screen can be dated into next month.
+    DateTime start = _date;
+    if (start.isBefore(first)) start = first;
+    if (start.isAfter(now)) start = now;
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _date,
-      firstDate: DateTime(now.year - 3),
+      initialDate: start,
+      firstDate: first,
       // Money is recorded after it moves, so tomorrow is not on offer.
       lastDate: now,
     );

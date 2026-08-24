@@ -49,6 +49,84 @@ void main() {
     expect(MonthMoney.of(DateTime(2026, 6), all).isEmpty, isTrue);
   });
 
+  test('the wallet carries what a month did not spend into the next', () {
+    final all = [
+      // July: 100 in, 50 out.
+      _tx('2026-07-02', 100, income: true),
+      _tx('2026-07-14', 50),
+      // August: 100 in, 80 out.
+      _tx('2026-08-05', 100, income: true),
+      _tx('2026-08-21', 80),
+    ];
+
+    final august = WalletBalance.of(DateTime(2026, 8), all);
+    expect(august.opening, 50); // July's leftover
+    expect(august.net, 20);
+    expect(august.balance, 70);
+    expect(august.isShort, isFalse);
+
+    // Looking back at July shows July's closing balance, not today's.
+    final july = WalletBalance.of(DateTime(2026, 7), all);
+    expect(july.opening, 0);
+    expect(july.balance, 50);
+
+    // And a month before anything was recorded is empty rather than negative.
+    expect(WalletBalance.of(DateTime(2026, 6), all).balance, 0);
+  });
+
+  test('a wallet that has spent more than it earned says so', () {
+    final all = [
+      _tx('2026-08-01', 100, income: true),
+      _tx('2026-08-02', 130),
+    ];
+
+    final wallet = WalletBalance.of(DateTime(2026, 8), all);
+    expect(wallet.balance, -30);
+    expect(wallet.isShort, isTrue);
+
+    // A row with no readable date belongs to no month and is left out.
+    expect(
+      WalletBalance.of(DateTime(2026, 8), [...all, _tx('', 500)]).balance,
+      -30,
+    );
+  });
+
+  test('a month that spends past its income says how far past', () {
+    final over = MonthMoney.of(DateTime(2026, 8), [
+      _tx('2026-08-01', 500, income: true),
+      _tx('2026-08-04', 855),
+    ]);
+    expect(over.isOverspent, isTrue);
+    expect(over.overspend, 355);
+    expect((over.spentShare * 100).round(), 171);
+    // The kept share bottoms out, which is exactly why it cannot be the only
+    // thing shown for a month like this.
+    expect(over.savedShare, 0);
+
+    final inside = MonthMoney.of(DateTime(2026, 8), [
+      _tx('2026-08-01', 500, income: true),
+      _tx('2026-08-04', 400),
+    ]);
+    expect(inside.isOverspent, isFalse);
+    expect(inside.overspend, 0);
+    expect((inside.spentShare * 100).round(), 80);
+    expect(inside.savedShare, closeTo(0.2, 0.0001));
+
+    // Spending with nothing coming in has no share to be a percentage of.
+    final noIncome = MonthMoney.of(DateTime(2026, 8), [_tx('2026-08-04', 855)]);
+    expect(noIncome.isOverspent, isTrue);
+    expect(noIncome.overspend, 855);
+    expect(noIncome.spentShare, 0);
+
+    // And a month that spent exactly what it earned is not overspent.
+    final exact = MonthMoney.of(DateTime(2026, 8), [
+      _tx('2026-08-01', 500, income: true),
+      _tx('2026-08-04', 500),
+    ]);
+    expect(exact.isOverspent, isFalse);
+    expect((exact.spentShare * 100).round(), 100);
+  });
+
   test('a person balance is what is left after repayments', () {
     final owing = PersonBalance(
       key: 'rakib',

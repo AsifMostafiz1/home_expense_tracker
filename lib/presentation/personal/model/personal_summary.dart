@@ -26,6 +26,17 @@ class MonthMoney {
     return (net / income).clamp(0.0, 1.0);
   }
 
+  /// What went out as a share of what came in — 1.2 is a fifth more spent
+  /// than earned. Zero without income, where [overspend] is the whole story
+  /// and a ratio would divide by nothing.
+  double get spentShare => income <= 0 ? 0 : expense / income;
+
+  /// What was spent past the end of what came in. Zero for a month that
+  /// stayed inside its income.
+  double get overspend => expense > income ? expense - income : 0;
+
+  bool get isOverspent => overspend > 0;
+
   static MonthMoney of(DateTime month, Iterable<PersonalTransaction> all) {
     final String key = PersonalTransaction.monthKeyOf(month);
     double income = 0;
@@ -41,6 +52,55 @@ class MonthMoney {
     }
 
     return MonthMoney(month: month, income: income, expense: expense);
+  }
+}
+
+/// What is left in hand, and the month that last moved it.
+///
+/// A running balance rather than a monthly figure: what a month does not
+/// spend is still there the month after, so every entry up to and including
+/// the month being looked at counts. Nothing later does — walking back to
+/// July shows July's closing balance, not today's.
+///
+/// [opening] and [net] are kept apart so the card can show its working:
+/// carried in, plus what came in, less what went out.
+class WalletBalance {
+  /// Everything recorded before this month came to.
+  final double opening;
+
+  /// What this month itself added or took away.
+  final double net;
+
+  const WalletBalance({this.opening = 0, this.net = 0});
+
+  double get balance => opening + net;
+
+  bool get isShort => balance < 0;
+
+  static WalletBalance of(DateTime month, Iterable<PersonalTransaction> all) {
+    final String key = PersonalTransaction.monthKeyOf(month);
+    double opening = 0;
+    double net = 0;
+
+    for (final PersonalTransaction entry in all) {
+      final String entryKey = entry.monthKey;
+      // A row with no readable date belongs to no month, so it cannot be
+      // placed either side of this one.
+      if (entryKey.isEmpty) continue;
+
+      // `yyyy-MM` sorts the same way the calendar runs, so which side of the
+      // month a row falls on is a string comparison.
+      final int side = entryKey.compareTo(key);
+      if (side > 0) continue;
+
+      if (side < 0) {
+        opening += entry.signedAmount;
+      } else {
+        net += entry.signedAmount;
+      }
+    }
+
+    return WalletBalance(opening: opening, net: net);
   }
 }
 

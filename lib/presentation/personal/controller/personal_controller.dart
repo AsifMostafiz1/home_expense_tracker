@@ -171,6 +171,10 @@ class PersonalController extends GetxController implements GetxService {
 
   MonthMoney get monthMoney => MonthMoney.of(selectedMonth, transactions);
 
+  /// What is left in hand as the month on screen closes — every month before
+  /// it carried forward, plus this one. See [WalletBalance].
+  WalletBalance get wallet => WalletBalance.of(selectedMonth, transactions);
+
   /// The last six months, oldest first — what the trend chart draws.
   List<MonthMoney> get trend {
     return [

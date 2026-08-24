@@ -60,14 +60,18 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
               onSelected: (index) => _tabs.animateTo(index),
             ),
           ),
-          floatingActionButton: FloatingActionButton.extended(
+          // Just the plus, the way the house expense screen's is: which book
+          // it adds to is the tab that is open, and a label repeating that
+          // sits on top of the list it is trying not to cover. What it does
+          // still has a name for anyone who holds it, and for screen readers.
+          floatingActionButton: FloatingActionButton(
             onPressed: () => _onDues
                 ? showDebtEntrySheet(context)
                 : showTransactionSheet(context),
             backgroundColor: primary,
             foregroundColor: Colors.white,
-            icon: const Icon(Icons.add_rounded),
-            label: Text(_onDues ? 'add_due_entry'.tr : 'add_entry'.tr),
+            tooltip: _onDues ? 'add_due_entry'.tr : 'add_entry'.tr,
+            child: const Icon(Icons.add_rounded),
           ),
           body: TabBarView(
             controller: _tabs,
@@ -107,7 +111,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
       children: [
         _buildMonthSwitcher(context, c),
         const SizedBox(height: 14),
-        _buildMonthHero(context, month),
+        _buildWalletHero(context, c),
         const SizedBox(height: 14),
         MoneyTrendChart(months: c.trend, focused: c.selectedMonth),
         if (spending.isNotEmpty) ...[
@@ -305,81 +309,150 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     );
   }
 
-  /// The month in three numbers, with what was kept out of what came in.
-  Widget _buildMonthHero(BuildContext context, MonthMoney month) {
+  /// The wallet, and the month that moved it.
+  ///
+  /// The balance is the headline because it is the number that answers "can I
+  /// afford this". The month's own figures are the working behind it — what
+  /// was already there, what came in, what went out — so they sit underneath
+  /// in that order rather than competing for the top line.
+  ///
+  /// Drawn on a gradient like the house expense summary, so a member's two
+  /// ledgers open with the same kind of card. Value contrast does the work on
+  /// top of it: accent hues would fight the ground, as they do over there.
+  Widget _buildWalletHero(BuildContext context, PersonalController c) {
     final Color primary = Theme.of(context).colorScheme.primary;
-    final bool ahead = month.net >= 0;
+    final MonthMoney month = c.monthMoney;
+    final WalletBalance wallet = c.wallet;
+
+    final DateTime now = DateTime.now();
+    final bool isThisMonth =
+        c.selectedMonth.year == now.year && c.selectedMonth.month == now.month;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       decoration: BoxDecoration(
-        color: AppUi.tint(context, primary),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: primary.withOpacity(0.25)),
+        gradient: LinearGradient(
+          colors: [primary, primary.withOpacity(0.72)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.30),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              const Icon(Icons.account_balance_wallet_rounded,
+                  size: 15, color: Colors.white70),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  (ahead ? 'saved_this_month' : 'overspent_this_month').tr,
-                  style: TextStyle(fontSize: 11.5, color: AppUi.muted(context)),
+                  'wallet'.tr.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
                 ),
               ),
-              Icon(Icons.lock_outline_rounded,
-                  size: 12, color: AppUi.muted(context)),
+              const Icon(Icons.lock_outline_rounded,
+                  size: 12, color: Colors.white70),
               const SizedBox(width: 4),
-              Text(
-                'private_to_you'.tr,
-                style: TextStyle(fontSize: 10.5, color: AppUi.muted(context)),
+              Flexible(
+                child: Text(
+                  'private_to_you'.tr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 10.5),
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _signed(wallet.balance, plus: false),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 34,
+                    height: 1.1,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+              // Nothing recorded this month moved nothing — a "+৳0" pill
+              // would be noise next to the balance.
+              if (!month.isEmpty) ...[
+                const SizedBox(width: 10),
+                _MonthNetChip(net: month.net, month: c.selectedMonth),
+              ],
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            AppUi.amount(month.net.abs()),
-            style: TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -1,
-              color: AppUi.accent(
-                  context, ahead ? Colors.green : Colors.deepOrange),
+            wallet.isShort
+                ? 'wallet_short'.tr
+                : isThisMonth
+                    ? 'wallet_in_hand'.tr
+                    : 'wallet_as_of'
+                        .trParams({'month': AppUi.monthLabel(c.selectedMonth)}),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
             ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              _heroStat(context, 'income'.tr, month.income,
-                  Icons.north_east_rounded, Colors.green),
-              Container(
-                width: 1,
-                height: 30,
-                margin: const EdgeInsets.symmetric(horizontal: 14),
-                color: AppUi.hairline(context),
-              ),
-              _heroStat(context, 'expense_word'.tr, month.expense,
-                  Icons.south_west_rounded, Colors.deepOrange),
-            ],
+          const SizedBox(height: 16),
+          // The working behind the figure above, left to right in the order
+          // it happens: what was already there, what came in, what went out.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.16),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                _heroStat(
+                    'carried_in'.tr, wallet.opening, Icons.history_rounded),
+                _heroStatDivider(),
+                _heroStat(
+                    'income'.tr, month.income, Icons.north_east_rounded),
+                _heroStatDivider(),
+                _heroStat(
+                    'expense_word'.tr, month.expense, Icons.south_west_rounded),
+              ],
+            ),
           ),
-          if (month.income > 0) ...[
+          if (!month.isEmpty) ...[
             const SizedBox(height: 14),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: month.savedShare,
-                minHeight: 6,
-                backgroundColor: AppUi.tint(context, Colors.deepOrange),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                    AppUi.accent(context, Colors.green)),
-              ),
-            ),
-            const SizedBox(height: 6),
+            _MonthSpendBar(month: month),
+            const SizedBox(height: 7),
             Text(
-              'kept_share'.trParams(
-                  {'percent': '${(month.savedShare * 100).round()}'}),
-              style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+              _monthVerdict(month),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 11, height: 1.35),
             ),
           ],
         ],
@@ -387,42 +460,77 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     );
   }
 
-  Widget _heroStat(
-    BuildContext context,
-    String label,
-    double value,
-    IconData icon,
-    MaterialColor color,
-  ) {
+  /// What the month did, in one line.
+  ///
+  /// Three different things to say, not one with a number swapped in: a month
+  /// that spent past its income is not a month that "kept 0%" — the figure
+  /// that matters there is how far past, and by how much. And a month with no
+  /// income at all has no share to be a percentage of.
+  String _monthVerdict(MonthMoney month) {
+    if (!month.isOverspent) {
+      return 'kept_share'
+          .trParams({'percent': '${(month.savedShare * 100).round()}'});
+    }
+
+    if (month.income <= 0) {
+      return 'overspent_no_income'
+          .trParams({'amount': AppUi.amount(month.expense)});
+    }
+
+    return 'overspent_share'.trParams({
+      'percent': '${(month.spentShare * 100).round()}',
+      'amount': AppUi.amount(month.overspend),
+    });
+  }
+
+  /// `৳70` / `−৳70`, and `+৳70` where the gain is the point. The minus sign is
+  /// the typographic one: a hyphen next to figures this size reads as a dash.
+  String _signed(double value, {bool plus = true}) {
+    final String sign = value < 0 ? '−' : (plus ? '+' : '');
+    return '$sign${AppUi.amount(value.abs())}';
+  }
+
+  Widget _heroStat(String label, double value, IconData icon) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 13, color: AppUi.accent(context, color)),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+              Icon(icon, size: 11, color: Colors.white70),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 10.5),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 3),
           Text(
-            AppUi.amount(value),
+            _signed(value, plus: false),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 16,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14.5,
               fontWeight: FontWeight.bold,
-              color: AppUi.body(context),
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _heroStatDivider() => Container(
+        width: 1,
+        height: 26,
+        margin: const EdgeInsets.symmetric(horizontal: 10),
+        color: Colors.white.withOpacity(0.22),
+      );
 
   /// One entry, inside its day's card — so no border or radius of its own.
   Widget _buildTransactionRow(
@@ -479,11 +587,18 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                     Row(
                       children: [
                         // Just the clock: the heading above already says
-                        // which day this was.
-                        Text(
-                          entry.time.format(context),
-                          style: TextStyle(
-                              fontSize: 11, color: AppUi.muted(context)),
+                        // which day this was. Flexible like the category
+                        // beside it, so the badges that follow are never the
+                        // ones pushed off the edge — they are the part of
+                        // this line that cannot be read from anywhere else.
+                        Flexible(
+                          child: Text(
+                            entry.time.format(context),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 11, color: AppUi.muted(context)),
+                          ),
                         ),
                         if (entry.note.isNotEmpty) ...[
                           Text(' · ',
@@ -823,6 +938,116 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// How the month sat against its own income.
+///
+/// Inside it, the bar is what was kept: a full bar is a month that spent
+/// nothing. Past it, the scale changes to what was spent — the stretch the
+/// income covered, then the stretch it did not — because "how far over" is
+/// the only question left once the answer to "did it fit" is no. A bar that
+/// simply sat empty at 0% said neither.
+///
+/// Value contrast rather than hue, like the split bar on the house expense
+/// summary: a red on this ground goes muddy.
+/// ---------------------------------------------------------------------------
+
+class _MonthSpendBar extends StatelessWidget {
+  final MonthMoney month;
+
+  const _MonthSpendBar({required this.month});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: SizedBox(
+        height: 6,
+        child: month.isOverspent ? _overspent() : _kept(),
+      ),
+    );
+  }
+
+  Widget _kept() {
+    return LinearProgressIndicator(
+      value: month.savedShare,
+      minHeight: 6,
+      backgroundColor: Colors.white.withOpacity(0.25),
+      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+    );
+  }
+
+  /// The whole bar is what was spent: the bright stretch is the part the
+  /// income paid for, the dim one is the part nothing paid for.
+  Widget _overspent() {
+    // Rounded to a flex weight rather than used as a fraction — a Row lays
+    // out in whole units, and a hundredth of a taka is not a pixel.
+    final int covered = (month.income * 100).round().clamp(0, 100000000);
+    final int over = (month.overspend * 100).round().clamp(1, 100000000);
+
+    return Row(
+      children: [
+        if (covered > 0) ...[
+          Expanded(
+            flex: covered,
+            child: Container(color: Colors.white.withOpacity(0.95)),
+          ),
+          const SizedBox(width: 3),
+        ],
+        Expanded(
+          flex: over,
+          child: Container(color: Colors.white.withOpacity(0.38)),
+        ),
+      ],
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// What the month on screen did to the wallet, as a pill beside the balance.
+/// Direction is carried by the arrow and the sign rather than by a colour —
+/// green and orange both go muddy on a saturated ground.
+/// ---------------------------------------------------------------------------
+
+class _MonthNetChip extends StatelessWidget {
+  final double net;
+  final DateTime month;
+
+  const _MonthNetChip({required this.net, required this.month});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool up = net >= 0;
+
+    return Tooltip(
+      message: (up ? 'saved_this_month' : 'overspent_this_month').tr,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(up ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                size: 13, color: Colors.white),
+            const SizedBox(width: 5),
+            Text(
+              '${up ? '+' : '−'}${AppUi.amount(net.abs())}'
+              ' · ${AppUi.shortMonth(month)}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
