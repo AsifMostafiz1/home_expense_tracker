@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_snackbar.dart';
+import '../../../common/widgets/profile_avatar.dart';
 import '../../../utils/app_enums.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/personal_controller.dart';
@@ -1064,22 +1065,18 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           ),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppUi.tint(context, tone),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  _initials(person.name),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: AppUi.accent(context, tone),
-                  ),
-                ),
+              // Somebody on this list may also be in the house, in which
+              // case their picture is already known — the directory resolves
+              // it from the name or phone the account was opened with. It
+              // falls back to the same initials in the same tinted circle, so
+              // a person from outside the app looks exactly as before.
+              ProfileAvatar(
+                name: person.name,
+                phone: person.phone,
+                size: 44,
+                background: AppUi.tint(context, tone),
+                foreground: AppUi.accent(context, tone),
+                fontSize: 15,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1127,15 +1124,6 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
         ),
       ),
     );
-  }
-
-  static String _initials(String name) {
-    final List<String> parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.characters.first.toUpperCase();
-    return (parts.first.characters.first + parts.last.characters.first)
-        .toUpperCase();
   }
 
   /// ---------------------------------------------------------------- shared

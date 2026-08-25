@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../common/widgets/custom_app_bar.dart';
+import '../../../common/widgets/profile_avatar.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/personal_controller.dart';
 import '../model/debt_entry.dart';
 import '../model/personal_summary.dart';
 import '../model/personal_transaction.dart';
+import 'person_ledger_screen.dart';
 
 /// Where the wallet figure comes from, line by line.
 ///
@@ -19,6 +21,10 @@ import '../model/personal_transaction.dart';
 /// It reads the controller live rather than taking a snapshot, so an entry
 /// added while this is open — or a month switched behind it — is reflected
 /// here too.
+///
+/// Every line is also a way in to what it is made of: a month opens the
+/// ledger on that month, the carried-in line opens the December it was
+/// carried out of, and a person opens their account.
 class WalletBreakdownScreen extends StatelessWidget {
   const WalletBreakdownScreen({super.key});
 
@@ -143,6 +149,17 @@ class WalletBreakdownScreen extends StatelessWidget {
     );
   }
 
+  /// Opens the ledger on [month].
+  ///
+  /// Set and step back, rather than push. This screen is the month view's
+  /// working shown on top of it, so the month it names is already one layer
+  /// down — stacking a third copy of the same ledger over two that agree
+  /// would leave somebody tapping back twice to get out of one month.
+  void _openMonth(PersonalController c, DateTime month) {
+    c.goToMonth(month);
+    Get.back();
+  }
+
   Widget _sectionLabel(BuildContext context, String text) {
     return Text(
       text.toUpperCase(),
@@ -176,6 +193,10 @@ class WalletBreakdownScreen extends StatelessWidget {
         label: 'carried_in'.tr,
         detail: 'carried_in_detail'.trParams({'when': '${timeline.year - 1}'}),
         amount: timeline.broughtForward,
+        // The figure is everything up to the end of that year, and December
+        // is where the ledger closes it — the month somebody following this
+        // line back is actually looking for.
+        onTap: () => _openMonth(c, DateTime(timeline.year - 1, 12)),
       ));
     }
 
@@ -198,6 +219,7 @@ class WalletBreakdownScreen extends StatelessWidget {
         }),
         amount: month.net,
         emphasised: isCurrent,
+        onTap: () => _openMonth(c, month.month),
       ));
     }
 
@@ -258,6 +280,7 @@ class WalletBreakdownScreen extends StatelessWidget {
     required String detail,
     required double amount,
     bool emphasised = false,
+    VoidCallback? onTap,
   }) {
     return _line(
       context,
@@ -275,39 +298,32 @@ class WalletBreakdownScreen extends StatelessWidget {
       detail: detail,
       amount: amount,
       emphasised: emphasised,
+      onTap: onTap,
     );
   }
 
   Widget _buildPersonLine(BuildContext context, PersonBalance person) {
     final bool owesMe = person.owesMe;
     final MaterialColor tone = owesMe ? Colors.green : Colors.deepOrange;
-    final String initial =
-        person.name.trim().isEmpty ? '?' : person.name.trim()[0].toUpperCase();
 
     return _line(
       context,
-      leading: Container(
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppUi.tint(context, tone),
-          shape: BoxShape.circle,
-        ),
-        child: Text(
-          initial,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: AppUi.accent(context, tone),
-          ),
-        ),
+      // Their picture when the house knows one, their initials when it does
+      // not — the same circle either way.
+      leading: ProfileAvatar(
+        name: person.name,
+        phone: person.phone,
+        size: 36,
+        background: AppUi.tint(context, tone),
+        foreground: AppUi.accent(context, tone),
+        fontSize: 14,
       ),
       label: person.name.trim().isEmpty ? 'person_name'.tr : person.name,
       detail: (owesMe ? 'debt_taken' : 'debt_given').tr,
       // Negative when it is the member who has to pay: the column reads as
       // one running set of adjustments, not as two separate totals.
       amount: owesMe ? person.balance : -person.balance.abs(),
+      onTap: () => Get.to(() => PersonLedgerScreen(personKey: person.key)),
     );
   }
 
@@ -318,9 +334,12 @@ class WalletBreakdownScreen extends StatelessWidget {
     required String detail,
     required double amount,
     bool emphasised = false,
+    VoidCallback? onTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+    final Widget row = Padding(
+      // Tighter on the right when a chevron is there to fill it, so the
+      // amounts still line up down the column whether a row leads anywhere.
+      padding: EdgeInsets.fromLTRB(16, 14, onTap == null ? 16 : 6, 14),
       child: Row(
         children: [
           leading,
@@ -365,8 +384,23 @@ class WalletBreakdownScreen extends StatelessWidget {
                       context, amount > 0 ? Colors.green : Colors.deepOrange),
             ),
           ),
+          // A statement line that is also a door needs to look like one
+          // before it is tapped, not only while it is.
+          if (onTap != null)
+            Icon(Icons.chevron_right_rounded,
+                size: 18, color: AppUi.muted(context)),
         ],
       ),
+    );
+
+    if (onTap == null) return row;
+
+    // Transparent, and above the card's own painted background — an ink
+    // splash lands on the nearest Material, which without this is the page
+    // underneath the card and therefore never seen.
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(onTap: onTap, child: row),
     );
   }
 
