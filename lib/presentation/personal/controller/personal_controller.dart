@@ -9,6 +9,7 @@ import '../../../services/connectivity_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../model/debt_entry.dart';
+import '../model/ledger_person.dart';
 import '../model/personal_category.dart';
 import '../model/personal_summary.dart';
 import '../model/personal_transaction.dart';
@@ -40,14 +41,20 @@ class PersonalController extends GetxController implements GetxService {
   List<PersonalTransaction> transactions = [];
   List<DebtEntry> debts = [];
 
+  /// The people accounts are kept with, whether or not anything has passed
+  /// through them yet — see [LedgerPerson].
+  List<LedgerPerson> savedPeople = [];
+
   /// The month the money tab is showing. Always the first of the month.
   DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   StreamSubscription<List<PersonalTransaction>>? _transactionsSub;
   StreamSubscription<List<DebtEntry>>? _debtsSub;
+  StreamSubscription<List<LedgerPerson>>? _peopleSub;
 
   bool _transactionsLoaded = false;
   bool _debtsLoaded = false;
+  bool _peopleLoaded = false;
 
   bool get _isOffline =>
       Get.isRegistered<ConnectivityService>() &&
@@ -63,6 +70,7 @@ class PersonalController extends GetxController implements GetxService {
   void onClose() {
     _transactionsSub?.cancel();
     _debtsSub?.cancel();
+    _peopleSub?.cancel();
     super.onClose();
   }
 
@@ -83,6 +91,7 @@ class PersonalController extends GetxController implements GetxService {
   void _watch() {
     _transactionsSub?.cancel();
     _debtsSub?.cancel();
+    _peopleSub?.cancel();
 
     _transactionsSub = repository.watchTransactions(userPhone).listen(
       (list) {
@@ -111,10 +120,26 @@ class PersonalController extends GetxController implements GetxService {
         _settleLoading();
       },
     );
+
+    _peopleSub = repository.watchPeople(userPhone).listen(
+      (list) {
+        savedPeople = list;
+        _peopleLoaded = true;
+        _settleLoading();
+      },
+      onError: (Object e) {
+        debugPrint('Personal: people stream failed — $e');
+        // Not held against the screen: the dues list is still readable from
+        // the entries alone, and only the accounts with nothing in them yet
+        // are missing from it.
+        _peopleLoaded = true;
+        _settleLoading();
+      },
+    );
   }
 
   void _settleLoading() {
-    if (_transactionsLoaded && _debtsLoaded) isLoading = false;
+    if (_transactionsLoaded && _debtsLoaded && _peopleLoaded) isLoading = false;
     update();
   }
 
@@ -326,7 +351,10 @@ class PersonalController extends GetxController implements GetxService {
   /// ------------------------------------------------------------ dena-paona
 
   /// One row per person, biggest outstanding first, settled accounts last.
-  List<PersonBalance> get people => PersonBalance.group(debts);
+  /// The people saved on their own come in too, so an account opened from the
+  /// dues screen is on the list before a single taka has moved.
+  List<PersonBalance> get people =>
+      PersonBalance.group(debts, saved: savedPeople);
 
   PersonBalance? personFor(String key) {
     for (final PersonBalance person in people) {
@@ -349,6 +377,63 @@ class PersonalController extends GetxController implements GetxService {
   /// for the same person does not start a second account.
   List<String> get knownPeople =>
       people.map((person) => person.name).where((name) => name.isNotEmpty).toList();
+
+  /// The keys already on the dues list, for anything offering people to add:
+  /// somebody who is on it once should not be offered as new.
+  Set<String> get personKeys => people.map((person) => person.key).toSet();
+
+  /// Opens an account with somebody, and nothing more.
+  ///
+  /// No amount, no note, no date — the person is the whole of it, and what
+  /// passes between the two of them is entered afterwards from inside their
+  /// account. Adding a name that is already on the list is not an error worth
+  /// a red banner: it is the same account, so it is said plainly and left
+  /// alone rather than duplicated.
+  Future<bool> addPerson({
+    required String name,
+    String phone = '',
+  }) async {
+    if (userPhone.isEmpty) return false;
+
+    final String cleanName = name.trim();
+    final String cleanPhone = phone.trim();
+    if (cleanName.isEmpty) return false;
+
+    final String key =
+        cleanPhone.isNotEmpty ? cleanPhone : cleanName.toLowerCase();
+    if (personKeys.contains(key)) {
+      CustomSnackbar.show(
+          type: SnackbarType.info, message: 'person_already_added'.tr);
+      return false;
+    }
+
+    try {
+      isSaving = true;
+      update();
+
+      final bool offline = _isOffline;
+
+      await repository.savePerson(LedgerPerson(
+        ownerPhone: userPhone,
+        name: cleanName,
+        phone: cleanPhone,
+      ));
+
+      CustomSnackbar.show(
+        type: offline ? SnackbarType.info : SnackbarType.success,
+        message: offline ? 'saved_offline_generic'.tr : 'person_added'.tr,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error saving ledger person: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_save_person'.tr);
+      return false;
+    } finally {
+      isSaving = false;
+      update();
+    }
+  }
 
   Future<bool> saveDebtEntry({
     DebtEntry? existing,
@@ -412,10 +497,18 @@ class PersonalController extends GetxController implements GetxService {
     }
   }
 
-  /// Clears one person's whole account — every row, not a settling entry.
+  /// Clears one person's whole account — every row, not a settling entry, and
+  /// the person themselves, or the row would come back empty on the next
+  /// snapshot.
   Future<void> deletePerson(PersonBalance person) async {
     try {
-      await repository.deletePerson(person.entries);
+      await repository.deletePerson(
+        person.entries,
+        personIds: savedPeople
+            .where((saved) => saved.key == person.key)
+            .map((saved) => saved.id)
+            .toList(),
+      );
       CustomSnackbar.show(
           type: SnackbarType.success, message: 'person_removed'.tr);
     } catch (e) {

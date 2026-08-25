@@ -27,7 +27,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     // loading — this screen is reachable from the home-screen photo prompt,
     // which can land seconds after launch.
     _nameController.text = _controller.userModel?.name ?? _controller.userName;
-    _phoneController.text = _controller.userModel?.phone ?? _controller.userPhone;
+    _phoneController.text =
+        _controller.userModel?.phone ?? _controller.userPhone;
     _passwordController.text = ''; // Keep password field empty by default
   }
 
@@ -65,7 +66,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildAvatarPicker(BuildContext context, ProfileController controller) {
+  Widget _buildAvatarPicker(
+      BuildContext context, ProfileController controller) {
     return AvatarPicker(
       image: _avatarImage(controller),
       name: controller.userModel?.name ?? controller.userName,
@@ -84,12 +86,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             elevation: 0,
             leading: IconButton(
-              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).textTheme.titleLarge?.color),
+              icon: Icon(Icons.arrow_back_ios,
+                  color: Theme.of(context).textTheme.titleLarge?.color),
               onPressed: () => Get.back(),
             ),
             title: Text(
               'edit_profile'.tr,
-              style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: Theme.of(context).textTheme.titleLarge?.color,
+                  fontWeight: FontWeight.bold),
             ),
             centerTitle: true,
           ),
@@ -147,7 +152,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     String name = _nameController.text.trim();
 
                     if (name.isEmpty) {
-                      CustomSnackbar.show(type: SnackbarType.error, message: 'please_fill_all_fields'.tr);
+                      CustomSnackbar.show(
+                          type: SnackbarType.error,
+                          message: 'please_fill_all_fields'.tr);
                       return;
                     }
 

@@ -11,9 +11,9 @@ import '../model/debt_entry.dart';
 import '../model/personal_category.dart';
 import '../model/personal_summary.dart';
 import '../model/personal_transaction.dart';
+import '../widgets/add_person_sheet.dart';
 import '../widgets/category_breakdown.dart';
 import '../widgets/category_entries_sheet.dart';
-import '../widgets/debt_entry_sheet.dart';
 import '../widgets/money_trend_chart.dart';
 import '../widgets/personal_skeletons.dart';
 import '../widgets/transaction_sheet.dart';
@@ -113,13 +113,18 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           // it adds to is the tab that is open, and a label repeating that
           // sits on top of the list it is trying not to cover. What it does
           // still has a name for anyone who holds it, and for screen readers.
+          //
+          // On the dues side it adds a person, not a due. Amounts belong
+          // inside somebody's account, where both directions are one tap
+          // away — asking for a name and a figure at the same moment made
+          // adding a person to the list impossible without inventing a loan.
           floatingActionButton: FloatingActionButton(
             onPressed: () => _onDues
-                ? showDebtEntrySheet(context)
+                ? showAddPersonSheet(context)
                 : showTransactionSheet(context),
             backgroundColor: primary,
             foregroundColor: Colors.white,
-            tooltip: _onDues ? 'add_due_entry'.tr : 'add_entry'.tr,
+            tooltip: _onDues ? 'add_person'.tr : 'add_entry'.tr,
             child: const Icon(Icons.add_rounded),
           ),
           body: TabBarView(
@@ -929,29 +934,58 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
 
   /// The two totals, kept apart: netting them would hide a thousand lent
   /// behind a thousand borrowed.
+  ///
+  /// Named for what the member did rather than for what follows from it —
+  /// "lent out" is a thing they remember doing, where "total to get" is a
+  /// conclusion they have to work back from. What follows from it is the line
+  /// under the figure.
+  ///
+  /// Lent first, and green: money out on loan is the half most people open
+  /// this tab to check.
   Widget _buildDuesHero(BuildContext context, PersonalController c) {
-    return Row(
-      children: [
-        Expanded(
-          child: _duesCard(context, 'you_will_receive'.tr, c.totalReceivable,
-              Icons.call_received_rounded, Colors.green),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _duesCard(context, 'you_will_pay'.tr, c.totalPayable,
-              Icons.call_made_rounded, Colors.deepOrange),
-        ),
-      ],
+    return IntrinsicHeight(
+      child: Row(
+        // Two cards of the same height whichever way their hints wrap — a
+        // pair sitting at different heights reads as a mistake.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _duesCard(
+              context,
+              label: 'dues_lent_out'.tr,
+              hint: 'dues_lent_out_hint'.tr,
+              amount: c.totalReceivable,
+              icon: Icons.call_received_rounded,
+              color: Colors.green,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _duesCard(
+              context,
+              label: 'dues_borrowed'.tr,
+              hint: 'dues_borrowed_hint'.tr,
+              amount: c.totalPayable,
+              icon: Icons.call_made_rounded,
+              color: Colors.deepOrange,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
+  /// [label] is what was done, [hint] is what it means for the member — one
+  /// line under the figure, because "lent out" and "borrowed" are the two
+  /// words people most reliably say the wrong way round.
   Widget _duesCard(
-    BuildContext context,
-    String label,
-    double amount,
-    IconData icon,
-    MaterialColor color,
-  ) {
+    BuildContext context, {
+    required String label,
+    required String hint,
+    required double amount,
+    required IconData icon,
+    required MaterialColor color,
+  }) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
@@ -971,7 +1005,11 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppUi.body(context),
+                  ),
                 ),
               ),
             ],
@@ -986,6 +1024,15 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
               fontWeight: FontWeight.bold,
               letterSpacing: -0.5,
               color: AppUi.accent(context, color),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hint,
+            style: TextStyle(
+              fontSize: 10.5,
+              height: 1.35,
+              color: AppUi.muted(context),
             ),
           ),
         ],
@@ -1050,7 +1097,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                     const SizedBox(height: 2),
                     Text(
                       person.lastActivity == null
-                          ? '${person.entries.length}'
+                          ? 'no_entries_yet'.tr
                           : '$label · ${AppUi.dayLabel(person.lastActivity!)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

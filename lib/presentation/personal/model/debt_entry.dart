@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import 'ledger_person.dart';
+
 /// Which way the money moved between the two people.
 enum DebtFlow {
   /// Money handed over — they owe it back.
@@ -199,16 +201,35 @@ class PersonBalance {
     return out;
   }
 
+  /// Whether the account was opened but nothing has passed through it yet —
+  /// a person added from the dues screen, waiting for their first entry.
+  bool get isEmpty => entries.isEmpty;
+
   /// One row per person, biggest outstanding first and settled accounts last.
   ///
   /// A static rather than a getter on the controller, because the wallet
   /// groups its own slice of the ledger — the entries up to a given month —
   /// and the two have to group it the same way, or a breakdown will not add
   /// up to the balance it is breaking down.
-  static List<PersonBalance> group(Iterable<DebtEntry> entries) {
+  ///
+  /// [saved] are the people opened on their own, before any money moved. They
+  /// come in as rows of their own so a freshly added person is on the list at
+  /// once; where entries already exist under the same key the two are the one
+  /// account, and the entries have the last word on the spelling of the name.
+  static List<PersonBalance> group(
+    Iterable<DebtEntry> entries, {
+    Iterable<LedgerPerson> saved = const <LedgerPerson>[],
+  }) {
     final Map<String, List<DebtEntry>> grouped = {};
     for (final DebtEntry entry in entries) {
       grouped.putIfAbsent(entry.personKey, () => <DebtEntry>[]).add(entry);
+    }
+
+    final Map<String, LedgerPerson> seeds = {};
+    for (final LedgerPerson person in saved) {
+      if (person.key.isEmpty) continue;
+      seeds[person.key] = person;
+      grouped.putIfAbsent(person.key, () => <DebtEntry>[]);
     }
 
     final List<PersonBalance> list = grouped.entries.map((group) {
@@ -221,17 +242,29 @@ class PersonBalance {
           return byDate != 0 ? byDate : b.minuteOfDay.compareTo(a.minuteOfDay);
         });
 
+      final LedgerPerson? seed = seeds[group.key];
+
       return PersonBalance(
         key: group.key,
-        name: rows.first.personName,
-        phone: rows.first.personPhone,
+        name: rows.isEmpty ? (seed?.name ?? '') : rows.first.personName,
+        phone: rows.isEmpty ? (seed?.phone ?? '') : rows.first.personPhone,
         entries: List<DebtEntry>.unmodifiable(rows),
       );
     }).toList();
 
     list.sort((a, b) {
       if (a.isSettled != b.isSettled) return a.isSettled ? 1 : -1;
-      return b.balance.abs().compareTo(a.balance.abs());
+      final int byAmount = b.balance.abs().compareTo(a.balance.abs());
+      if (byAmount != 0) return byAmount;
+
+      // Everything left is square — an account with nothing in it yet was
+      // opened moments ago, so it sits above the ones already paid off, and
+      // those fall in the order they were last touched.
+      if (a.isEmpty != b.isEmpty) return a.isEmpty ? -1 : 1;
+      final DateTime? aLast = a.lastActivity;
+      final DateTime? bLast = b.lastActivity;
+      if (aLast == null || bLast == null) return 0;
+      return bLast.compareTo(aLast);
     });
     return list;
   }

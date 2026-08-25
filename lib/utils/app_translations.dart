@@ -368,12 +368,17 @@ class AppTranslations extends Translations {
           'due_note_hint': 'What was this for?',
           'due_will_get': 'I will get',
           'due_will_pay': 'I will pay',
-          'you_will_receive': 'Total to get',
-          'you_will_pay': 'Total to pay',
+          // The dues hero, named for what the member did rather than for what
+          // follows from it — the line under each figure carries that.
+          'dues_lent_out': 'Lent out',
+          'dues_lent_out_hint': 'Money owed back to you',
+          'dues_borrowed': 'Borrowed',
+          'dues_borrowed_hint': 'Money you still owe',
           'owes_you': 'You will get',
           'you_owe': 'You have to pay',
           'all_settled': 'All settled',
-          'no_dues_yet': 'No dues yet. Add what you have lent or borrowed and it adds itself up here.',
+          'no_dues_yet':
+              'Nobody here yet. Add a person, then record what you give or take from their own page.',
           'history': 'History',
           'balance_after': 'Balance',
           'total_i_gave': 'Total given',
@@ -382,6 +387,18 @@ class AppTranslations extends Translations {
           'confirm_delete_person_ledger':
               'Every entry kept with this person will be removed. This cannot be undone.',
           'person_removed': 'Account removed',
+          // adding somebody to the dues list, before any money has moved
+          'add_person': 'Add a person',
+          'add_person_hint':
+              'Just who the account is with. What you give or take goes in afterwards, from their own page.',
+          'from_the_app': 'People on the app',
+          'keep_typing_to_narrow': '@count more — type a name to narrow this',
+          'person_added': 'Added to your list',
+          'person_already_added': 'They are already on your list',
+          'failed_save_person': 'Could not add the person',
+          'no_entries_yet': 'Nothing yet',
+          'no_entries_for_person':
+              'Nothing has passed between you yet. Record the first one below.',
           // categories
           'cat_food': 'Food',
           'cat_transport': 'Transport',
@@ -1125,12 +1142,17 @@ class AppTranslations extends Translations {
           'due_note_hint': 'কিসের জন্য?',
           'due_will_get': 'পাবো',
           'due_will_pay': 'দিবো',
-          'you_will_receive': 'মোট পাবো',
-          'you_will_pay': 'মোট দিতে হবে',
+          // দেনা-পাওনার উপরের দুই কার্ড: শিরোনামে কাজটা কী ছিল, নিচের লাইনে
+          // তার ফল কী।
+          'dues_lent_out': 'ধার দিয়েছি',
+          'dues_lent_out_hint': 'ফেরত পাবেন এই টাকা',
+          'dues_borrowed': 'ধার নিয়েছি',
+          'dues_borrowed_hint': 'ফেরত দিতে হবে এই টাকা',
           'owes_you': 'আমি পাবো',
           'you_owe': 'আমাকে দিতে হবে',
           'all_settled': 'হিসাব মেটানো',
-          'no_dues_yet': 'এখনো কোনো দেনা-পাওনা নেই। কাকে কত দিলেন বা নিলেন লিখুন, হিসাব এখানেই জমা হবে।',
+          'no_dues_yet':
+              'এখনো কেউ নেই। আগে ব্যক্তি যোগ করুন, এরপর তার পাতা থেকে কে কত দিলেন বা নিলেন লিখুন।',
           'history': 'হিসাবের খতিয়ান',
           'balance_after': 'ব্যালেন্স',
           'total_i_gave': 'মোট দিয়েছি',
@@ -1139,6 +1161,18 @@ class AppTranslations extends Translations {
           'confirm_delete_person_ledger':
               'এই ব্যক্তির সব এন্ট্রি মুছে যাবে। এটি আর ফেরানো যাবে না।',
           'person_removed': 'হিসাব মুছে ফেলা হয়েছে',
+          // দেনা-পাওনার তালিকায় ব্যক্তি যোগ করা, টাকার হিসাব আসার আগেই
+          'add_person': 'ব্যক্তি যোগ করুন',
+          'add_person_hint':
+              'শুধু কার সাথে হিসাব, সেটুকুই। কে কত দিলেন বা নিলেন, তা পরে ওই ব্যক্তির পাতা থেকেই লিখবেন।',
+          'from_the_app': 'অ্যাপে যারা আছেন',
+          'keep_typing_to_narrow': 'আরও @count জন — নাম লিখে খুঁজুন',
+          'person_added': 'তালিকায় যোগ হয়েছে',
+          'person_already_added': 'ইনি আগে থেকেই আপনার তালিকায় আছেন',
+          'failed_save_person': 'ব্যক্তিটি যোগ করা যায়নি',
+          'no_entries_yet': 'এখনো কিছু নেই',
+          'no_entries_for_person':
+              'আপনাদের মধ্যে এখনো কোনো লেনদেন হয়নি। নিচ থেকে প্রথমটি লিখুন।',
           // categories
           'cat_food': 'খাবার',
           'cat_transport': 'যাতায়াত',

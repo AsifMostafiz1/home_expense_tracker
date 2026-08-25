@@ -58,20 +58,47 @@ class PersonLedgerScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              for (final DebtEntry entry in person.entries) ...[
-                _buildEntryTile(
-                  context,
-                  c,
-                  entry,
-                  balanceAfter: balances[entry.id] ?? 0,
-                ),
-                const SizedBox(height: 10),
-              ],
+              if (person.isEmpty)
+                _buildEmptyHistory(context)
+              else
+                for (final DebtEntry entry in person.entries) ...[
+                  _buildEntryTile(
+                    context,
+                    c,
+                    entry,
+                    balanceAfter: balances[entry.id] ?? 0,
+                  ),
+                  const SizedBox(height: 10),
+                ],
             ],
           ),
           bottomNavigationBar: _buildActionBar(context, person),
         );
       },
+    );
+  }
+
+  /// An account opened from the dues screen and not yet written into — the
+  /// buttons that fill it are already at the bottom of this screen, so this
+  /// only has to point at them.
+  Widget _buildEmptyHistory(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppUi.hairline(context)),
+      ),
+      child: Text(
+        'no_entries_for_person'.tr,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 12.5,
+          height: 1.5,
+          color: AppUi.muted(context),
+        ),
+      ),
     );
   }
 

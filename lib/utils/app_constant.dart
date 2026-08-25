@@ -92,6 +92,10 @@ class AppConstant {
 
   /// A member's private dues with people outside the app — see `DebtEntry`.
   static const String collectionPersonalDebts = 'personal_debts';
+
+  /// The people those dues are kept with, saved on their own so an account
+  /// can be opened before any money has moved — see `LedgerPerson`.
+  static const String collectionPersonalPeople = 'personal_people';
   
   static const double appVersion = 1.1;
 

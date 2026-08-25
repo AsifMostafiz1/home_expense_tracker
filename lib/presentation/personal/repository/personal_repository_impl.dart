@@ -7,6 +7,7 @@ import '../../../services/background_sync_service.dart';
 import '../../../services/connectivity_service.dart';
 import '../../../utils/app_constant.dart';
 import '../model/debt_entry.dart';
+import '../model/ledger_person.dart';
 import '../model/personal_transaction.dart';
 import 'personal_repository.dart';
 
@@ -31,6 +32,10 @@ class PersonalRepositoryImpl implements PersonalRepository {
 
   CollectionReference<Map<String, dynamic>> get _debts =>
       FirebaseFirestore.instance.collection(AppConstant.collectionPersonalDebts);
+
+  CollectionReference<Map<String, dynamic>> get _people =>
+      FirebaseFirestore.instance
+          .collection(AppConstant.collectionPersonalPeople);
 
   @override
   Stream<List<PersonalTransaction>> watchTransactions(String ownerPhone) {
@@ -133,12 +138,70 @@ class PersonalRepositoryImpl implements PersonalRepository {
   Future<void> deleteDebtEntry(String id) => _commit(_debts.doc(id).delete());
 
   @override
-  Future<void> deletePerson(List<DebtEntry> entries) {
-    if (entries.isEmpty) return Future<void>.value();
+  Stream<List<LedgerPerson>> watchPeople(String ownerPhone) {
+    if (ownerPhone.isEmpty) return Stream<List<LedgerPerson>>.value(const []);
+
+    return _people
+        .where('owner_phone', isEqualTo: ownerPhone)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
+      if (!snapshot.metadata.isFromCache) connectivity?.reportReachable();
+
+      final List<LedgerPerson> items = snapshot.docs
+          .map((doc) => LedgerPerson.fromMap(
+                doc.id,
+                doc.data(),
+                pending: doc.metadata.hasPendingWrites,
+              ))
+          .toList();
+
+      // Newest first, so a person added a moment ago is at the top of the
+      // list they were added from. A record with no timestamp yet is one this
+      // device has just written and Firestore has not stamped — that is the
+      // newest of all.
+      items.sort((a, b) {
+        final DateTime? aAt = a.createdAt;
+        final DateTime? bAt = b.createdAt;
+        if (aAt == null || bAt == null) {
+          if (aAt == bAt) return 0;
+          return aAt == null ? -1 : 1;
+        }
+        return bAt.compareTo(aAt);
+      });
+      return items;
+    });
+  }
+
+  @override
+  Future<void> savePerson(LedgerPerson person) {
+    final Map<String, dynamic> data = {
+      ...person.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (person.id.isEmpty) {
+      return _commit(_people.doc().set({
+        ...data,
+        'createdAt': FieldValue.serverTimestamp(),
+      }));
+    }
+
+    return _commit(_people.doc(person.id).set(data, SetOptions(merge: true)));
+  }
+
+  @override
+  Future<void> deletePerson(
+    List<DebtEntry> entries, {
+    List<String> personIds = const [],
+  }) {
+    if (entries.isEmpty && personIds.isEmpty) return Future<void>.value();
 
     final WriteBatch batch = FirebaseFirestore.instance.batch();
     for (final DebtEntry entry in entries) {
       batch.delete(_debts.doc(entry.id));
+    }
+    for (final String id in personIds) {
+      if (id.isNotEmpty) batch.delete(_people.doc(id));
     }
     return _commit(batch.commit());
   }
