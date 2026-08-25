@@ -941,6 +941,9 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   /// under the figure, and it is put in terms of the wallet: borrowing puts
   /// money in it, lending takes money out, which is the way round the wallet
   /// on the other tab already counts them.
+  ///
+  /// Lent out comes first — money the member has put out and is waiting on is
+  /// the half they open this tab to check.
   Widget _buildDuesHero(BuildContext context, PersonalController c) {
     return IntrinsicHeight(
       child: Row(
@@ -951,10 +954,10 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           Expanded(
             child: _duesCard(
               context,
-              label: 'debt_taken'.tr,
-              hint: 'debt_taken_hint'.tr,
-              amount: c.totalReceivable,
-              icon: Icons.call_received_rounded,
+              label: 'debt_given'.tr,
+              hint: 'debt_given_hint'.tr,
+              amount: c.totalPayable,
+              icon: Icons.call_made_rounded,
               color: Colors.green,
             ),
           ),
@@ -962,10 +965,10 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           Expanded(
             child: _duesCard(
               context,
-              label: 'debt_given'.tr,
-              hint: 'debt_given_hint'.tr,
-              amount: c.totalPayable,
-              icon: Icons.call_made_rounded,
+              label: 'debt_taken'.tr,
+              hint: 'debt_taken_hint'.tr,
+              amount: c.totalReceivable,
+              icon: Icons.call_received_rounded,
               color: Colors.deepOrange,
             ),
           ),
@@ -1040,9 +1043,11 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   }
 
   Widget _buildPersonTile(BuildContext context, PersonBalance person) {
+    // Red is a loan taken, green a loan given — the colours name the two
+    // directions, not whether the figure is good news.
     final MaterialColor tone = person.isSettled
         ? Colors.blueGrey
-        : (person.owesMe ? Colors.green : Colors.deepOrange);
+        : (person.owesMe ? Colors.deepOrange : Colors.green);
     final String label = person.isSettled
         ? 'all_settled'.tr
         : (person.owesMe ? 'debt_taken'.tr : 'debt_given'.tr);
