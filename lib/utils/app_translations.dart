@@ -382,6 +382,21 @@ class AppTranslations extends Translations {
           'balance_after': 'Balance',
           'total_debt_taken': 'Total borrowed',
           'total_debt_given': 'Total lent',
+          // settling an open account — one entry the other way round, with the
+          // outstanding figure already filled in
+          'settle_pay_back': 'Pay back',
+          'settle_pay_back_hint':
+              'Hand back what you borrowed from @name — all of it, or as much as changed hands today.',
+          'settle_collect': 'Take repayment',
+          'settle_collect_hint':
+              'Record what @name gave back — all of it, or as much as changed hands today.',
+          'settle_outstanding': 'Still open',
+          'settle_pay_full': 'All of it',
+          'settle_in_full': 'In full',
+          'settle_over_outstanding': 'That is more than is open with them',
+          'settle_remaining': '@amount would still be open after this',
+          'settle_clears_account': 'This clears the account',
+          'repayment_note': 'Repayment',
           'delete_person_ledger': 'Delete this account',
           'confirm_delete_person_ledger':
               'Every entry kept with this person will be removed. This cannot be undone.',
@@ -1154,6 +1169,21 @@ class AppTranslations extends Translations {
           'balance_after': 'ব্যালেন্স',
           'total_debt_taken': 'মোট ধার নিয়েছি',
           'total_debt_given': 'মোট ধার দিয়েছি',
+          // বকেয়া হিসাব মেটানো — উল্টো দিকের একটি এন্ট্রি, বাকি টাকার অঙ্ক
+          // আগে থেকেই বসানো
+          'settle_pay_back': 'ধার পরিশোধ করুন',
+          'settle_pay_back_hint':
+              '@name-এর কাছ থেকে নেওয়া ধার ফেরত দিন — পুরোটা, বা আজ যতটুকু হাতবদল হয়েছে ততটুকু।',
+          'settle_collect': 'টাকা ফেরত নিন',
+          'settle_collect_hint':
+              '@name যতটুকু ফেরত দিলেন লিখুন — পুরোটা, বা আজ যতটুকু হাতবদল হয়েছে ততটুকু।',
+          'settle_outstanding': 'বাকি আছে',
+          'settle_pay_full': 'পুরোটা',
+          'settle_in_full': 'পুরোটাই',
+          'settle_over_outstanding': 'বাকি টাকার চেয়ে বেশি দেওয়া যাবে না',
+          'settle_remaining': 'এরপরও বাকি থাকবে @amount',
+          'settle_clears_account': 'এতে হিসাব পুরো মিটে যাবে',
+          'repayment_note': 'ধার পরিশোধ',
           'delete_person_ledger': 'এই হিসাব মুছুন',
           'confirm_delete_person_ledger':
               'এই ব্যক্তির সব এন্ট্রি মুছে যাবে। এটি আর ফেরানো যাবে না।',

@@ -9,6 +9,7 @@ import '../../../utils/app_ui.dart';
 import '../controller/personal_controller.dart';
 import '../model/debt_entry.dart';
 import '../widgets/debt_entry_sheet.dart';
+import '../widgets/settle_debt_sheet.dart';
 
 /// One person's account: every rupee that has passed between the two of them,
 /// and what it comes to.
@@ -198,6 +199,10 @@ class PersonLedgerScreen extends StatelessWidget {
                   Colors.deepOrange),
             ],
           ),
+          if (!person.isSettled) ...[
+            const SizedBox(height: 14),
+            _buildSettleButton(context, person, tone),
+          ],
           if (person.phone.isNotEmpty) ...[
             const SizedBox(height: 12),
             Row(
@@ -212,6 +217,56 @@ class PersonLedgerScreen extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// The one thing left to do about an open account: hand the money back, or
+  /// take it back.
+  ///
+  /// Only while something is outstanding — on a squared-off account there is
+  /// nothing to settle, and the two buttons at the bottom already cover
+  /// starting the account up again.
+  Widget _buildSettleButton(
+    BuildContext context,
+    PersonBalance person,
+    MaterialColor tone,
+  ) {
+    final Color accent = AppUi.accent(context, tone);
+
+    return Material(
+      color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => showSettleDebtSheet(context, person: person),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withOpacity(0.45)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.handshake_outlined, size: 17, color: accent),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  person.owesMe ? 'settle_pay_back'.tr : 'settle_collect'.tr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: accent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
