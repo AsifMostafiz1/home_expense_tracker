@@ -154,7 +154,7 @@ class PersonLedgerScreen extends StatelessWidget {
   Widget _buildBalanceCard(BuildContext context, PersonBalance person) {
     final MaterialColor tone = person.isSettled
         ? Colors.blueGrey
-        : (person.owesMe ? Colors.deepOrange : Colors.green);
+        : (person.owesMe ? Colors.green : Colors.deepOrange);
     final String label = person.isSettled
         ? 'all_settled'.tr
         : (person.owesMe ? 'debt_taken'.tr : 'debt_given'.tr);
@@ -187,7 +187,7 @@ class PersonLedgerScreen extends StatelessWidget {
           Row(
             children: [
               _stat(context, 'total_debt_taken'.tr, person.totalGave,
-                  Colors.deepOrange),
+                  Colors.green),
               Container(
                 width: 1,
                 height: 30,
@@ -195,7 +195,7 @@ class PersonLedgerScreen extends StatelessWidget {
                 color: AppUi.hairline(context),
               ),
               _stat(context, 'total_debt_given'.tr, person.totalGot,
-                  Colors.green),
+                  Colors.deepOrange),
             ],
           ),
           if (person.phone.isNotEmpty) ...[
@@ -252,8 +252,7 @@ class PersonLedgerScreen extends StatelessWidget {
     DebtEntry entry, {
     required double balanceAfter,
   }) {
-    final MaterialColor tone =
-        entry.isGave ? Colors.deepOrange : Colors.green;
+    final MaterialColor tone = entry.isGave ? Colors.green : Colors.deepOrange;
 
     return Material(
       color: Theme.of(context).cardColor,
@@ -433,7 +432,7 @@ class PersonLedgerScreen extends StatelessWidget {
                   context,
                   label: 'debt_taken'.tr,
                   icon: Icons.add_rounded,
-                  color: Colors.deepOrange,
+                  color: Colors.green,
                   onTap: () => showDebtEntrySheet(
                     context,
                     personName: person.name,
@@ -448,7 +447,7 @@ class PersonLedgerScreen extends StatelessWidget {
                   context,
                   label: 'debt_given'.tr,
                   icon: Icons.remove_rounded,
-                  color: Colors.green,
+                  color: Colors.deepOrange,
                   onTap: () => showDebtEntrySheet(
                     context,
                     personName: person.name,

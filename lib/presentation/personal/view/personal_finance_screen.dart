@@ -958,7 +958,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
               hint: 'debt_given_hint'.tr,
               amount: c.totalPayable,
               icon: Icons.call_made_rounded,
-              color: Colors.green,
+              color: Colors.deepOrange,
             ),
           ),
           const SizedBox(width: 12),
@@ -969,7 +969,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
               hint: 'debt_taken_hint'.tr,
               amount: c.totalReceivable,
               icon: Icons.call_received_rounded,
-              color: Colors.deepOrange,
+              color: Colors.green,
             ),
           ),
         ],
@@ -1043,11 +1043,9 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   }
 
   Widget _buildPersonTile(BuildContext context, PersonBalance person) {
-    // Red is a loan taken, green a loan given — the colours name the two
-    // directions, not whether the figure is good news.
     final MaterialColor tone = person.isSettled
         ? Colors.blueGrey
-        : (person.owesMe ? Colors.deepOrange : Colors.green);
+        : (person.owesMe ? Colors.green : Colors.deepOrange);
     final String label = person.isSettled
         ? 'all_settled'.tr
         : (person.owesMe ? 'debt_taken'.tr : 'debt_given'.tr);

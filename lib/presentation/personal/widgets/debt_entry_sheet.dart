@@ -137,8 +137,7 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
   @override
   Widget build(BuildContext context) {
     final bool gave = _flow == DebtFlow.gave;
-    // Red for a loan taken, green for one given — see [DebtFlow].
-    final MaterialColor accent = gave ? Colors.deepOrange : Colors.green;
+    final MaterialColor accent = gave ? Colors.green : Colors.deepOrange;
 
     // No keyboard inset here. Get.bottomSheet already pads its own route by
     // `viewInsets.bottom`, so adding it again lifts the sheet a second
@@ -276,9 +275,9 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
           // their wallet: a loan taken is money in, a loan given is money
           // out. Same two words the totals and the person rows use.
           _flowOption(context, DebtFlow.gave, 'debt_taken'.tr,
-              Icons.add_rounded, Colors.deepOrange),
+              Icons.add_rounded, Colors.green),
           _flowOption(context, DebtFlow.got, 'debt_given'.tr,
-              Icons.remove_rounded, Colors.green),
+              Icons.remove_rounded, Colors.deepOrange),
         ],
       ),
     );

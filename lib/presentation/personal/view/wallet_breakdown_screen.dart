@@ -280,10 +280,7 @@ class WalletBreakdownScreen extends StatelessWidget {
 
   Widget _buildPersonLine(BuildContext context, PersonBalance person) {
     final bool owesMe = person.owesMe;
-    // The person's own colour follows the dues tab — red for a loan taken,
-    // green for one given. The signed figure to the right keeps the
-    // statement's own convention, where what adds to the wallet is green.
-    final MaterialColor tone = owesMe ? Colors.deepOrange : Colors.green;
+    final MaterialColor tone = owesMe ? Colors.green : Colors.deepOrange;
     final String initial =
         person.name.trim().isEmpty ? '?' : person.name.trim()[0].toUpperCase();
 
