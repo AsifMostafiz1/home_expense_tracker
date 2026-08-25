@@ -271,11 +271,12 @@ class _DebtEntrySheetState extends State<_DebtEntrySheet> {
       ),
       child: Row(
         children: [
-          // Money handed over is money to come back — the label says the
-          // consequence, because that is what anybody is actually tracking.
-          _flowOption(context, DebtFlow.gave, 'due_will_get'.tr,
+          // Named by what the member did, and coloured by what it did to
+          // their wallet: a loan taken is money in, a loan given is money
+          // out. Same two words the totals and the person rows use.
+          _flowOption(context, DebtFlow.gave, 'debt_taken'.tr,
               Icons.add_rounded, Colors.green),
-          _flowOption(context, DebtFlow.got, 'due_will_pay'.tr,
+          _flowOption(context, DebtFlow.got, 'debt_given'.tr,
               Icons.remove_rounded, Colors.deepOrange),
         ],
       ),

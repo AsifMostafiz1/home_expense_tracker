@@ -363,8 +363,13 @@ class PersonalController extends GetxController implements GetxService {
     return null;
   }
 
-  /// What the whole ledger comes to: what is owed to the member, and what
-  /// they owe. Kept apart rather than netted — one number would hide both.
+  /// What the whole ledger comes to, both directions kept apart rather than
+  /// netted — one number would hide both.
+  ///
+  /// [totalReceivable] is what the dues tab shows as "ধার নিয়েছি": loans
+  /// taken, money that came into the wallet. [totalPayable] is "ধার দিয়েছি":
+  /// loans given, money that went out. See [DebtFlow] for why the two read
+  /// the opposite way round to their names here.
   double get totalReceivable => people
       .where((person) => person.owesMe)
       .fold<double>(0, (sum, person) => sum + person.balance);

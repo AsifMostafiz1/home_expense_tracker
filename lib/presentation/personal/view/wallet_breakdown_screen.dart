@@ -304,7 +304,7 @@ class WalletBreakdownScreen extends StatelessWidget {
         ),
       ),
       label: person.name.trim().isEmpty ? 'person_name'.tr : person.name,
-      detail: (owesMe ? 'owes_you' : 'you_owe').tr,
+      detail: (owesMe ? 'debt_taken' : 'debt_given').tr,
       // Negative when it is the member who has to pay: the column reads as
       // one running set of adjustments, not as two separate totals.
       amount: owesMe ? person.balance : -person.balance.abs(),

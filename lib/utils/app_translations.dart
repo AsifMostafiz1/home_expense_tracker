@@ -361,28 +361,27 @@ class AppTranslations extends Translations {
           // dues
           'add_due_entry': 'Add a due',
           'due_entry_hint':
-              'Money you handed over, or money you took. A repayment is simply an entry the other way round.',
+              'Money you took as a loan, or money you gave as one. Paying it back is simply an entry the other way round.',
           'person_name': 'Person',
           'person_name_hint': 'Who is this with?',
           'phone_optional': 'Phone (optional)',
           'due_note_hint': 'What was this for?',
-          'due_will_get': 'I will get',
-          'due_will_pay': 'I will pay',
-          // The dues hero, named for what the member did rather than for what
-          // follows from it — the line under each figure carries that.
-          'dues_lent_out': 'Lent out',
-          'dues_lent_out_hint': 'Money owed back to you',
-          'dues_borrowed': 'Borrowed',
-          'dues_borrowed_hint': 'Money you still owe',
-          'owes_you': 'You will get',
-          'you_owe': 'You have to pay',
+          // The two directions a due can run, named by what the member did
+          // and read the same way everywhere: on the two totals, on each
+          // person's row, inside their account and in the entry editor.
+          // Borrowing puts money in the wallet, lending takes it out — the
+          // hints say so, because that is the half people mix up.
+          'debt_taken': 'Borrowed',
+          'debt_taken_hint': 'This money came into your wallet',
+          'debt_given': 'Lent out',
+          'debt_given_hint': 'This money went out of your wallet',
           'all_settled': 'All settled',
           'no_dues_yet':
-              'Nobody here yet. Add a person, then record what you give or take from their own page.',
+              'Nobody here yet. Add a person, then record what you borrowed or lent from their own page.',
           'history': 'History',
           'balance_after': 'Balance',
-          'total_i_gave': 'Total given',
-          'total_i_got': 'Total received',
+          'total_debt_taken': 'Total borrowed',
+          'total_debt_given': 'Total lent',
           'delete_person_ledger': 'Delete this account',
           'confirm_delete_person_ledger':
               'Every entry kept with this person will be removed. This cannot be undone.',
@@ -1135,28 +1134,26 @@ class AppTranslations extends Translations {
           // dues
           'add_due_entry': 'দেনা-পাওনা যোগ করুন',
           'due_entry_hint':
-              'আপনি যে টাকা দিয়েছেন, বা নিয়েছেন। ফেরত দেওয়া-নেওয়াও উল্টো দিকের একটি এন্ট্রি হিসেবেই লিখবেন।',
+              'আপনি যে টাকা ধার নিয়েছেন, বা ধার দিয়েছেন। ফেরত দেওয়া-নেওয়াও উল্টো দিকের একটি এন্ট্রি হিসেবেই লিখবেন।',
           'person_name': 'ব্যক্তি',
           'person_name_hint': 'কার সাথে হিসাব?',
           'phone_optional': 'ফোন (ঐচ্ছিক)',
           'due_note_hint': 'কিসের জন্য?',
-          'due_will_get': 'পাবো',
-          'due_will_pay': 'দিবো',
-          // দেনা-পাওনার উপরের দুই কার্ড: শিরোনামে কাজটা কী ছিল, নিচের লাইনে
-          // তার ফল কী।
-          'dues_lent_out': 'ধার দিয়েছি',
-          'dues_lent_out_hint': 'ফেরত পাবেন এই টাকা',
-          'dues_borrowed': 'ধার নিয়েছি',
-          'dues_borrowed_hint': 'ফেরত দিতে হবে এই টাকা',
-          'owes_you': 'আমি পাবো',
-          'you_owe': 'আমাকে দিতে হবে',
+          // দেনা-পাওনার দুই দিক। একই ভাষা সব জায়গায় — উপরের দুই কার্ডে,
+          // প্রতিটি ব্যক্তির সারিতে, তার নিজের পাতায় আর এন্ট্রির সময়। ধার
+          // নিলে টাকা ওয়ালেটে ঢোকে, ধার দিলে বেরিয়ে যায় — এই জায়গাটাই
+          // মানুষ গুলিয়ে ফেলে, তাই নিচে লিখে দেওয়া।
+          'debt_taken': 'ধার নিয়েছি',
+          'debt_taken_hint': 'এই টাকা আপনার ওয়ালেটে যোগ হয়েছে',
+          'debt_given': 'ধার দিয়েছি',
+          'debt_given_hint': 'এই টাকা আপনার ওয়ালেট থেকে বেরিয়ে গেছে',
           'all_settled': 'হিসাব মেটানো',
           'no_dues_yet':
-              'এখনো কেউ নেই। আগে ব্যক্তি যোগ করুন, এরপর তার পাতা থেকে কে কত দিলেন বা নিলেন লিখুন।',
+              'এখনো কেউ নেই। আগে ব্যক্তি যোগ করুন, এরপর তার পাতা থেকে কার কাছ থেকে কত ধার নিলেন বা কাকে কত ধার দিলেন লিখুন।',
           'history': 'হিসাবের খতিয়ান',
           'balance_after': 'ব্যালেন্স',
-          'total_i_gave': 'মোট দিয়েছি',
-          'total_i_got': 'মোট পেয়েছি',
+          'total_debt_taken': 'মোট ধার নিয়েছি',
+          'total_debt_given': 'মোট ধার দিয়েছি',
           'delete_person_ledger': 'এই হিসাব মুছুন',
           'confirm_delete_person_ledger':
               'এই ব্যক্তির সব এন্ট্রি মুছে যাবে। এটি আর ফেরানো যাবে না।',

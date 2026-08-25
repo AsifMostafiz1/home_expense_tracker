@@ -157,7 +157,7 @@ class PersonLedgerScreen extends StatelessWidget {
         : (person.owesMe ? Colors.green : Colors.deepOrange);
     final String label = person.isSettled
         ? 'all_settled'.tr
-        : (person.owesMe ? 'owes_you'.tr : 'you_owe'.tr);
+        : (person.owesMe ? 'debt_taken'.tr : 'debt_given'.tr);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
@@ -186,14 +186,15 @@ class PersonLedgerScreen extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              _stat(context, 'total_i_gave'.tr, person.totalGave, Colors.green),
+              _stat(context, 'total_debt_taken'.tr, person.totalGave,
+                  Colors.green),
               Container(
                 width: 1,
                 height: 30,
                 margin: const EdgeInsets.symmetric(horizontal: 14),
                 color: AppUi.hairline(context),
               ),
-              _stat(context, 'total_i_got'.tr, person.totalGot,
+              _stat(context, 'total_debt_given'.tr, person.totalGot,
                   Colors.deepOrange),
             ],
           ),
@@ -296,7 +297,7 @@ class PersonLedgerScreen extends StatelessWidget {
                   children: [
                     Text(
                       entry.note.isEmpty
-                          ? (entry.isGave ? 'due_will_get'.tr : 'due_will_pay'.tr)
+                          ? (entry.isGave ? 'debt_taken'.tr : 'debt_given'.tr)
                           : entry.note,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -403,11 +404,11 @@ class PersonLedgerScreen extends StatelessWidget {
     );
   }
 
-  /// Where the account stood after one entry: `+` is money still to come
-  /// back, `−` is money still owed out.
+  /// Where the account stood after one entry: `+` is still owed to them, `−`
+  /// is still owed by them.
   static String _balanceLine(double balance) {
     if (balance.abs() < 0.005) return 'all_settled'.tr;
-    final String label = balance > 0 ? 'due_will_get'.tr : 'due_will_pay'.tr;
+    final String label = balance > 0 ? 'debt_taken'.tr : 'debt_given'.tr;
     return '${'balance_after'.tr}: $label ${AppUi.amount(balance.abs())}';
   }
 
@@ -429,7 +430,7 @@ class PersonLedgerScreen extends StatelessWidget {
               Expanded(
                 child: _actionButton(
                   context,
-                  label: 'due_will_get'.tr,
+                  label: 'debt_taken'.tr,
                   icon: Icons.add_rounded,
                   color: Colors.green,
                   onTap: () => showDebtEntrySheet(
@@ -444,7 +445,7 @@ class PersonLedgerScreen extends StatelessWidget {
               Expanded(
                 child: _actionButton(
                   context,
-                  label: 'due_will_pay'.tr,
+                  label: 'debt_given'.tr,
                   icon: Icons.remove_rounded,
                   color: Colors.deepOrange,
                   onTap: () => showDebtEntrySheet(

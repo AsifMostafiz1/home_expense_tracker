@@ -936,12 +936,11 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   /// behind a thousand borrowed.
   ///
   /// Named for what the member did rather than for what follows from it —
-  /// "lent out" is a thing they remember doing, where "total to get" is a
+  /// "borrowed" is a thing they remember doing, where "total to get" is a
   /// conclusion they have to work back from. What follows from it is the line
-  /// under the figure.
-  ///
-  /// Lent first, and green: money out on loan is the half most people open
-  /// this tab to check.
+  /// under the figure, and it is put in terms of the wallet: borrowing puts
+  /// money in it, lending takes money out, which is the way round the wallet
+  /// on the other tab already counts them.
   Widget _buildDuesHero(BuildContext context, PersonalController c) {
     return IntrinsicHeight(
       child: Row(
@@ -952,8 +951,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           Expanded(
             child: _duesCard(
               context,
-              label: 'dues_lent_out'.tr,
-              hint: 'dues_lent_out_hint'.tr,
+              label: 'debt_taken'.tr,
+              hint: 'debt_taken_hint'.tr,
               amount: c.totalReceivable,
               icon: Icons.call_received_rounded,
               color: Colors.green,
@@ -963,8 +962,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           Expanded(
             child: _duesCard(
               context,
-              label: 'dues_borrowed'.tr,
-              hint: 'dues_borrowed_hint'.tr,
+              label: 'debt_given'.tr,
+              hint: 'debt_given_hint'.tr,
               amount: c.totalPayable,
               icon: Icons.call_made_rounded,
               color: Colors.deepOrange,
@@ -975,9 +974,9 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     );
   }
 
-  /// [label] is what was done, [hint] is what it means for the member — one
-  /// line under the figure, because "lent out" and "borrowed" are the two
-  /// words people most reliably say the wrong way round.
+  /// [label] is what was done, [hint] is what it did to the wallet — one line
+  /// under the figure, because "lent out" and "borrowed" are the two words
+  /// people most reliably say the wrong way round.
   Widget _duesCard(
     BuildContext context, {
     required String label,
@@ -1046,7 +1045,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
         : (person.owesMe ? Colors.green : Colors.deepOrange);
     final String label = person.isSettled
         ? 'all_settled'.tr
-        : (person.owesMe ? 'owes_you'.tr : 'you_owe'.tr);
+        : (person.owesMe ? 'debt_taken'.tr : 'debt_given'.tr);
 
     return Material(
       color: Theme.of(context).cardColor,

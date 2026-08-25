@@ -4,11 +4,21 @@ import 'package:flutter/material.dart';
 import 'ledger_person.dart';
 
 /// Which way the money moved between the two people.
+///
+/// The two names are the ones the stored documents have always used and are
+/// kept for that reason, but read them against the wallet rather than against
+/// their own English: [gave] is the direction that puts money *into* the
+/// member's wallet, [got] is the one that takes money out. The screens name
+/// them `debt_taken` ("ধার নিয়েছি") and `debt_given` ("ধার দিয়েছি")
+/// accordingly, and every label in the dues tab follows that pairing — do not
+/// "correct" one of them on its own.
 enum DebtFlow {
-  /// Money handed over — they owe it back.
+  /// A loan the member took: cash in hand now, to be handed back later.
+  /// Counts positive, and adds to the wallet.
   gave,
 
-  /// Money taken — it is owed to them.
+  /// A loan the member gave: cash out of hand now, to come back later.
+  /// Counts negative, and takes away from the wallet.
   got,
 }
 
@@ -79,7 +89,8 @@ class DebtEntry {
   /// `2026-08` — what the wallet cuts a month on, as in [PersonalTransaction].
   String get monthKey => date.length >= 7 ? date.substring(0, 7) : '';
 
-  /// Positive when it adds to what is owed *to* the owner.
+  /// Positive when it adds to the owner's wallet — see [DebtFlow] for which
+  /// way round that is.
   double get signedAmount => isGave ? amount : -amount;
 
   /// What groups entries into one person: the phone when there is one, the
@@ -163,7 +174,8 @@ class PersonBalance {
     required this.entries,
   });
 
-  /// Positive: they owe the owner. Negative: the owner owes them.
+  /// Positive: the owner is holding their money. Negative: they are holding
+  /// the owner's. See [DebtFlow] — the sign follows the wallet.
   double get balance =>
       entries.fold<double>(0, (running, entry) => running + entry.signedAmount);
 
