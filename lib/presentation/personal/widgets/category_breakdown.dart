@@ -15,6 +15,11 @@ class CategoryBreakdown extends StatelessWidget {
   final double total;
   final String title;
 
+  /// Colours the total in the heading. Null leaves it in the body colour —
+  /// the month passes the side's own hue, so the two cards are told apart
+  /// before either is read.
+  final MaterialColor? tone;
+
   /// Longer lists are cut here — the tail of a spending month is noise.
   final int max;
 
@@ -27,6 +32,7 @@ class CategoryBreakdown extends StatelessWidget {
     required this.totals,
     required this.total,
     required this.title,
+    this.tone,
     this.max = 5,
     this.onTap,
   });
@@ -48,13 +54,41 @@ class CategoryBreakdown extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.bold,
-              color: AppUi.body(context),
-            ),
+          // Title on the left, what it all came to on the right. Every row
+          // below is a share of this figure, and a percentage with nothing to
+          // be a percentage *of* is half a sentence — the month's own total
+          // was one card further up, which is a scroll away from the question
+          // it answers. It is the whole total, not the visible rows added up:
+          // when the tail is cut the shares still refer to this.
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppUi.body(context),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                AppUi.amount(total),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.3,
+                  color: tone == null
+                      ? AppUi.body(context)
+                      : AppUi.accent(context, tone!),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           for (final CategoryTotal entry in shown) ...[

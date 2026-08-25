@@ -182,6 +182,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
             totals: spending,
             total: month.expense,
             title: 'where_money_went'.tr,
+            tone: Colors.deepOrange,
             onTap: (bucket) => showCategoryEntriesSheet(
               context,
               category: bucket.category,
@@ -195,6 +196,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
             totals: earning,
             total: month.income,
             title: 'where_money_came_from'.tr,
+            tone: Colors.green,
             onTap: (bucket) => showCategoryEntriesSheet(
               context,
               category: bucket.category,
