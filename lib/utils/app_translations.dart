@@ -382,6 +382,10 @@ class AppTranslations extends Translations {
           'balance_after': 'Balance',
           'total_debt_taken': 'Total borrowed',
           'total_debt_given': 'Total lent',
+          // narrowing a long account down — `clear_filters` is shared with the
+          // house expense screen's own filters
+          'all_months': 'All months',
+          'no_entries_of_filter': 'Nothing in this account matches that.',
           // settling an open account — one entry the other way round, with the
           // outstanding figure already filled in
           'settle_pay_back': 'Pay back',
@@ -1169,6 +1173,10 @@ class AppTranslations extends Translations {
           'balance_after': 'ব্যালেন্স',
           'total_debt_taken': 'মোট ধার নিয়েছি',
           'total_debt_given': 'মোট ধার দিয়েছি',
+          // লম্বা হিসাব ছেঁকে দেখা — `clear_filters` বাসার খরচ স্ক্রিনের
+          // ফিল্টারের সাথে ভাগ করা
+          'all_months': 'সব মাস',
+          'no_entries_of_filter': 'এই হিসাবে এমন কিছু নেই।',
           // বকেয়া হিসাব মেটানো — উল্টো দিকের একটি এন্ট্রি, বাকি টাকার অঙ্ক
           // আগে থেকেই বসানো
           'settle_pay_back': 'ধার পরিশোধ করুন',

@@ -17,16 +17,68 @@ import '../widgets/settle_debt_sheet.dart';
 /// The person is looked up by key on every build rather than passed in whole,
 /// so the screen follows the live list — an entry added from here changes the
 /// balance above it at once, and an account emptied of rows closes itself.
-class PersonLedgerScreen extends StatelessWidget {
+class PersonLedgerScreen extends StatefulWidget {
   final String personKey;
 
   const PersonLedgerScreen({super.key, required this.personKey});
 
   @override
+  State<PersonLedgerScreen> createState() => _PersonLedgerScreenState();
+}
+
+class _PersonLedgerScreenState extends State<PersonLedgerScreen> {
+  /// Which side of the account to show, or null for both.
+  DebtFlow? _flow;
+
+  /// `yyyy-MM`, or null for every month. Held as the key rather than a date
+  /// so it can be compared against [DebtEntry.monthKey] directly.
+  String? _month;
+
+  /// Pull-to-refresh: back to the account as it opens.
+  ///
+  /// Both filters go, because a refresh that left them on would answer "why
+  /// am I not seeing the entry I just added" with silence — the row is there,
+  /// it is behind a chip somebody set five minutes ago. The streams keep the
+  /// rows current on their own; re-attaching them is what recovers a listener
+  /// that fell over while the connection was gone.
+  Future<void> _refresh(PersonalController c) async {
+    setState(() {
+      _flow = null;
+      _month = null;
+    });
+    await c.refreshAll();
+  }
+
+  /// The history, narrowed to what the two filters ask for.
+  ///
+  /// A month that has been emptied out from under the filter — the last entry
+  /// in it deleted — falls back to every month rather than showing nothing,
+  /// which would read as a bug rather than as a filter.
+  List<DebtEntry> _visible(PersonBalance person, Set<String> months) {
+    final String? month = _month != null && months.contains(_month) ? _month : null;
+
+    return person.entries.where((entry) {
+      if (_flow != null && entry.flow != _flow) return false;
+      if (month != null && entry.monthKey != month) return false;
+      return true;
+    }).toList(growable: false);
+  }
+
+  int _count(PersonBalance person, Set<String> months, {DebtFlow? flow}) {
+    final String? month = _month != null && months.contains(_month) ? _month : null;
+
+    return person.entries.where((entry) {
+      if (flow != null && entry.flow != flow) return false;
+      if (month != null && entry.monthKey != month) return false;
+      return true;
+    }).length;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GetBuilder<PersonalController>(
       builder: (c) {
-        final PersonBalance? person = c.personFor(personKey);
+        final PersonBalance? person = c.personFor(widget.personKey);
 
         // Every row deleted — there is no account left to look at.
         if (person == null) {
@@ -36,7 +88,21 @@ class PersonLedgerScreen extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
+        // Running totals are worked out over the whole account and looked up
+        // by entry id, so a filtered list still shows the balance each row
+        // actually left behind — not a total restarted from the filter.
         final Map<String, double> balances = person.runningBalances;
+
+        // Newest first, and only the months the account has anything in.
+        final List<String> months = person.entries
+            .map((entry) => entry.monthKey)
+            .where((key) => key.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
+
+        final Set<String> monthSet = months.toSet();
+        final List<DebtEntry> visible = _visible(person, monthSet);
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -44,38 +110,252 @@ class PersonLedgerScreen extends StatelessWidget {
             title: person.name.isEmpty ? 'unknown'.tr : person.name,
             actions: [_buildMenu(context, c, person)],
           ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: [
-              _buildBalanceCard(context, person),
-              const SizedBox(height: 20),
-              Text(
-                'history'.tr.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
-                  color: AppUi.muted(context),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (person.isEmpty)
-                _buildEmptyHistory(context)
-              else
-                for (final DebtEntry entry in person.entries) ...[
-                  _buildEntryTile(
-                    context,
-                    c,
-                    entry,
-                    balanceAfter: balances[entry.id] ?? 0,
+          body: RefreshIndicator(
+            color: Theme.of(context).colorScheme.primary,
+            onRefresh: () => _refresh(c),
+            child: ListView(
+              // Pulled from anywhere, including an account short enough not to
+              // scroll on its own — which is most of them.
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: [
+                _buildBalanceCard(context, person),
+                const SizedBox(height: 20),
+                Text(
+                  'history'.tr.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                    color: AppUi.muted(context),
                   ),
+                ),
+                if (!person.isEmpty) ...[
                   const SizedBox(height: 10),
+                  _buildFlowFilter(context, person, monthSet),
+                  if (months.length > 1) ...[
+                    const SizedBox(height: 8),
+                    _buildMonthFilter(context, months),
+                  ],
                 ],
-            ],
+                const SizedBox(height: 12),
+                if (person.isEmpty)
+                  _buildEmptyHistory(context)
+                else if (visible.isEmpty)
+                  _buildNothingMatched(context)
+                else
+                  for (final DebtEntry entry in visible) ...[
+                    _buildEntryTile(
+                      context,
+                      c,
+                      entry,
+                      balanceAfter: balances[entry.id] ?? 0,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+              ],
+            ),
           ),
           bottomNavigationBar: _buildActionBar(context, person),
         );
       },
+    );
+  }
+
+  /// Which side of the account to read, each chip carrying its own count.
+  ///
+  /// The counts are the reason to reach for this at all: an account of thirty
+  /// rows with two repayments in it is one where "ধার দিয়েছি 2" is the whole
+  /// answer, and nobody has to tap to find that out. They follow the month
+  /// filter, so the two read together rather than contradicting each other.
+  Widget _buildFlowFilter(
+    BuildContext context,
+    PersonBalance person,
+    Set<String> months,
+  ) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _flowChip(context, null, 'filter_all'.tr, null,
+            _count(person, months)),
+        _flowChip(
+          context,
+          DebtFlow.gave,
+          'debt_taken'.tr,
+          Icons.add_rounded,
+          _count(person, months, flow: DebtFlow.gave),
+          tone: Colors.green,
+        ),
+        _flowChip(
+          context,
+          DebtFlow.got,
+          'debt_given'.tr,
+          Icons.remove_rounded,
+          _count(person, months, flow: DebtFlow.got),
+          tone: Colors.deepOrange,
+        ),
+      ],
+    );
+  }
+
+  Widget _flowChip(
+    BuildContext context,
+    DebtFlow? flow,
+    String label,
+    IconData? icon,
+    int count, {
+    MaterialColor? tone,
+  }) {
+    final bool selected = _flow == flow;
+    final MaterialColor colour = tone ?? Colors.blueGrey;
+    final Color accent = AppUi.accent(context, colour);
+
+    return GestureDetector(
+      // Tapping the chip already on is not an accident worth acting on.
+      onTap: selected ? null : () => setState(() => _flow = flow),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppUi.tint(context, colour)
+              : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? accent.withOpacity(0.6) : AppUi.hairline(context),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon,
+                  size: 13, color: selected ? accent : AppUi.muted(context)),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                color: selected ? accent : AppUi.body(context),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+                color: selected ? accent : AppUi.muted(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// One month at a time, and only offered once the account has more than one
+  /// — a single-month history is already the answer to "which month".
+  ///
+  /// Scrolls sideways rather than wrapping: a long account would otherwise
+  /// push the entries themselves off the screen behind rows of month chips.
+  Widget _buildMonthFilter(BuildContext context, List<String> months) {
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        children: [
+          _monthChip(context, null, 'all_months'.tr),
+          for (final String key in months) ...[
+            const SizedBox(width: 8),
+            _monthChip(context, key, _monthLabel(key)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// `2026-08` → `Aug 2026`, and back to the raw key if it will not parse.
+  static String _monthLabel(String key) {
+    final DateTime? month = DateTime.tryParse('$key-01');
+    if (month == null) return key;
+    return '${AppUi.shortMonth(month)} ${month.year}';
+  }
+
+  Widget _monthChip(BuildContext context, String? key, String label) {
+    final bool selected = _month == key;
+    final Color primary = Theme.of(context).colorScheme.primary;
+
+    return GestureDetector(
+      onTap: selected ? null : () => setState(() => _month = key),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? primary.withOpacity(0.12)
+              : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? primary.withOpacity(0.6) : AppUi.hairline(context),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            color: selected ? primary : AppUi.body(context),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The account has rows, just none the filters let through — and a way back
+  /// out, since the filters that hid them are two taps up the screen.
+  Widget _buildNothingMatched(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppUi.hairline(context)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'no_entries_of_filter'.tr,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.5,
+              color: AppUi.muted(context),
+            ),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => setState(() {
+              _flow = null;
+              _month = null;
+            }),
+            child: Text(
+              'clear_filters'.tr,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
