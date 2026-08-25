@@ -62,6 +62,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   Future<void> _refreshMoney(PersonalController c) async {
     setState(() {
       _entryFlow = null;
+      _dayRange = null;
+      _rangeMonth = '';
       _trendOpen = false;
       _resetToken++;
     });
@@ -89,6 +91,31 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   /// with the screen rather than the controller: it is a way of reading this
   /// visit, not a setting, and arriving at the ledger should show everything.
   MoneyFlow? _entryFlow;
+
+  /// Which days of the month the list is cut down to, or null for all of
+  /// them. Here for the same reason [_entryFlow] is.
+  DateTimeRange? _dayRange;
+
+  /// The month [_dayRange] was chosen inside, as `yyyy-MM`.
+  ///
+  /// A run of days means nothing in another month. Walking back to July with
+  /// "21–31" still set would show the end of July and call it a filter
+  /// somebody chose for August — and the month can change without going
+  /// through this screen at all, from the wallet breakdown. So the range is
+  /// checked against the month rather than cleared by whoever moves it.
+  String _rangeMonth = '';
+
+  /// The day filter as it applies to the month actually on screen.
+  DateTimeRange? _rangeFor(PersonalController c) =>
+      _rangeMonth == PersonalTransaction.monthKeyOf(c.selectedMonth)
+          ? _dayRange
+          : null;
+
+  void _clearFilters() => setState(() {
+        _entryFlow = null;
+        _dayRange = null;
+        _rangeMonth = '';
+      });
 
   /// Bumped by a refresh, and used as the trend chart's key. The chart holds
   /// one thing of its own — which column was tapped — and a new key is what
@@ -159,7 +186,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     final List<PersonalTransaction> entries = c.monthTransactions;
     final List<CategoryTotal> spending = c.categoryTotals(income: false);
     final List<CategoryTotal> earning = c.categoryTotals(income: true);
-    final List<MoneyDay> days = c.monthDays(flow: _entryFlow);
+    final DateTimeRange? range = _rangeFor(c);
+    final List<MoneyDay> days = c.monthDays(flow: _entryFlow, range: range);
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -205,24 +233,42 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           ),
         ],
         const SizedBox(height: 22),
-        Text(
-          'this_months_entries'.tr.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
-            color: AppUi.muted(context),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'this_months_entries'.tr.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                  color: AppUi.muted(context),
+                ),
+              ),
+            ),
+            // Only once there is something to narrow down. A filter over an
+            // empty month is a control that can only ever make it emptier.
+            if (entries.isNotEmpty) _buildDayFilter(context, c, range),
+          ],
         ),
         if (entries.isNotEmpty) ...[
           const SizedBox(height: 10),
-          _buildFlowFilter(context, c),
+          _buildFlowFilter(context, c, range),
         ],
         const SizedBox(height: 12),
         if (entries.isEmpty)
           _buildInlineEmpty(context, 'no_entries_this_month'.tr)
         else if (days.isEmpty)
-          _buildInlineEmpty(context, 'no_entries_of_kind'.tr)
+          _buildInlineEmpty(
+            context,
+            range == null ? 'no_entries_of_kind'.tr : 'no_entries_in_days'.tr,
+            // The day filter is one small icon in a corner; "why is the entry
+            // I just added not here" needs an answer better than asking
+            // somebody to find the control they set.
+            onClear: _clearFilters,
+          )
         else
           for (final MoneyDay day in days) ...[
             _buildDayGroup(context, c, day),
@@ -232,24 +278,255 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     );
   }
 
+  /// ------------------------------------------------------------ day filter
+
+  /// The month cut into parts, from a menu behind one icon.
+  ///
+  /// A menu rather than another row of chips: the flow chips are already
+  /// under this heading and they answer a question people ask constantly,
+  /// while "only the first ten days" is asked occasionally and by somebody
+  /// who has come looking for it. Two rows of controls over one list would
+  /// cost the list more room than the second row is worth.
+  ///
+  /// It wears the range once one is set, so the reason the list is short is
+  /// on screen rather than hidden behind the tap that set it.
+  Widget _buildDayFilter(
+    BuildContext context,
+    PersonalController c,
+    DateTimeRange? range,
+  ) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+    final bool on = range != null;
+    final _DayFilter active = _activeDayFilter(range, c.selectedMonth);
+
+    return PopupMenuButton<_DayFilter>(
+      tooltip: 'select_period'.tr,
+      position: PopupMenuPosition.under,
+      offset: const Offset(0, 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      onSelected: (choice) => _applyDayFilter(context, c, choice),
+      itemBuilder: (_) => [
+        _dayFilterItem(context, c,
+            value: _DayFilter.whole, label: 'whole_month'.tr, active: active),
+        const PopupMenuDivider(height: 1),
+        for (final _DayFilter preset in _dayPresets)
+          _dayFilterItem(
+            context,
+            c,
+            value: preset,
+            label: preset.label(c.selectedMonth),
+            range: preset.rangeIn(c.selectedMonth),
+            active: active,
+          ),
+        const PopupMenuDivider(height: 1),
+        _dayFilterItem(context, c,
+            value: _DayFilter.custom,
+            label: 'custom_range'.tr,
+            active: active),
+      ],
+      child: Container(
+        padding: EdgeInsets.fromLTRB(on ? 10 : 7, 6, 7, 6),
+        decoration: BoxDecoration(
+          color: on ? primary.withOpacity(0.12) : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: on ? primary.withOpacity(0.5) : AppUi.hairline(context),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (on) ...[
+              Text(
+                _dayRangeLabel(range),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.bold,
+                  color: primary,
+                ),
+              ),
+              const SizedBox(width: 5),
+            ],
+            Icon(
+              on ? Icons.filter_alt_rounded : Icons.filter_alt_outlined,
+              size: 16,
+              color: on ? primary : AppUi.muted(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// One choice, with how many entries it would leave behind.
+  ///
+  /// The counts are the point of showing them at all: a fortnight with
+  /// nothing in it is worth knowing before tapping into an empty list rather
+  /// than after. Only the fixed slices carry one — "whole month" is the flow
+  /// chips' own total and "custom" has no range until it is asked for.
+  PopupMenuItem<_DayFilter> _dayFilterItem(
+    BuildContext context,
+    PersonalController c, {
+    required _DayFilter value,
+    required String label,
+    DateTimeRange? range,
+    required _DayFilter active,
+  }) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+    final bool selected = value == active;
+
+    return PopupMenuItem<_DayFilter>(
+      value: value,
+      height: 42,
+      child: Row(
+        children: [
+          Icon(
+            selected ? Icons.check_rounded : value.icon,
+            size: 16,
+            color: selected ? primary : AppUi.muted(context),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                color: selected ? primary : AppUi.body(context),
+              ),
+            ),
+          ),
+          if (range != null) ...[
+            const SizedBox(width: 12),
+            Text(
+              '${c.monthCount(range: range)}',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w900,
+                color: selected ? primary : AppUi.muted(context),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _applyDayFilter(
+    BuildContext context,
+    PersonalController c,
+    _DayFilter choice,
+  ) async {
+    if (choice == _DayFilter.whole) {
+      setState(() {
+        _dayRange = null;
+        _rangeMonth = '';
+      });
+      return;
+    }
+
+    final DateTimeRange? picked = choice == _DayFilter.custom
+        ? await _pickDayRange(context, c)
+        : choice.rangeIn(c.selectedMonth);
+
+    // Cancelled, or the tab was left while the calendar was open.
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _dayRange = picked;
+      _rangeMonth = PersonalTransaction.monthKeyOf(c.selectedMonth);
+    });
+  }
+
+  /// The calendar, penned inside the month on screen.
+  ///
+  /// Deliberately not the whole ledger: this filters one month's list, so a
+  /// range running out of it could only ever hide rows the list was never
+  /// going to show. The month switcher above is how somebody leaves.
+  Future<DateTimeRange?> _pickDayRange(
+    BuildContext context,
+    PersonalController c,
+  ) {
+    final DateTime first =
+        DateTime(c.selectedMonth.year, c.selectedMonth.month, 1);
+    final DateTime last = DateTime(
+      c.selectedMonth.year,
+      c.selectedMonth.month,
+      DateUtils.getDaysInMonth(c.selectedMonth.year, c.selectedMonth.month),
+    );
+
+    return showDateRangePicker(
+      context: context,
+      firstDate: first,
+      lastDate: last,
+      // The picker asserts the range it opens on sits inside the two above,
+      // and a range set for another month does not.
+      initialDateRange: _rangeFor(c),
+      helpText: 'select_period'.tr.toUpperCase(),
+      saveText: 'apply'.tr,
+      builder: (context, child) {
+        // Keep the app's brightness — a forced light scheme over a dark theme
+        // makes the calendar unreadable.
+        final ThemeData theme = Theme.of(context);
+        return Theme(
+          data: theme.copyWith(
+            colorScheme: theme.colorScheme.copyWith(
+              primary: theme.colorScheme.primary,
+              onPrimary: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+  }
+
+  /// Which choice a live range came from, so the menu can tick it. Anything
+  /// that is not one of the fixed slices was picked off the calendar.
+  _DayFilter _activeDayFilter(DateTimeRange? range, DateTime month) {
+    if (range == null) return _DayFilter.whole;
+    for (final _DayFilter preset in _dayPresets) {
+      final DateTimeRange slice = preset.rangeIn(month);
+      if (slice.start == range.start && slice.end == range.end) return preset;
+    }
+    return _DayFilter.custom;
+  }
+
+  /// `1–10`. The month is named by the switcher at the top of the tab and by
+  /// the heading this sits on, so the days are the whole of what it adds.
+  static String _dayRangeLabel(DateTimeRange range) =>
+      '${range.start.day}–${range.end.day}';
+
+  /// ------------------------------------------------------------ flow filter
+
   /// Which side of the month to read.
   ///
   /// Chips rather than a segmented bar, and each carrying its own count: the
   /// counts are the reason to reach for this at all — a month of forty rows
   /// with one salary in it is a month where "Income 1" is the whole answer,
   /// and nobody has to tap to find that out.
-  Widget _buildFlowFilter(BuildContext context, PersonalController c) {
+  Widget _buildFlowFilter(
+    BuildContext context,
+    PersonalController c,
+    DateTimeRange? range,
+  ) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
-        _flowChip(context, null, 'filter_all'.tr, null, c.monthCount()),
+        // The counts follow the day filter, so the two read together rather
+        // than contradicting each other — "Expense 10" over a list of three
+        // is the chip calling the filter above it a liar.
+        _flowChip(context, null, 'filter_all'.tr, null,
+            c.monthCount(range: range)),
         _flowChip(
           context,
           MoneyFlow.income,
           'income'.tr,
           Icons.north_east_rounded,
-          c.monthCount(flow: MoneyFlow.income),
+          c.monthCount(flow: MoneyFlow.income, range: range),
           tone: Colors.green,
         ),
         _flowChip(
@@ -257,7 +534,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           MoneyFlow.expense,
           'expense_word'.tr,
           Icons.south_west_rounded,
-          c.monthCount(flow: MoneyFlow.expense),
+          c.monthCount(flow: MoneyFlow.expense, range: range),
           tone: Colors.deepOrange,
         ),
       ],
@@ -1130,7 +1407,11 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
 
   /// ---------------------------------------------------------------- shared
 
-  Widget _buildInlineEmpty(BuildContext context, String message) {
+  Widget _buildInlineEmpty(
+    BuildContext context,
+    String message, {
+    VoidCallback? onClear,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 20),
       decoration: BoxDecoration(
@@ -1151,6 +1432,20 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
               color: AppUi.muted(context),
             ),
           ),
+          if (onClear != null) ...[
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: onClear,
+              child: Text(
+                'clear_filters'.tr,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1382,3 +1677,57 @@ class _LedgerSwitcher extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 }
+
+/// How much of a month the entry list is showing.
+///
+/// Thirds rather than halves, and cut on the 10th and the 20th: those are the
+/// boundaries a month already has for most people — a salary lands near one
+/// end of it and rent goes out near the other — so "what have I spent since
+/// the 20th" is a question with an answer rather than a calendar to fill in.
+/// [custom] is for everything else.
+enum _DayFilter {
+  whole,
+  firstTen,
+  middleTen,
+  lastDays,
+  custom;
+
+  IconData get icon => switch (this) {
+        _DayFilter.whole => Icons.calendar_month_rounded,
+        _DayFilter.custom => Icons.edit_calendar_rounded,
+        _ => Icons.date_range_rounded,
+      };
+
+  /// The days this slice covers inside [month], both ends included. The last
+  /// slice runs to whatever the month's own last day is, so February is not
+  /// asked for a 31st.
+  DateTimeRange rangeIn(DateTime month) {
+    final int last = DateUtils.getDaysInMonth(month.year, month.month);
+
+    final (int from, int to) = switch (this) {
+      _DayFilter.firstTen => (1, 10),
+      _DayFilter.middleTen => (11, 20),
+      _DayFilter.lastDays => (21, last),
+      // Neither is a slice; both are asked for the whole month rather than
+      // being allowed to return something nonsensical.
+      _ => (1, last),
+    };
+
+    return DateTimeRange(
+      start: DateTime(month.year, month.month, from),
+      end: DateTime(month.year, month.month, to),
+    );
+  }
+
+  String label(DateTime month) {
+    final DateTimeRange range = rangeIn(month);
+    return '${range.start.day}–${range.end.day}';
+  }
+}
+
+/// The fixed slices, in the order a month runs.
+const List<_DayFilter> _dayPresets = [
+  _DayFilter.firstTen,
+  _DayFilter.middleTen,
+  _DayFilter.lastDays,
+];

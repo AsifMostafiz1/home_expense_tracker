@@ -207,17 +207,39 @@ class PersonalController extends GetxController implements GetxService {
   }
 
   /// This month's entries under the day each was recorded on — what the list
-  /// actually shows. [flow] narrows it to one side; null is both.
-  List<MoneyDay> monthDays({MoneyFlow? flow}) => MoneyDay.group(
-        flow == null
-            ? monthTransactions
-            : monthTransactions.where((entry) => entry.flow == flow),
-      );
+  /// actually shows. [flow] narrows it to one side, null is both; [range]
+  /// narrows it to a run of days inside the month, null is all of them.
+  List<MoneyDay> monthDays({MoneyFlow? flow, DateTimeRange? range}) =>
+      MoneyDay.group(_monthEntries(flow: flow, range: range));
 
-  /// How many of this month's entries fall on [flow], or all of them for null.
-  int monthCount({MoneyFlow? flow}) => flow == null
-      ? monthTransactions.length
-      : monthTransactions.where((entry) => entry.flow == flow).length;
+  /// How many of this month's entries survive [flow] and [range] — what the
+  /// filter chips and the day menu count.
+  int monthCount({MoneyFlow? flow, DateTimeRange? range}) =>
+      _monthEntries(flow: flow, range: range).length;
+
+  /// This month's entries cut down to one side of the ledger, a run of days,
+  /// or both.
+  ///
+  /// Both ends of [range] are inside it: somebody asking for the 1st to the
+  /// 10th means the 10th as well, and the day is compared without its clock
+  /// so an entry at 8pm on the last day is not pushed past the end.
+  Iterable<PersonalTransaction> _monthEntries({
+    MoneyFlow? flow,
+    DateTimeRange? range,
+  }) {
+    final DateTime? from =
+        range == null ? null : DateUtils.dateOnly(range.start);
+    final DateTime? to = range == null ? null : DateUtils.dateOnly(range.end);
+
+    return monthTransactions.where((entry) {
+      if (flow != null && entry.flow != flow) return false;
+      if (from != null && to != null) {
+        final DateTime day = DateUtils.dateOnly(entry.day);
+        if (day.isBefore(from) || day.isAfter(to)) return false;
+      }
+      return true;
+    });
+  }
 
   MonthMoney get monthMoney => MonthMoney.of(selectedMonth, transactions);
 
