@@ -415,6 +415,10 @@ class AppTranslations extends Translations {
           'keep_typing_to_narrow': '@count more — type a name to narrow this',
           'person_added': 'Added to your list',
           'person_already_added': 'They are already on your list',
+          'rename_person': 'Change name',
+          'rename_person_note':
+              'The new name is written across every entry in this account.',
+          'person_renamed': 'Name changed',
           'failed_save_person': 'Could not add the person',
           'no_entries_yet': 'Nothing yet',
           'no_entries_for_person':
@@ -1208,6 +1212,9 @@ class AppTranslations extends Translations {
           'keep_typing_to_narrow': 'আরও @count জন — নাম লিখে খুঁজুন',
           'person_added': 'তালিকায় যোগ হয়েছে',
           'person_already_added': 'ইনি আগে থেকেই আপনার তালিকায় আছেন',
+          'rename_person': 'নাম বদলান',
+          'rename_person_note': 'নতুন নামটি এই হিসাবের সব এন্ট্রিতে লেখা হবে।',
+          'person_renamed': 'নাম বদলে গেছে',
           'failed_save_person': 'ব্যক্তিটি যোগ করা যায়নি',
           'no_entries_yet': 'এখনো কিছু নেই',
           'no_entries_for_person':

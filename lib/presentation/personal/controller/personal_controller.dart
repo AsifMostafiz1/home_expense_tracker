@@ -524,6 +524,68 @@ class PersonalController extends GetxController implements GetxService {
     }
   }
 
+  /// Renames the person a whole account is kept with.
+  ///
+  /// Returns the key the account is grouped under afterwards, so the screen
+  /// that asked can follow it: with no phone the key is folded out of the
+  /// name, and a renamed person is therefore at a new one. Null means nothing
+  /// was written — the name was empty, or already taken.
+  ///
+  /// A rename onto a name somebody else on the list already uses is refused
+  /// rather than applied. It would fold the two accounts into one, which is a
+  /// merge; nobody typing a new spelling is asking for their entries to be
+  /// mixed with another person's, and it cannot be undone by renaming back.
+  Future<String?> renamePerson(PersonBalance person, String name) async {
+    if (userPhone.isEmpty) return null;
+
+    final String clean = name.trim();
+    if (clean.isEmpty) return null;
+
+    // Same spelling: nothing to write, and nothing to complain about either.
+    if (clean == person.name.trim()) return person.key;
+
+    // The rule [DebtEntry.personKey] uses, applied to what the name is about
+    // to become.
+    final String phone = person.phone.trim();
+    final String key = phone.isNotEmpty ? phone : clean.toLowerCase();
+
+    if (key != person.key && personKeys.contains(key)) {
+      CustomSnackbar.show(
+          type: SnackbarType.info, message: 'person_already_added'.tr);
+      return null;
+    }
+
+    try {
+      isSaving = true;
+      update();
+
+      final bool offline = _isOffline;
+
+      await repository.renamePerson(
+        entries: person.entries,
+        personIds: savedPeople
+            .where((saved) => saved.key == person.key)
+            .map((saved) => saved.id)
+            .toList(),
+        name: clean,
+      );
+
+      CustomSnackbar.show(
+        type: offline ? SnackbarType.info : SnackbarType.success,
+        message: offline ? 'saved_offline_generic'.tr : 'person_renamed'.tr,
+      );
+      return key;
+    } catch (e) {
+      debugPrint('Error renaming ledger person: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_save_person'.tr);
+      return null;
+    } finally {
+      isSaving = false;
+      update();
+    }
+  }
+
   /// Clears one person's whole account — every row, not a settling entry, and
   /// the person themselves, or the row would come back empty on the next
   /// snapshot.

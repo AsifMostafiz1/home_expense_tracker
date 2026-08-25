@@ -9,6 +9,7 @@ import '../../../utils/app_ui.dart';
 import '../controller/personal_controller.dart';
 import '../model/debt_entry.dart';
 import '../widgets/debt_entry_sheet.dart';
+import '../widgets/rename_person_dialog.dart';
 import '../widgets/settle_debt_sheet.dart';
 
 /// One person's account: every rupee that has passed between the two of them,
@@ -27,6 +28,14 @@ class PersonLedgerScreen extends StatefulWidget {
 }
 
 class _PersonLedgerScreenState extends State<PersonLedgerScreen> {
+  /// The account this screen is looking at.
+  ///
+  /// Starts as the one that was opened and follows a rename. With no phone to
+  /// group on, the key is folded out of the name — so a renamed person is at
+  /// a new key, and a screen still holding the old one would decide the
+  /// account had been deleted and close itself.
+  late String _key = widget.personKey;
+
   /// Which side of the account to show, or null for both.
   DebtFlow? _flow;
 
@@ -78,7 +87,7 @@ class _PersonLedgerScreenState extends State<PersonLedgerScreen> {
   Widget build(BuildContext context) {
     return GetBuilder<PersonalController>(
       builder: (c) {
-        final PersonBalance? person = c.personFor(widget.personKey);
+        final PersonBalance? person = c.personFor(_key);
 
         // Every row deleted — there is no account left to look at.
         if (person == null) {
@@ -394,6 +403,8 @@ class _PersonLedgerScreenState extends State<PersonLedgerScreen> {
       onSelected: (value) {
         if (value == 'call') {
           launchUrl(Uri(scheme: 'tel', path: person.phone));
+        } else if (value == 'rename') {
+          _rename(context, person);
         } else if (value == 'delete') {
           showConfirmDialog(
             title: 'delete_person_ledger'.tr,
@@ -417,6 +428,17 @@ class _PersonLedgerScreenState extends State<PersonLedgerScreen> {
             ),
           ),
         PopupMenuItem<String>(
+          value: 'rename',
+          child: Row(
+            children: [
+              Icon(Icons.drive_file_rename_outline_rounded,
+                  size: 19, color: AppUi.muted(context)),
+              const SizedBox(width: 12),
+              Text('rename_person'.tr),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
           value: 'delete',
           child: Row(
             children: [
@@ -430,6 +452,18 @@ class _PersonLedgerScreenState extends State<PersonLedgerScreen> {
         ),
       ],
     );
+  }
+
+  /// Renames the account, and follows it to wherever it lands.
+  ///
+  /// The key comes back from the dialog rather than being worked out here:
+  /// only the controller knows whether the write actually went through, and a
+  /// screen that moved to a key nothing was written to would show an empty
+  /// account and then close itself.
+  Future<void> _rename(BuildContext context, PersonBalance person) async {
+    final String? key = await showRenamePersonDialog(context, person: person);
+    if (key == null || !mounted || key == _key) return;
+    setState(() => _key = key);
   }
 
   Widget _buildBalanceCard(BuildContext context, PersonBalance person) {

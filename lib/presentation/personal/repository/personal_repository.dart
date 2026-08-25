@@ -23,6 +23,18 @@ abstract class PersonalRepository {
 
   Future<void> savePerson(LedgerPerson person);
 
+  /// Writes one new name across a whole account.
+  ///
+  /// Every row carries the name it was made with — and with no phone to group
+  /// on, the account's key is folded out of that name — so a rename has to
+  /// reach all of them at once or it splits the account rather than renaming
+  /// it. [personIds] are the person's saved records, in the same batch.
+  Future<void> renamePerson({
+    required List<DebtEntry> entries,
+    List<String> personIds,
+    required String name,
+  });
+
   /// Removes every row kept with one person — the "this account is finished"
   /// action, which is a delete of the history rather than a settling entry.
   /// [personIds] are that person's saved records, cleared in the same batch

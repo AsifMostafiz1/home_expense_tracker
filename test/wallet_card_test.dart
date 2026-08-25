@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:demo_project/presentation/personal/controller/personal_controller.dart';
 import 'package:demo_project/presentation/personal/model/debt_entry.dart';
+import 'package:demo_project/presentation/personal/model/ledger_person.dart';
 import 'package:demo_project/presentation/personal/model/personal_transaction.dart';
 import 'package:demo_project/presentation/personal/repository/personal_repository.dart';
 import 'package:demo_project/presentation/personal/view/personal_finance_screen.dart';
@@ -42,7 +43,24 @@ class _FakeLedger implements PersonalRepository {
   Future<void> deleteDebtEntry(String id) async {}
 
   @override
-  Future<void> deletePerson(List<DebtEntry> entries) async {}
+  Stream<List<LedgerPerson>> watchPeople(String ownerPhone) =>
+      Stream<List<LedgerPerson>>.value(const []);
+
+  @override
+  Future<void> savePerson(LedgerPerson person) async {}
+
+  @override
+  Future<void> renamePerson({
+    required List<DebtEntry> entries,
+    List<String> personIds = const [],
+    required String name,
+  }) async {}
+
+  @override
+  Future<void> deletePerson(
+    List<DebtEntry> entries, {
+    List<String> personIds = const [],
+  }) async {}
 }
 
 /// `yyyy-MM-dd` inside the month [monthsBack] before this one, so the fixtures
@@ -303,9 +321,9 @@ void main() {
 
     // The dues are named, one line each, not one lump.
     expect(find.text('Rakib'), findsOneWidget);
-    expect(find.text('You will get'), findsOneWidget);
+    expect(find.text('Borrowed'), findsOneWidget);
     expect(find.text('Karim'), findsOneWidget);
-    expect(find.text('You have to pay'), findsOneWidget);
+    expect(find.text('Lent out'), findsOneWidget);
     expect(find.text('−৳50'), findsOneWidget);
     expect(find.text('+৳50'), findsOneWidget); // the dues subtotal
 

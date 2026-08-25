@@ -190,6 +190,35 @@ class PersonalRepositoryImpl implements PersonalRepository {
   }
 
   @override
+  Future<void> renamePerson({
+    required List<DebtEntry> entries,
+    List<String> personIds = const [],
+    required String name,
+  }) {
+    if (entries.isEmpty && personIds.isEmpty) return Future<void>.value();
+
+    // One batch, so the account is never half renamed — a run of separate
+    // writes interrupted midway would leave the rows split across two keys
+    // and show the person twice on the dues list.
+    final WriteBatch batch = FirebaseFirestore.instance.batch();
+    final Map<String, dynamic> data = {
+      'person_name': name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    // `update` rather than `set`: every one of these came out of a live
+    // snapshot, so a document that is not there is a bug worth hearing about
+    // rather than something to quietly create half of.
+    for (final DebtEntry entry in entries) {
+      if (entry.id.isNotEmpty) batch.update(_debts.doc(entry.id), data);
+    }
+    for (final String id in personIds) {
+      if (id.isNotEmpty) batch.update(_people.doc(id), data);
+    }
+    return _commit(batch.commit());
+  }
+
+  @override
   Future<void> deletePerson(
     List<DebtEntry> entries, {
     List<String> personIds = const [],

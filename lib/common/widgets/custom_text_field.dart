@@ -18,6 +18,10 @@ class CustomTextField extends StatelessWidget {
   final VoidCallback? onTap;
   final TextCapitalization textCapitalization;
 
+  /// Opens the keyboard as soon as the field is built — for a dialog or sheet
+  /// whose only job is this one field.
+  final bool autofocus;
+
   const CustomTextField({
     super.key,
     required this.controller,
@@ -35,6 +39,7 @@ class CustomTextField extends StatelessWidget {
     this.readOnly = false,
     this.onTap,
     this.textCapitalization = TextCapitalization.none,
+    this.autofocus = false,
   });
 
   @override
@@ -55,6 +60,7 @@ class CustomTextField extends StatelessWidget {
         ],
         TextFormField(
           controller: controller,
+          autofocus: autofocus,
           obscureText: obscureText,
           keyboardType: keyboardType,
           maxLines: maxLines,
