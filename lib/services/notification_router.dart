@@ -101,6 +101,9 @@ class NotificationRouter {
         return NotificationDestination.directThread;
       case 'announcement':
       case 'meal':
+      // The evening reminder is about today's meals; the tab it names is
+      // where they are changed.
+      case 'meal_reminder':
         return NotificationDestination.meals;
       case 'expense':
         return NotificationDestination.expenses;

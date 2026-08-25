@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../common/widgets/custom_snackbar.dart';
+import '../../../services/daily_reminder_service.dart';
 import '../../../services/push_notification_service.dart';
 import '../../../services/push_outbox_service.dart';
 import '../../../utils/app_constant.dart';
@@ -11,11 +12,14 @@ import '../../../utils/app_enums.dart';
 import '../model/app_config_model.dart';
 import '../repository/settings_repository.dart';
 
-/// App-wide settings: the version every launch is checked against, and the
-/// link the update screen sends people to.
+/// App-wide settings, in two halves that share one Firestore document and
+/// nothing else: the version every launch is checked against, and the daily
+/// meal reminder the house gets in the evening.
 ///
-/// Small screen, high stakes — publishing a version above the build in
-/// people's hands locks them out of the app until they install the new one.
+/// They save separately — see [save] and [saveReminder] — because the stakes
+/// are not comparable. Publishing a version above the build in people's hands
+/// locks them out of the app until they install the new one; moving the
+/// reminder half an hour does not.
 class SettingsController extends GetxController implements GetxService {
   final SettingsRepository repository;
 
@@ -36,6 +40,49 @@ class SettingsController extends GetxController implements GetxService {
 
   String? versionError;
   String? linkError;
+
+  /// ------------------------------------------------------- daily reminder
+
+  bool isSavingReminder = false;
+
+  bool reminderEnabled = false;
+
+  /// `HH:mm`, 24-hour. Local to whichever device raises it — see
+  /// [DailyReminderService].
+  String reminderTime = AppConfigModel.defaultReminderTime;
+
+  /// What the document held when it was last read. Kept so the save bar can
+  /// tell an admin who has changed something from one who is only looking.
+  bool _savedReminderEnabled = false;
+  String _savedReminderTime = AppConfigModel.defaultReminderTime;
+
+  bool get reminderDirty =>
+      reminderEnabled != _savedReminderEnabled ||
+      reminderTime != _savedReminderTime;
+
+  bool isSendingTest = false;
+
+  /// How long until the next reminder is due, worded for a sentence.
+  ///
+  /// Read off the hour as it is set right now, which is what an admin who has
+  /// just moved it wants to know: a time already past today means the first
+  /// one lands tomorrow, and saying so out loud is the difference between a
+  /// working reminder and one that looks broken all evening.
+  String get untilNextReminder {
+    final Duration left = DailyReminderService.nextOccurrence(
+      reminderHour,
+      reminderMinute,
+    ).difference(DateTime.now());
+
+    if (left.inMinutes < 60) {
+      return 'in_minutes'.trParams({'count': '${left.inMinutes + 1}'});
+    }
+    return 'in_hours'.trParams({'count': '${left.inHours}'});
+  }
+
+  int get reminderHour => AppConfigModel.hourOf(reminderTime);
+
+  int get reminderMinute => AppConfigModel.minuteOf(reminderTime);
 
   /// The version this build reports — what the splash screen compares against.
   double get installedVersion => AppConstant.appVersion;
@@ -87,6 +134,11 @@ class SettingsController extends GetxController implements GetxService {
       versionError = null;
       linkError = null;
       errorMessage = '';
+
+      reminderEnabled = loaded.reminderEnabled;
+      reminderTime = loaded.reminderTime;
+      _savedReminderEnabled = loaded.reminderEnabled;
+      _savedReminderTime = loaded.reminderTime;
     } catch (e) {
       debugPrint('Error loading app config: $e');
       if (background && config != null) {
@@ -263,6 +315,169 @@ class SettingsController extends GetxController implements GetxService {
       debugPrint('Config: update notice failed — $e');
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_notify_update'.tr);
+    }
+  }
+
+  /// ------------------------------------------------------- daily reminder
+
+  void setReminderEnabled(bool value) {
+    if (!isAdminUser || reminderEnabled == value) return;
+    reminderEnabled = value;
+    update();
+  }
+
+  /// [hour] and [minute] on a 24-hour clock, as the time picker hands them
+  /// over.
+  void setReminderTime(int hour, int minute) {
+    if (!isAdminUser) return;
+    final String next = '${hour.toString().padLeft(2, '0')}:'
+        '${minute.toString().padLeft(2, '0')}';
+    if (next == reminderTime) return;
+    reminderTime = next;
+    update();
+  }
+
+  /// Saves the reminder settings and gets them onto everyone's device.
+  ///
+  /// Three steps, in an order that matters. Firestore first, because that is
+  /// what a device reads at its next launch and what the whole house
+  /// eventually agrees with. Then this device's own job, so the admin who just
+  /// changed the hour does not have to wait for their own message to come
+  /// back round through FCM. Then the silent message that carries the change
+  /// to every device that is not being held — see [DailyReminderService].
+  ///
+  /// The last two are best-effort: a change that reached Firestore is saved
+  /// whether or not it was delivered tonight, and the next launch picks it up.
+  Future<bool> saveReminder() async {
+    if (!isAdminUser) {
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'admin_only_action'.tr);
+      return false;
+    }
+
+    // Nothing moved, so nothing to write — and nothing to wake every device in
+    // the house for.
+    if (!reminderDirty) {
+      CustomSnackbar.show(
+          type: SnackbarType.info, message: 'no_changes_to_save'.tr);
+      return false;
+    }
+
+    try {
+      isSavingReminder = true;
+      update();
+
+      final AppConfigModel next = (config ?? const AppConfigModel()).copyWith(
+        reminderEnabled: reminderEnabled,
+        reminderTime: reminderTime,
+        updatedBy: userName,
+      );
+
+      // Only the reminder's own two fields: the version and the download link
+      // belong to the other tab, and an admin editing one must not publish a
+      // half-typed version from the other.
+      await repository.saveAppConfig(next.toReminderMap(), by: userName);
+
+      config = next;
+      _savedReminderEnabled = reminderEnabled;
+      _savedReminderTime = reminderTime;
+
+      final bool armed = await DailyReminderService.sync(next);
+      await _broadcastReminderConfig(next);
+
+      if (!armed) {
+        // Saved, but this device will not act on it. Everyone else still
+        // will, so this is a warning about the admin's own phone rather than
+        // a failed save.
+        CustomSnackbar.show(
+            type: SnackbarType.warning, message: 'reminder_not_armed'.tr);
+        return true;
+      }
+
+      CustomSnackbar.show(
+        type: SnackbarType.success,
+        message: reminderEnabled
+            ? 'reminder_saved_at'.trParams({'when': untilNextReminder})
+            : 'reminder_turned_off'.tr,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error saving the daily reminder: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_save_reminder'.tr);
+      return false;
+    } finally {
+      isSavingReminder = false;
+      update();
+    }
+  }
+
+  /// Raises tonight's reminder now, so an admin can see the thing itself
+  /// instead of waiting until the evening to find out whether it works.
+  ///
+  /// The message is put in a snackbar as well as the notification tray. That
+  /// is the point of it: if the tray stays empty but the snackbar reads
+  /// correctly, the summary is fine and it is the phone's notification
+  /// permission that is off — the one failure the app cannot see for itself.
+  Future<void> sendTestReminder() async {
+    if (isSendingTest) return;
+
+    try {
+      isSendingTest = true;
+      update();
+
+      final String body = await DailyReminderService.showNow();
+      CustomSnackbar.show(type: SnackbarType.success, message: body);
+    } catch (e) {
+      debugPrint('Reminder: test failed — $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_test_reminder'.tr);
+    } finally {
+      isSendingTest = false;
+      update();
+    }
+  }
+
+  /// Tells every device the reminder has moved, without showing anything.
+  ///
+  /// Data-only and untargeted: this goes to the house topic rather than to a
+  /// list of phones, because it is not news anybody reads — it is a setting
+  /// each device applies to itself, and one that misses it is corrected at
+  /// its next launch anyway.
+  Future<void> _broadcastReminderConfig(AppConfigModel next) async {
+    final Map<String, String> payload = {
+      'type': 'reminder_config',
+      'enabled': next.reminderEnabled ? '1' : '0',
+      'time': next.reminderTime,
+      'senderName': userName,
+      'senderPhone': userPhone,
+    };
+
+    // FCM needs a title and a body even for a message nothing will show;
+    // these are never read.
+    const String unused = 'reminder_config';
+
+    try {
+      if (Get.isRegistered<PushOutboxService>()) {
+        // Through the outbox, for the reason the version notice goes that
+        // way: a change made while the admin's own connection is down must
+        // still reach people once it is back.
+        await Get.find<PushOutboxService>().send(
+          title: unused,
+          body: unused,
+          data: payload,
+          dataOnly: true,
+        );
+      } else {
+        await PushNotificationService().sendPushNotification(
+          title: unused,
+          body: unused,
+          data: payload,
+          dataOnly: true,
+        );
+      }
+    } catch (e) {
+      debugPrint('Reminder: could not broadcast the change — $e');
     }
   }
 }

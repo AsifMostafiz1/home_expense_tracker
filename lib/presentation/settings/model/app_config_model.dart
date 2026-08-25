@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../utils/app_constant.dart';
+
 /// The `config/business_config` document the splash screen gates every launch
 /// on.
 ///
@@ -12,11 +14,26 @@ class AppConfigModel {
   final String updatedBy;
   final DateTime? updatedAt;
 
+  /// Whether the house gets the daily meal reminder at all — see
+  /// `DailyReminderService`.
+  final bool reminderEnabled;
+
+  /// When it goes out, `HH:mm` on a 24-hour clock. Always a valid time:
+  /// anything unreadable in the document falls back to [defaultReminderTime],
+  /// because the job that reads this runs with no one around to correct it.
+  final String reminderTime;
+
+  /// Six in the evening — after the day's meals are known and before anyone
+  /// has gone to bed.
+  static const String defaultReminderTime = '18:00';
+
   const AppConfigModel({
     this.appVersion = '',
     this.downloadLink = '',
     this.updatedBy = '',
     this.updatedAt,
+    this.reminderEnabled = false,
+    this.reminderTime = defaultReminderTime,
   });
 
   double get versionValue => versionOf(appVersion);
@@ -30,6 +47,43 @@ class AppConfigModel {
     return double.tryParse((value ?? '').toString().trim()) ?? 0;
   }
 
+  /// The hour of [reminderTime], 0–23.
+  int get reminderHour => hourOf(reminderTime);
+
+  /// The minute of [reminderTime], 0–59.
+  int get reminderMinute => minuteOf(reminderTime);
+
+  static int hourOf(String time) => _partsOf(time).$1;
+
+  static int minuteOf(String time) => _partsOf(time).$2;
+
+  /// `HH:mm` out of whatever was stored, falling back to
+  /// [defaultReminderTime] rather than throwing — a malformed value must not
+  /// take the reminder down for the whole house.
+  static String normalizeTime(dynamic value) {
+    final (int hour, int minute) = _partsOf(value);
+    return '${hour.toString().padLeft(2, '0')}:'
+        '${minute.toString().padLeft(2, '0')}';
+  }
+
+  static (int, int) _partsOf(dynamic value) {
+    final List<String> parts = (value ?? '').toString().trim().split(':');
+    if (parts.length != 2) return _defaultParts;
+
+    final int? hour = int.tryParse(parts[0]);
+    final int? minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return _defaultParts;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return _defaultParts;
+    }
+    return (hour, minute);
+  }
+
+  static final (int, int) _defaultParts = (
+    int.parse(defaultReminderTime.split(':')[0]),
+    int.parse(defaultReminderTime.split(':')[1]),
+  );
+
   bool get isEmpty => appVersion.isEmpty && downloadLink.isEmpty;
 
   /// Reads either the Firestore document or the JSON [toCacheJson] wrote —
@@ -40,6 +94,25 @@ class AppConfigModel {
       downloadLink: (map['app_download_link'] ?? '').toString(),
       updatedBy: (map['updated_by'] ?? '').toString(),
       updatedAt: _readDate(map['updatedAt']),
+      reminderEnabled: map[AppConstant.fieldReminderEnabled] == true,
+      reminderTime: normalizeTime(map[AppConstant.fieldReminderTime]),
+    );
+  }
+
+  AppConfigModel copyWith({
+    String? appVersion,
+    String? downloadLink,
+    String? updatedBy,
+    bool? reminderEnabled,
+    String? reminderTime,
+  }) {
+    return AppConfigModel(
+      appVersion: appVersion ?? this.appVersion,
+      downloadLink: downloadLink ?? this.downloadLink,
+      updatedBy: updatedBy ?? this.updatedBy,
+      updatedAt: updatedAt,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      reminderTime: reminderTime ?? this.reminderTime,
     );
   }
 
@@ -54,10 +127,19 @@ class AppConfigModel {
         'app_download_link': downloadLink,
       };
 
+  /// Only the reminder's own two fields, so saving it cannot disturb the
+  /// version gate sharing the document — the two tabs of the settings screen
+  /// save independently.
+  Map<String, dynamic> toReminderMap() => {
+        AppConstant.fieldReminderEnabled: reminderEnabled,
+        AppConstant.fieldReminderTime: reminderTime,
+      };
+
   /// The whole document, in a form `jsonEncode` accepts — what the splash
   /// screen falls back to when the read fails.
   Map<String, dynamic> toCacheJson() => {
         ...toMap(),
+        ...toReminderMap(),
         'updated_by': updatedBy,
         'updatedAt': updatedAt?.toIso8601String(),
       };

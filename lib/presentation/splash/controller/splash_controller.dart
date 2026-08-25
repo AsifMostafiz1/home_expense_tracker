@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../common/widgets/custom_snackbar.dart';
+import '../../../services/daily_reminder_service.dart';
 import '../../../services/notification_permission_service.dart';
 import '../../../services/notification_router.dart';
 import '../../../utils/app_constant.dart';
@@ -33,13 +34,14 @@ class SplashController extends GetxController {
   }
 
   Future<void> _checkAppVersion() async {
+    AppConfigModel? config;
     try {
       // The read runs while the logo is still animating, rather than after.
       final List<dynamic> results = await Future.wait<dynamic>([
         Future.delayed(_minimumSplash),
         _loadConfig(),
       ]);
-      final AppConfigModel? config = results[1] as AppConfigModel?;
+      config = results[1] as AppConfigModel?;
 
       if (config != null && !config.isEmpty) {
         final double requiredVersion = config.versionValue;
@@ -58,6 +60,14 @@ class SplashController extends GetxController {
       debugPrint("Error checking app version: $e");
       await _navigateToNext();
     }
+
+    // The daily reminder rides on the same document the gate above read, so
+    // an admin moving the hour reaches this device at its next launch even if
+    // the message announcing it never arrived. Not awaited: arming a job is
+    // the OS's business, not something to hold the first frame for. A null
+    // config — the read failed — leaves the settings this device already has
+    // in place; see [DailyReminderService.sync].
+    unawaited(DailyReminderService.sync(config));
 
     await _promptForNotificationPermission();
   }

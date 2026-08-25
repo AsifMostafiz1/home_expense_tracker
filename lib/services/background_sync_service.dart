@@ -12,6 +12,7 @@ import '../presentation/chat/repository/chat_repository_impl.dart';
 import '../presentation/expense/repository/expense_repository_impl.dart';
 import '../utils/supabase_config.dart';
 import 'chat_outbox_service.dart';
+import 'daily_reminder_service.dart';
 import 'push_outbox_service.dart';
 import 'receipt_outbox_service.dart';
 import 'supabase_storage_service.dart';
@@ -195,6 +196,9 @@ class BackgroundSyncService {
 
 /// Entry point the OS calls in its own isolate. Must be a top-level function
 /// and must survive tree shaking, hence the pragma.
+///
+/// Shared by every background job the app registers — WorkManager allows one
+/// callback per app, so the task name is what says which of them was woken.
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager()
@@ -202,9 +206,14 @@ void callbackDispatcher() {
     WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
     try {
-      return await BackgroundSyncService.runSync();
+      switch (task) {
+        case DailyReminderService.taskName:
+          return await DailyReminderService.run();
+        default:
+          return await BackgroundSyncService.runSync();
+      }
     } catch (e) {
-      debugPrint('BackgroundSync: task failed — $e');
+      debugPrint('BackgroundSync: task \$task failed — \$e');
       return false;
     }
   });

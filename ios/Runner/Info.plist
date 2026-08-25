@@ -58,6 +58,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.mostafizur.expense.tracker.sync</string>
+		<string>com.mostafizur.expense.tracker.daily_reminder</string>
 	</array>
 </dict>
 </plist>

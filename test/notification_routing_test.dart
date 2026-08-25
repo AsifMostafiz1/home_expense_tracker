@@ -14,6 +14,8 @@ const Map<String, NotificationDestination> _senders = {
   'announcement': NotificationDestination.meals,
   // meal_controller._updateOtherUserMeal
   'meal': NotificationDestination.meals,
+  // daily_reminder_service._notify — the evening summary
+  'meal_reminder': NotificationDestination.meals,
   // expense_controller — an admin edited or deleted somebody's expense
   'expense': NotificationDestination.expenses,
   // house_rules_controller._notifyHouse

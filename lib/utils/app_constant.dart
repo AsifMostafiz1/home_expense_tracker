@@ -104,6 +104,21 @@ class AppConstant {
   static const String fieldAppVersion = 'app_version';
   static const String docBusinessConfig = 'business_config';
 
+  /// The daily meal reminder an admin sets up, on the same
+  /// `config/business_config` document the version gate reads. Two fields
+  /// rather than one so a house can switch the reminder off without losing
+  /// the hour it had settled on.
+  static const String fieldReminderEnabled = 'daily_reminder_enabled';
+
+  /// `HH:mm`, 24-hour, in each device's own local time — see
+  /// `DailyReminderService`.
+  static const String fieldReminderTime = 'daily_reminder_time';
+
+  /// The reminder settings as this device last saw them, as JSON. The headless
+  /// job that raises the reminder falls back to it when Firestore cannot be
+  /// reached, so a night without a connection still fires at the right hour.
+  static const String keyReminderConfig = 'dailyReminderConfig';
+
   /// The group chat's own identity — its name and its picture, set by an
   /// admin from the thread's settings sheet. Lives under `config` because it
   /// is one document for the whole house, not one per anything.

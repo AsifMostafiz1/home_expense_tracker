@@ -256,12 +256,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                   _buildDivider(context),
                                   // Everyone gets in: which version the house is
-                                  // meant to run is worth seeing. The screen itself
-                                  // hands the form to admins only.
+                                  // meant to run, and when the evening reminder
+                                  // goes out, are both worth seeing. The screen
+                                  // itself hands the forms to admins only.
                                   _buildListTile(
                                     context,
                                     icon: Icons.settings_outlined,
-                                    title: 'app_version'.tr,
+                                    title: 'settings'.tr,
                                     onTap: () =>
                                         Get.to(() => const SettingsScreen()),
                                   ),

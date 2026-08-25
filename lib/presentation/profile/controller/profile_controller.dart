@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/connectivity_service.dart';
+import '../../../services/daily_reminder_service.dart';
 import '../../../services/member_avatar_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/supabase_config.dart';
@@ -530,6 +531,11 @@ class ProfileController extends GetxController implements GetxService {
   }
 
   Future<void> logout() async {
+    // Before the session is torn down, while the job is still ours to stop:
+    // the evening reminder names the whole house's meals, which is nothing to
+    // raise on a phone nobody is signed in on.
+    await DailyReminderService.cancel();
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove(AppConstant.keyIsLoggedIn);
     await prefs.remove(AppConstant.keyUserPhone);

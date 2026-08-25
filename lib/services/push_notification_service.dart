@@ -6,6 +6,7 @@ import '../utils/app_constant.dart';
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'daily_reminder_service.dart';
 import 'fcm_v1_service.dart';
 import 'notification_router.dart';
 
@@ -23,6 +24,16 @@ Future<void> _showNotificationIfAppropriate(
   required bool fromBackgroundIsolate,
 }) async {
   final data = message.data;
+
+  // An admin changed the reminder settings. There is nothing to show — the
+  // payload *is* the change, and every device re-arms its own job from it.
+  // Handled before anything else so it reaches a device whose owner is not
+  // holding it: this runs in the headless isolate too.
+  if (data['type'] == 'reminder_config') {
+    await DailyReminderService.applyFromPush(data);
+    return;
+  }
+
   final title = data['title'];
   final body = data['body'];
   final senderPhone = data['senderPhone'];

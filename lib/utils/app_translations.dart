@@ -293,6 +293,40 @@ class AppTranslations extends Translations {
           'failed_save_config': 'Could not save the app settings',
           'failed_load_config': 'Could not load the app settings',
           'last_updated_by': 'Last updated by @name',
+          'settings': 'Settings',
+          'notifications': 'Notifications',
+          'no_changes_to_save': 'Nothing has changed yet',
+          // -------------------------------------------- daily meal reminder
+          'daily_meal_reminder': 'Daily meal reminder',
+          'reminder_schedule': 'Reminder schedule',
+          'reminder_on': 'On',
+          'reminder_off': 'Off',
+          'reminder_time': 'Reminder time',
+          'next_reminder': 'Next reminder',
+          'reminder_paused': 'Paused',
+          'in_minutes': 'in @count min',
+          'in_hours': 'in @count hr',
+          'send_daily_reminder': 'Send the daily reminder',
+          'send_daily_reminder_hint':
+              "Everyone in the house gets one notification each evening with the day's meal count.",
+          'reminder_hint':
+              'The reminder is put together the moment it goes out, so it always names who is eating tonight — and who has no meal down yet.',
+          'reminder_preview': 'What it looks like',
+          'reminder_preview_title': "Today's meals",
+          'reminder_preview_body':
+              '3 meals today — Karim 1, Rahim 2. No meal: Jasim.',
+          'reminder_device_note':
+              'Each phone raises the reminder on its own clock, so it arrives at this hour wherever the reader is.',
+          'read_only_reminder':
+              'You can see when the reminder goes out. Only an admin can change it.',
+          'reminder_saved': 'Daily reminder saved',
+          'reminder_turned_off': 'Daily reminder turned off',
+          'failed_save_reminder': 'Could not save the daily reminder',
+          'reminder_saved_at': 'Daily reminder saved · first one @when',
+          'reminder_not_armed':
+              'Saved, but this phone would not take the reminder. Everyone else still gets it — reopen the app to try again.',
+          'send_test_reminder': 'Send one to this phone now',
+          'failed_test_reminder': 'Could not put the reminder together',
           // -------------------------------------------------- personal ledger
           'my_ledger': 'My Ledger',
           'nav_personal': 'Personal',
@@ -1093,6 +1127,39 @@ class AppTranslations extends Translations {
           'failed_save_config': 'অ্যাপ সেটিংস সংরক্ষণ করা যায়নি',
           'failed_load_config': 'অ্যাপ সেটিংস লোড করা যায়নি',
           'last_updated_by': 'সর্বশেষ আপডেট করেছেন @name',
+          'settings': 'সেটিংস',
+          'notifications': 'নোটিফিকেশন',
+          'no_changes_to_save': 'এখনো কিছু পরিবর্তন হয়নি',
+          // -------------------------------------------- daily meal reminder
+          'daily_meal_reminder': 'দৈনিক মিল রিমাইন্ডার',
+          'reminder_schedule': 'রিমাইন্ডারের সময়',
+          'reminder_on': 'চালু',
+          'reminder_off': 'বন্ধ',
+          'reminder_time': 'রিমাইন্ডারের সময়',
+          'next_reminder': 'পরবর্তী রিমাইন্ডার',
+          'reminder_paused': 'বন্ধ আছে',
+          'in_minutes': '@count মিনিট পর',
+          'in_hours': '@count ঘণ্টা পর',
+          'send_daily_reminder': 'দৈনিক রিমাইন্ডার পাঠান',
+          'send_daily_reminder_hint':
+              'বাসার সবাই প্রতিদিন সন্ধ্যায় একটি নোটিফিকেশন পাবেন, যাতে সেদিনের মিলের হিসাব থাকবে।',
+          'reminder_hint':
+              'নোটিফিকেশনটি পাঠানোর মুহূর্তেই তৈরি হয়, তাই আজ কার কয়টি মিল আর কার কোনো মিল নেই — দুটোই ঠিক থাকে।',
+          'reminder_preview': 'দেখতে যেমন হবে',
+          'reminder_preview_title': 'আজকের মিল',
+          'reminder_preview_body': 'আজ 3টি মিল — করিম 1, রহিম 2। মিল নেই: জসিম।',
+          'reminder_device_note':
+              'প্রতিটি ফোন নিজের ঘড়ি ধরে রিমাইন্ডার দেখায়, তাই যিনি যেখানেই থাকুন এই সময়েই পাবেন।',
+          'read_only_reminder':
+              'রিমাইন্ডার কখন যাবে আপনি দেখতে পারবেন। শুধু অ্যাডমিন পরিবর্তন করতে পারেন।',
+          'reminder_saved': 'দৈনিক রিমাইন্ডার সংরক্ষণ করা হয়েছে',
+          'reminder_turned_off': 'দৈনিক রিমাইন্ডার বন্ধ করা হয়েছে',
+          'failed_save_reminder': 'দৈনিক রিমাইন্ডার সংরক্ষণ করা যায়নি',
+          'reminder_saved_at': 'দৈনিক রিমাইন্ডার সংরক্ষণ হয়েছে · প্রথমটি @when',
+          'reminder_not_armed':
+              'সংরক্ষণ হয়েছে, তবে এই ফোনটি রিমাইন্ডারটি নেয়নি। বাকি সবাই ঠিকই পাবেন — আবার চেষ্টা করতে অ্যাপটি বন্ধ করে খুলুন।',
+          'send_test_reminder': 'এখনই এই ফোনে একটি পাঠান',
+          'failed_test_reminder': 'রিমাইন্ডারটি তৈরি করা যায়নি',
           // -------------------------------------------------- personal ledger
           'my_ledger': 'আমার হিসাব',
           'nav_personal': 'ব্যক্তিগত',
