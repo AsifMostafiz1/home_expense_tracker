@@ -1,3 +1,4 @@
+import '../model/chat_media_page.dart';
 import '../model/chat_message_model.dart';
 import '../model/chat_thread_model.dart';
 import '../model/pinned_message_model.dart';
@@ -18,6 +19,19 @@ abstract class ChatRepository {
   Future<List<ChatMessageModel>> fetchMessagesForSearch({
     String? conversationId,
     int limit,
+  });
+
+  /// One page of the pictures shared in a thread, newest first — what the
+  /// conversation's gallery is built from.
+  ///
+  /// Walks the history backwards from [before] in batches, keeping whatever
+  /// carries a picture, until it has [want] of them or runs out of thread.
+  /// Firestore cannot filter on a field most messages do not have without an
+  /// index for it, and a page walk needs none.
+  Future<ChatMediaPage> fetchMediaPage({
+    String? conversationId,
+    DateTime? before,
+    int want,
   });
 
   /// [peerPhone] is only read for a direct send, where the thread's summary

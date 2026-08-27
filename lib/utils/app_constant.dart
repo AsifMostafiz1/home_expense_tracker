@@ -40,6 +40,8 @@ class AppConstant {
 
   /// This account's house-rule acknowledgements, mirrored from Firestore as
   /// `{ruleId: version}` JSON. The launch gate reads it before the network
+  ///
+  ///
   /// answers, so an offline start does not ask again for rules already
   /// agreed to.
   static String keyHouseRuleAcks(String phone) => 'houseRuleAcks_$phone';

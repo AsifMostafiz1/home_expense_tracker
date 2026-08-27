@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../../../services/background_sync_service.dart';
 import '../../../services/connectivity_service.dart';
 import '../../../utils/app_constant.dart';
+import '../model/chat_media_page.dart';
 import '../model/chat_message_model.dart';
 import '../model/chat_thread_model.dart';
 import '../model/pinned_message_model.dart';
@@ -233,6 +234,88 @@ class ChatRepositoryImpl implements ChatRepository {
               isPending: doc.metadata.hasPendingWrites,
             ))
         .toList();
+  }
+
+  /// How many messages one trip to Firestore looks through. Big enough that a
+  /// quiet week of talking does not cost several round trips, small enough
+  /// that a thread nobody has posted a picture in is not read in full.
+  static const int _mediaScanBatch = 150;
+
+  /// How many of those trips one page may make. A ceiling rather than a
+  /// budget: without it, a gallery opened on a thread of text alone would
+  /// read the entire history before answering anything.
+  static const int _mediaScanTrips = 5;
+
+  @override
+  Future<ChatMediaPage> fetchMediaPage({
+    String? conversationId,
+    DateTime? before,
+    int want = 30,
+  }) async {
+    final List<ChatMessageModel> found = <ChatMessageModel>[];
+    DateTime? cursor = before;
+    bool reachedEnd = false;
+
+    for (int trip = 0; trip < _mediaScanTrips; trip++) {
+      Query<Map<String, dynamic>> query =
+          _messages(conversationId).orderBy('createdAt', descending: true);
+      if (cursor != null) {
+        query = query.startAfter(<Object>[Timestamp.fromDate(cursor)]);
+      }
+
+      final QuerySnapshot<Map<String, dynamic>> snapshot =
+          await query.limit(_mediaScanBatch).get();
+
+      if (snapshot.docs.isEmpty) {
+        reachedEnd = true;
+        break;
+      }
+
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs) {
+        final ChatMessageModel message = ChatMessageModel.fromMap(
+          doc.id,
+          doc.data(),
+          isPending: doc.metadata.hasPendingWrites,
+        );
+        if (message.hasImage && !message.deleted) found.add(message);
+      }
+
+      // Where the next trip starts. A message still waiting for its server
+      // timestamp has no `createdAt` to page from — it also sorts to the end
+      // of a descending read, so the newest one that does have a time is the
+      // right place to carry on from.
+      final Timestamp? oldest = _lastStamp(snapshot.docs);
+      if (oldest == null) {
+        reachedEnd = true;
+        break;
+      }
+      cursor = oldest.toDate();
+
+      // A short read is Firestore saying there is nothing behind it.
+      if (snapshot.docs.length < _mediaScanBatch) {
+        reachedEnd = true;
+        break;
+      }
+
+      if (found.length >= want) break;
+    }
+
+    return ChatMediaPage(
+      items: found,
+      cursor: cursor,
+      reachedEnd: reachedEnd,
+    );
+  }
+
+  /// The oldest real timestamp in a descending read, ignoring any trailing
+  /// documents whose server timestamp has not landed yet.
+  Timestamp? _lastStamp(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
+    for (int i = docs.length - 1; i >= 0; i--) {
+      final Object? stamp = docs[i].data()['createdAt'];
+      if (stamp is Timestamp) return stamp;
+    }
+    return null;
   }
 
   CollectionReference<Map<String, dynamic>> get _pinned =>

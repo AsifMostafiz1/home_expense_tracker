@@ -828,6 +828,19 @@ class AppTranslations extends Translations {
           'searching_older_messages': 'Still looking through older messages…',
           'message': 'Message',
 
+          // The gallery: every picture a conversation has carried.
+          'media': 'Media',
+          'photos_count': '@count photos',
+          'no_media_yet': 'No photos yet',
+          'no_media_yet_hint':
+              'Every picture shared in this conversation gathers here, newest first. Send one and it will be the first.',
+          'no_media_from_person': 'Nothing from @name',
+          'no_media_from_person_hint':
+              'Nobody else is hidden — tap All to see every picture in this conversation again.',
+          'failed_load_media': 'Could not load the photos',
+          'view_photo': 'View photo',
+          'jump_to_message': 'Go to message',
+
           // Sharing a month's figures into the chat.
           'share_as_message': 'Share as a message',
           'send_summary_to': 'Send this summary to',
@@ -1652,6 +1665,19 @@ class AppTranslations extends Translations {
           'no_messages_found': 'কিছু মেলেনি',
           'searching_older_messages': 'পুরনো বার্তাগুলোতেও খোঁজা হচ্ছে…',
           'message': 'বার্তা',
+
+          // The gallery: every picture a conversation has carried.
+          'media': 'মিডিয়া',
+          'photos_count': '@count টি ছবি',
+          'no_media_yet': 'এখনো কোনো ছবি নেই',
+          'no_media_yet_hint':
+              'এই কথোপকথনে পাঠানো সব ছবি এখানে জমা হবে, নতুনগুলো আগে। একটি পাঠান — সেটিই হবে প্রথম।',
+          'no_media_from_person': '@name এর কোনো ছবি নেই',
+          'no_media_from_person_hint':
+              'অন্য কারো ছবি লুকানো হয়নি — সব ছবি আবার দেখতে "সব" চাপুন।',
+          'failed_load_media': 'ছবিগুলো লোড করা যায়নি',
+          'view_photo': 'ছবিটি দেখুন',
+          'jump_to_message': 'বার্তায় যান',
 
           // Sharing a month's figures into the chat.
           'share_as_message': 'মেসেজ হিসেবে পাঠান',

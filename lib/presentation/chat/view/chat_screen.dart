@@ -24,6 +24,7 @@ import '../widgets/chat_search_results.dart';
 import '../widgets/group_avatar.dart';
 import '../widgets/group_settings_sheet.dart';
 import '../widgets/pinned_banner.dart';
+import 'chat_media_screen.dart';
 import 'pinned_messages_screen.dart';
 
 /// The little round button that lives inside the search pill. An `IconButton`
@@ -301,7 +302,7 @@ class _ChatScreenState extends State<ChatScreen> {
           icon: Icon(Icons.search_rounded, color: AppUi.body(context)),
           onPressed: controller.toggleSearch,
         ),
-        if (!_isDirect) _buildGroupMenu(context) else const SizedBox(width: 8),
+        _buildChatMenu(context),
       ],
     );
   }
@@ -393,19 +394,36 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// The group's own settings — what it is called, and what it looks like.
-  /// Nothing here belongs to a direct chat, which is named after the person
-  /// it is with.
-  Widget _buildGroupMenu(BuildContext context) {
+  /// What the conversation offers beyond the conversation itself.
+  ///
+  /// Every thread has a gallery — the pictures in it are worth reaching
+  /// without scrolling back through everything that was said around them.
+  /// The rest is the group's own furniture: what it is pinned, what it is
+  /// called, what it looks like. A direct chat is named after the person it
+  /// is with and pins nothing.
+  Widget _buildChatMenu(BuildContext context) {
     return PopupMenuButton<String>(
       icon: Icon(Icons.more_vert_rounded, color: AppUi.body(context)),
       tooltip: 'options'.tr,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (value) {
+        if (value == 'media') openChatMedia(tag: widget.tag);
         if (value == 'settings') showGroupSettingsSheet(context);
         if (value == 'pinned') _openPinned();
       },
       itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'media',
+          child: Row(
+            children: [
+              Icon(Icons.photo_library_outlined,
+                  size: 19, color: AppUi.muted(context)),
+              const SizedBox(width: 12),
+              Text('media'.tr),
+            ],
+          ),
+        ),
+        if (!_isDirect)
         PopupMenuItem<String>(
           value: 'pinned',
           child: Row(
@@ -430,6 +448,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
         ),
+        if (!_isDirect)
         PopupMenuItem<String>(
           value: 'settings',
           child: Row(
