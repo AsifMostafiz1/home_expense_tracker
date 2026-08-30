@@ -303,6 +303,72 @@ class PersonalRepositoryImpl implements PersonalRepository {
   }
 
   @override
+  Future<String> ensureSubcategory(Subcategory subcategory) async {
+    final String lower = subcategory.name.trim().toLowerCase();
+
+    String? matchIn(QuerySnapshot<Map<String, dynamic>> snapshot) {
+      // The id first, whatever it is named now: the member may have renamed
+      // the tag, and finding it by name alone would then write a second one
+      // beside it and rename theirs back on the way past.
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs) {
+        if (doc.id == subcategory.id) return doc.id;
+      }
+      // Then by name inside the same category, so a tag the member happens
+      // to have typed in themselves is used rather than doubled.
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs) {
+        final Map<String, dynamic> data = doc.data();
+        if ((data['parent'] ?? '').toString() != subcategory.parent) continue;
+        if ((data['name'] ?? '').toString().trim().toLowerCase() == lower) {
+          return doc.id;
+        }
+      }
+      return null;
+    }
+
+    // One equality filter and the rest sifted here, the same bargain the
+    // streams above strike: no composite index to deploy for a handful of
+    // documents.
+    final Query<Map<String, dynamic>> query =
+        _subcategories.where('owner_phone', isEqualTo: subcategory.ownerPhone);
+
+    // The cache first, and on its own when there is no connection. The
+    // member's own subcategories are already streaming into it, so the usual
+    // answer costs no read at all.
+    try {
+      final String? cached =
+          matchIn(await query.get(const GetOptions(source: Source.cache)));
+      if (cached != null) return cached;
+    } catch (e) {
+      debugPrint('Personal: subcategory cache lookup failed — $e');
+    }
+
+    if (!(connectivity?.isOffline ?? false)) {
+      // A cold cache — an admin filing an entry for somebody else — asks the
+      // server rather than writing a tag the member may already have.
+      try {
+        final String? served = matchIn(await query
+            .get(const GetOptions(source: Source.server))
+            .timeout(_ackTimeout));
+        if (served != null) return served;
+      } catch (e) {
+        debugPrint('Personal: subcategory lookup failed — $e');
+      }
+    }
+
+    // Nothing there. The id came derived rather than random, so two devices
+    // saving a house expense at the same moment — or this one saving twice
+    // offline — land on one document instead of two.
+    await _commit(_subcategories.doc(subcategory.id).set({
+      ...subcategory.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true)));
+    return subcategory.id;
+  }
+
+  @override
   Future<void> deleteSubcategory(
     String id, {
     required List<PersonalTransaction> entries,

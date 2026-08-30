@@ -86,7 +86,7 @@ void main() {
     late List<ReportPageSpec> pages;
     for (int n = 1; n < ReportLayout.rowsPerPage; n++) {
       final PersonalReport candidate = PersonalReport.of(
-          ReportFilter(range: range, category: 'c0'),
+          ReportFilter(range: range, categories: {'c0'}),
           rows(n * 5, categories: 3),
           subcategories: const [
             Subcategory(id: 'tag0', parent: 'c0', name: 'বাজার'),

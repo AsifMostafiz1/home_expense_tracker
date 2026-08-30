@@ -102,7 +102,7 @@ void main() {
 
     test('a category shows its tags, with the untagged as one bucket', () {
       final PersonalReport report = PersonalReport.of(
-        ReportFilter(range: august, category: 'food'),
+        ReportFilter(range: august, categories: {'food'}),
         ledger,
         subcategories: subs,
       );
@@ -111,7 +111,7 @@ void main() {
       expect(report.byCategory, isEmpty);
       // A tag that no longer exists counts as no tag.
       expect(report.bySubcategory.map((b) => b.key),
-          ['bazar', ReportFilter.untagged, 'resto']);
+          ['bazar', ReportFilter.untaggedIn('food'), 'resto']);
       expect(report.bySubcategory[1].amount, 140);
       expect(report.bySubcategory[1].count, 2);
       expect(report.bySubcategory.first.label, 'Groceries');
@@ -119,18 +119,27 @@ void main() {
 
     test('a tag narrows to its own rows, and untagged to the rest', () {
       final PersonalReport tagged = PersonalReport.of(
-        ReportFilter(range: august, category: 'food', subcategory: 'resto'),
+        ReportFilter(
+            range: august,
+            categories: {'food'},
+            tags: {
+              'food': {'resto'}
+            }),
         ledger,
         subcategories: subs,
       );
       expect(tagged.entries.map((e) => e.id), ['3']);
-      expect(tagged.bySubcategory, isEmpty);
+      // The one tag asked for is still a bucket; a summary table of a
+      // single row is what the page itself leaves out.
+      expect(tagged.bySubcategory.map((b) => b.key), ['resto']);
 
       final PersonalReport untagged = PersonalReport.of(
         ReportFilter(
             range: august,
-            category: 'food',
-            subcategory: ReportFilter.untagged),
+            categories: {'food'},
+            tags: {
+              'food': {ReportFilter.untagged}
+            }),
         ledger,
         subcategories: subs,
       );
@@ -164,17 +173,82 @@ void main() {
       expect(slice.entries.map((e) => e.id), ['2', '3', '4', '5']);
     });
 
+    test('several categories each keep their own tags', () {
+      final PersonalReport report = PersonalReport.of(
+        ReportFilter(
+          range: august,
+          categories: {'food', 'transport'},
+          // Food narrowed to one tag, transport left whole: the narrowing
+          // is the category's own and reaches no further.
+          tags: {
+            'food': {'resto'}
+          },
+        ),
+        ledger,
+        subcategories: subs,
+      );
+
+      expect(report.entries.map((e) => e.id), ['3', '6']);
+      expect(report.expenseTotal, 320);
+      // Two categories, so their shares are told as well as their tags —
+      // and a tag row says which category it belongs to through its parent.
+      expect(report.byCategory.map((b) => b.key), ['transport', 'food']);
+      expect(report.bySubcategory.map((b) => b.key), ['bus', 'resto']);
+      expect(report.bySubcategory.first.parent, 'transport');
+    });
+
+    test('untagged is counted per category, never pooled', () {
+      final PersonalReport report = PersonalReport.of(
+        ReportFilter(
+          range: august,
+          categories: {'food', 'salary'},
+          // Neither category has the other's tags, so both untagged rows
+          // are kept — under keys of their own.
+          tags: {
+            'food': {ReportFilter.untagged},
+            'salary': {ReportFilter.untagged},
+          },
+        ),
+        ledger,
+        subcategories: subs,
+      );
+
+      expect(report.entries.map((e) => e.id), ['7', '4', '5']);
+      expect(
+          report.bySubcategory.map((b) => b.key),
+          [ReportFilter.untaggedIn('salary'), ReportFilter.untaggedIn('food')]);
+      expect(report.bySubcategory.last.count, 2);
+    });
+
     test('changing side or category drops what sat inside it', () {
       final ReportFilter deep = ReportFilter(
-          range: august,
-          flow: MoneyFlow.expense,
-          category: 'food',
-          subcategory: 'resto');
+        range: august,
+        flow: MoneyFlow.expense,
+        categories: {'food', 'transport'},
+        tags: {
+          'food': {'resto'},
+          'transport': {'bus'},
+        },
+      );
 
-      expect(deep.withCategory('transport').subcategory, '');
-      expect(deep.withFlow(null).category, '');
-      expect(deep.withSubcategory('bazar').category, 'food');
-      expect(deep.withRange(august).subcategory, 'resto');
+      // A dropped category takes its tags with it; the ones that stayed
+      // keep theirs.
+      final ReportFilter narrowed = deep.withCategories({'transport'});
+      expect(narrowed.tags.keys, ['transport']);
+      expect(narrowed.tagsOf('food'), isEmpty);
+
+      expect(deep.withFlow(null).categories, isEmpty);
+      expect(deep.withFlow(null).tags, isEmpty);
+
+      // Emptying one category's tags is "all of them" again, not a filter
+      // that matches nothing.
+      expect(deep.withTags('food', const {}).tags.keys, ['transport']);
+      expect(deep.withTags('food', {'bazar'}).tagsOf('food'), {'bazar'});
+      // A category that is not in the report cannot carry tags.
+      expect(deep.withTags('rent', {'x'}).tagsOf('rent'), isEmpty);
+
+      expect(deep.withRange(august).tagsOf('food'), {'resto'});
+      expect(deep.hasTags, isTrue);
       expect(deep.spansMonths, isFalse);
     });
   });

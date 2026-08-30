@@ -45,6 +45,17 @@ abstract class PersonalRepository {
   /// same contract as `saveCategory`.
   Future<String> saveSubcategory(Subcategory subcategory);
 
+  /// The id of [subcategory] as it already exists in this member's books, or
+  /// of the document this writes when it does not.
+  ///
+  /// For a tag the app files entries under on the member's behalf — the house
+  /// expense copies — rather than one they typed: it must be made the first
+  /// time and found every time after, and the member must be free to rename
+  /// it without a second one appearing beside it. So the match is by
+  /// [Subcategory.id] first and by name inside the same parent second, and
+  /// the write only happens when neither turns anything up.
+  Future<String> ensureSubcategory(Subcategory subcategory);
+
   /// Removes one subcategory and unties [entries] — the transactions still
   /// tagged with it — in the same batch. The entries keep their category;
   /// only the tag comes off.

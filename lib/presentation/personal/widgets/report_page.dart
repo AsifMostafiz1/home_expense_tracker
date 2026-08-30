@@ -172,18 +172,16 @@ class ReportPage extends StatelessWidget {
   }
 
   /// What the report is of, in one line — the period, the side, and the
-  /// category and tag when set. The reader has no chips to look at.
+  /// categories and tags when set. The reader has no chips to look at.
   Widget _filterStrip(BuildContext context) {
     final ReportFilter filter = report.filter;
+    final String tags = _tagsAsked(filter);
     final List<String> parts = [
       '${'period_label'.tr}: ${_rangeLabel(filter.range)}',
       '${'report_type'.tr}: ${filter.flow == null ? 'report_type_all'.tr : (filter.flow == MoneyFlow.income ? 'income'.tr : 'expense_word'.tr)}',
       if (filter.hasCategory)
-        '${'col_category'.tr}: ${PersonalCategory.of(filter.category).label}',
-      if (filter.subcategory == ReportFilter.untagged)
-        '${'subcategory_label'.tr}: ${'untagged'.tr}'
-      else if (filter.subcategory.isNotEmpty)
-        '${'subcategory_label'.tr}: ${tagNames[filter.subcategory] ?? ''}',
+        '${'col_category'.tr}: ${_categoriesAsked(filter)}',
+      if (tags.isNotEmpty) '${'subcategory_label'.tr}: $tags',
     ];
 
     return Container(
@@ -210,6 +208,41 @@ class ReportPage extends StatelessWidget {
   static String _rangeLabel(DateTimeRange range) =>
       '${DateFormat('d MMM yyyy').format(range.start)} – '
       '${DateFormat('d MMM yyyy').format(range.end)}';
+
+  /// The chosen categories, named. Three of them at most: the strip is one
+  /// line, and a fourth name would only push the rest of it out of sight.
+  static const int _stripNames = 3;
+
+  String _categoriesAsked(ReportFilter filter) {
+    final List<String> keys = filter.categories.toList();
+    final String names = keys
+        .take(_stripNames)
+        .map((key) => PersonalCategory.of(key).label)
+        .join(', ');
+    final int rest = keys.length - _stripNames;
+    return rest > 0
+        ? '$names ${'and_more_rows'.trParams({'count': '$rest'})}'
+        : names;
+  }
+
+  /// The tags asked for, category by category — "Groceries, Untagged" when
+  /// one category is narrowed, "Food: Groceries · Transport: Bus" when
+  /// several are. A category left whole says nothing here.
+  String _tagsAsked(ReportFilter filter) {
+    final List<String> parts = [];
+    for (final String key in filter.categories) {
+      final Set<String> picked = filter.tagsOf(key);
+      if (picked.isEmpty) continue;
+      final String names = picked.map(_tagName).join(', ');
+      parts.add(filter.categories.length == 1
+          ? names
+          : '${PersonalCategory.of(key).label}: $names');
+    }
+    return parts.join('   ·   ');
+  }
+
+  String _tagName(String id) =>
+      ReportFilter.isUntagged(id) ? 'untagged'.tr : (tagNames[id] ?? '');
 
   /// ------------------------------------------------------------------ table
 
@@ -347,8 +380,7 @@ class ReportPage extends StatelessWidget {
             context,
             title: 'by_subcategory'.tr,
             buckets: report.bySubcategory,
-            labelOf: (b) =>
-                b.key == ReportFilter.untagged ? 'untagged'.tr : b.label,
+            labelOf: _tagBucketLabel,
             rows: rows.tags,
           ),
         if (rows.months > 0)
@@ -420,6 +452,16 @@ class ReportPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// A tag row's name, with its category in front of it when the report
+  /// holds more than one — two categories may each have a "bazar", and the
+  /// untagged rows of each are a row of their own.
+  String _tagBucketLabel(ReportBucket bucket) {
+    final String name =
+        ReportFilter.isUntagged(bucket.key) ? 'untagged'.tr : bucket.label;
+    if (report.filter.categories.length <= 1) return name;
+    return '${PersonalCategory.of(bucket.parent).label} · $name';
   }
 
   Widget _summaryTable(

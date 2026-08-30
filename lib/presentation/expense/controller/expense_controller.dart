@@ -17,8 +17,10 @@ import '../../../services/receipt_outbox_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/app_enums.dart';
 import '../../../utils/supabase_config.dart';
+import '../../personal/model/default_subcategories.dart';
 import '../../personal/model/personal_category.dart';
 import '../../personal/model/personal_transaction.dart';
+import '../../personal/model/subcategory.dart';
 import '../../personal/repository/personal_repository.dart';
 import '../model/expense_model.dart';
 import '../repository/expense_repository.dart';
@@ -595,6 +597,12 @@ class ExpenseController extends GetxController implements GetxService {
   /// This holds for an admin filling the form in for a member too — the copy
   /// follows the entry's owner, not whoever is typing.
   ///
+  /// The meal side of the house lands under a "Meal" tag inside the payer's
+  /// food category — see [DefaultSubcategories.houseTagFor] — so a month's
+  /// own groceries and what the house ate are one filter apart instead of
+  /// sitting in the same undivided pile. The tag is made the first time and
+  /// found every time after.
+  ///
   /// Best effort: the house entry is saved either way, and a copy that did
   /// not go through is not worth failing the save over. Written before the
   /// screen refreshes, so it is already in the local store by the time the
@@ -607,13 +615,17 @@ class ExpenseController extends GetxController implements GetxService {
   }) async {
     if (ownerPhone.isEmpty) return;
 
+    final PersonalRepository personal = Get.find<PersonalRepository>();
+    final String tag = await _houseTagId(personal, ownerPhone);
+
     try {
-      await Get.find<PersonalRepository>().saveTransaction(PersonalTransaction(
+      await personal.saveTransaction(PersonalTransaction(
         id: expenseId,
         ownerPhone: ownerPhone,
         flow: MoneyFlow.expense,
         amount: amount,
         category: PersonalCategory.forHouseExpense(selectedType),
+        subcategory: tag,
         note: description,
         date: PersonalTransaction.keyOf(selectedDate),
         timeHour: selectedTime.hour,
@@ -622,6 +634,26 @@ class ExpenseController extends GetxController implements GetxService {
       ));
     } catch (e) {
       debugPrint('Expense: personal copy failed — $e');
+    }
+  }
+
+  /// The tag this entry's copy wears, made in the member's books if it is not
+  /// there yet. Empty for an entry that carries none — the `others` type —
+  /// and empty when the lookup or the write did not go through: an untagged
+  /// copy is a far better outcome than no copy at all.
+  Future<String> _houseTagId(
+    PersonalRepository personal,
+    String ownerPhone,
+  ) async {
+    final Subcategory? tag =
+        DefaultSubcategories.houseTagFor(ownerPhone, selectedType);
+    if (tag == null) return '';
+
+    try {
+      return await personal.ensureSubcategory(tag);
+    } catch (e) {
+      debugPrint('Expense: house tag failed — $e');
+      return '';
     }
   }
 

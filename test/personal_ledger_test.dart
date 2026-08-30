@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:demo_project/presentation/personal/model/debt_entry.dart';
+import 'package:demo_project/presentation/personal/model/default_subcategories.dart';
 import 'package:demo_project/presentation/personal/model/personal_category.dart';
 import 'package:demo_project/presentation/personal/model/personal_summary.dart';
 import 'package:demo_project/presentation/personal/model/personal_transaction.dart';
+import 'package:demo_project/presentation/personal/model/subcategory.dart';
 import 'package:demo_project/presentation/personal/view/personal_finance_screen.dart';
 import 'package:demo_project/presentation/personal/view/person_ledger_screen.dart';
 import 'package:demo_project/presentation/chat/model/chat_message_model.dart';
@@ -435,6 +437,36 @@ void main() {
         isNot(PersonalCategory.unknown.key));
     expect(PersonalCategory.of(PersonalCategory.forHouseExpense('others')).key,
         isNot(PersonalCategory.unknown.key));
+  });
+
+  test('a house meal copy is tagged, and tagged with the same one twice', () {
+    final Subcategory? first =
+        DefaultSubcategories.houseTagFor('01711', 'expense');
+    expect(first, isNotNull);
+    expect(first!.parent, PersonalCategory.forHouseExpense('expense'));
+    expect(first.name, 'Meal');
+    expect(first.ownerPhone, '01711');
+
+    // The id is derived, not random: the second house expense of the month
+    // asks for the same document rather than a second chip beside it.
+    final Subcategory second =
+        DefaultSubcategories.houseTagFor('01711', 'expense')!;
+    expect(second.id, first.id);
+
+    // One per member, not one for the house.
+    expect(DefaultSubcategories.houseTagFor('01722', 'expense')!.id,
+        isNot(first.id));
+
+    // And it cannot collide with a starter chip of the same category.
+    final Iterable<String> seeded = DefaultSubcategories.forOwner('01711')
+        .where((sub) => sub.parent == 'food')
+        .map((sub) => sub.id);
+    expect(seeded, isNot(contains(first.id)));
+
+    // The gas and the wifi are not one recurring thing, so they wear none.
+    expect(DefaultSubcategories.houseTagFor('01711', 'others'), isNull);
+    // Nor is there anything to tag without an owner to tag it for.
+    expect(DefaultSubcategories.houseTagFor('', 'expense'), isNull);
   });
 
   test('screens are constructible', () {

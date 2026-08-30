@@ -109,8 +109,36 @@ class DefaultSubcategories {
     ];
   }
 
+  /// The tag a house expense wears once it is copied into the payer's own
+  /// ledger — see `PersonalCategory.forHouseExpense` for the category it
+  /// lands in. The house's meal spending is one recurring thing, so it all
+  /// goes under one "Meal" chip inside food and a month's own bazar stays a
+  /// filter away from what the house ate. The `others` type — the gas, the
+  /// wifi, the rest — is not one thing, and carries no tag.
+  ///
+  /// Named and dealt exactly like the seeds above: whichever language the
+  /// app is speaking when the first house expense is copied is the language
+  /// the chip is named in, and the id is derived rather than random, so the
+  /// house side writes this document once and finds it every time after.
+  static Subcategory? houseTagFor(String ownerPhone, String houseType) {
+    if (ownerPhone.isEmpty || houseType == 'others') return null;
+
+    const String parent = 'food';
+    return Subcategory(
+      id: _idFor(ownerPhone, parent, 'Meal', prefix: 'house'),
+      ownerPhone: ownerPhone,
+      parent: parent,
+      name: Get.locale?.languageCode == 'bn' ? 'মিল' : 'Meal',
+    );
+  }
+
   /// Deterministic, so two devices dealing the same fresh account write the
   /// same documents instead of two of each.
-  static String _idFor(String ownerPhone, String parent, String enName) =>
-      'seed_${ownerPhone}_${parent}_${enName.toLowerCase().replaceAll(' ', '_')}';
+  static String _idFor(
+    String ownerPhone,
+    String parent,
+    String enName, {
+    String prefix = 'seed',
+  }) =>
+      '${prefix}_${ownerPhone}_${parent}_${enName.toLowerCase().replaceAll(' ', '_')}';
 }
