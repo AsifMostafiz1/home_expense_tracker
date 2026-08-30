@@ -331,6 +331,13 @@ class PersonalController extends GetxController implements GetxService {
   int monthCount({MoneyFlow? flow, DateTimeRange? range}) =>
       _monthEntries(flow: flow, range: range).length;
 
+  /// What one side's surviving entries add up to — the quiet figure beside
+  /// the filter chips, answering "and how much was that" for whatever cut
+  /// the two filters have made.
+  double filteredTotal({required MoneyFlow flow, DateTimeRange? range}) =>
+      _monthEntries(flow: flow, range: range)
+          .fold<double>(0, (sum, entry) => sum + entry.amount);
+
   /// This month's entries cut down to one side of the ledger, a run of days,
   /// or both.
   ///

@@ -512,32 +512,90 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     PersonalController c,
     DateTimeRange? range,
   ) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    return Row(
       children: [
-        // The counts follow the day filter, so the two read together rather
-        // than contradicting each other — "Expense 10" over a list of three
-        // is the chip calling the filter above it a liar.
-        _flowChip(context, null, 'filter_all'.tr, null,
-            c.monthCount(range: range)),
-        _flowChip(
-          context,
-          MoneyFlow.income,
-          'income'.tr,
-          Icons.north_east_rounded,
-          c.monthCount(flow: MoneyFlow.income, range: range),
-          tone: Colors.green,
+        Expanded(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              // The counts follow the day filter, so the two read together
+              // rather than contradicting each other — "Expense 10" over a
+              // list of three is the chip calling the filter above it a liar.
+              _flowChip(context, null, 'filter_all'.tr, null,
+                  c.monthCount(range: range)),
+              _flowChip(
+                context,
+                MoneyFlow.income,
+                'income'.tr,
+                Icons.north_east_rounded,
+                c.monthCount(flow: MoneyFlow.income, range: range),
+                tone: Colors.green,
+              ),
+              _flowChip(
+                context,
+                MoneyFlow.expense,
+                'expense_word'.tr,
+                Icons.south_west_rounded,
+                c.monthCount(flow: MoneyFlow.expense, range: range),
+                tone: Colors.deepOrange,
+              ),
+            ],
+          ),
         ),
-        _flowChip(
-          context,
-          MoneyFlow.expense,
-          'expense_word'.tr,
-          Icons.south_west_rounded,
-          c.monthCount(flow: MoneyFlow.expense, range: range),
-          tone: Colors.deepOrange,
-        ),
+        const SizedBox(width: 10),
+        _filteredTotals(context, c, range),
       ],
+    );
+  }
+
+  /// What the current cut adds up to, said quietly at the end of the chip
+  /// row — the chips say how many, this says how much. One figure for one
+  /// side, both when "All" is on, nothing at all when the cut holds no
+  /// money: a ৳0 would only repeat what the count already said.
+  Widget _filteredTotals(
+    BuildContext context,
+    PersonalController c,
+    DateTimeRange? range,
+  ) {
+    final double income = _entryFlow == MoneyFlow.expense
+        ? 0
+        : c.filteredTotal(flow: MoneyFlow.income, range: range);
+    final double expense = _entryFlow == MoneyFlow.income
+        ? 0
+        : c.filteredTotal(flow: MoneyFlow.expense, range: range);
+
+    if (income <= 0 && expense <= 0) return const SizedBox.shrink();
+
+    Widget figure(String text, MaterialColor tone) => Text(
+          text,
+          maxLines: 1,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppUi.accent(context, tone).withOpacity(0.85),
+          ),
+        );
+
+    // However many digits the month grows, the figures give way before the
+    // row does: capped to a corner of it and scaled down inside that, so a
+    // crore's worth of expense bends the type a little rather than the
+    // layout — never ellipsised either, half a number being worse than a
+    // small one.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 132),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerRight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (income > 0) figure('+${AppUi.amount(income)}', Colors.green),
+            if (expense > 0)
+              figure('−${AppUi.amount(expense)}', Colors.deepOrange),
+          ],
+        ),
+      ),
     );
   }
 
@@ -643,7 +701,17 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
               child: Divider(color: AppUi.hairline(context), height: 1),
             ),
             const SizedBox(width: 12),
-            _buildDayTotal(context, day),
+            // Capped and scaled the way the filter totals are: a day that
+            // ran to nine figures shrinks its own type, not the divider —
+            // and never the row.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 132),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: _buildDayTotal(context, day),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 10),

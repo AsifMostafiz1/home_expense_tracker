@@ -428,6 +428,37 @@ void main() {
     expect(find.text('Monthly pay'), findsOneWidget);
   });
 
+  testWidgets('the filter totals say how much, and nine figures do not break',
+      (tester) async {
+    // Both on one day, so neither figure collides with a day header's net.
+    // Nine figures on each side — an overflow anywhere would fail the pump.
+    await pumpLedger(tester, rows: [
+      PersonalTransaction(
+        id: '1',
+        amount: 123456789.5,
+        date: _dayIn(0, 3),
+        flow: MoneyFlow.income,
+        category: 'salary',
+      ),
+      PersonalTransaction(
+        id: '2',
+        amount: 98765432.25,
+        date: _dayIn(0, 3),
+        category: 'food',
+      ),
+    ]);
+
+    // Both sides' totals sit beside the chips.
+    expect(find.text('+৳123,456,789.5'), findsWidgets);
+    expect(find.text('−৳98,765,432.25'), findsWidgets);
+
+    // Narrowed to one side, only that side's figure survives — anywhere.
+    await tester.tap(find.text('Expense').last);
+    await tester.pumpAndSettle();
+    expect(find.text('+৳123,456,789.5'), findsNothing);
+    expect(find.text('−৳98,765,432.25'), findsWidgets);
+  });
+
   testWidgets('a category bar opens the entries behind it', (tester) async {
     await pumpLedger(tester);
 
