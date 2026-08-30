@@ -177,8 +177,8 @@ class _CategoryEntriesSheetState extends State<_CategoryEntriesSheet> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _subChip(context, '', 'filter_all'.tr, rows.length, active,
-                    bucket),
+                _subChip(
+                    context, '', 'filter_all'.tr, rows.length, active, bucket),
                 for (final Subcategory sub in subs) ...[
                   const SizedBox(width: 8),
                   _subChip(context, sub.id, sub.name, countOf(sub.id), active,
@@ -201,8 +201,8 @@ class _CategoryEntriesSheetState extends State<_CategoryEntriesSheet> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: AppUi.accent(context,
-                          income ? Colors.green : Colors.deepOrange)
+                  color: AppUi.accent(
+                          context, income ? Colors.green : Colors.deepOrange)
                       .withOpacity(0.85),
                 ),
               ),
@@ -224,43 +224,74 @@ class _CategoryEntriesSheetState extends State<_CategoryEntriesSheet> {
     final bool selected = active == id;
     final Color accent = AppUi.accent(context, bucket.color);
 
-    return GestureDetector(
-      // Tapping the tab already on is not an accident worth acting on.
-      onTap: selected ? null : () => setState(() => _subFilter = id),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppUi.tint(context, bucket.color)
-              : AppUi.neutralSurface(context),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color:
-                selected ? accent.withOpacity(0.6) : AppUi.hairline(context),
+    // Its own context, so the chip can be scrolled to after the tap: the
+    // quiet total appears at the row's end on that same tap and takes its
+    // width out of the scrolling part — a chip that sat at the right edge
+    // would otherwise be pushed under it, leaving the row with no tab
+    // visibly on. Deferred a frame, to run against the layout that has the
+    // total in it.
+    return Builder(
+      builder: (chipContext) => GestureDetector(
+        // Tapping the tab already on is not an accident worth acting on.
+        onTap: selected
+            ? null
+            : () {
+                setState(() => _subFilter = id);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!chipContext.mounted) return;
+                  Scrollable.ensureVisible(
+                    chipContext,
+                    alignmentPolicy:
+                        ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+                    duration: const Duration(milliseconds: 180),
+                  );
+                });
+              },
+        child: _subChipBody(context, label, count, selected, accent, bucket),
+      ),
+    );
+  }
+
+  Widget _subChipBody(
+    BuildContext context,
+    String label,
+    int count,
+    bool selected,
+    Color accent,
+    PersonalCategory bucket,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: selected
+            ? AppUi.tint(context, bucket.color)
+            : AppUi.neutralSurface(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: selected ? accent.withOpacity(0.6) : AppUi.hairline(context),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+              color: selected ? accent : AppUi.body(context),
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                color: selected ? accent : AppUi.body(context),
-              ),
+          const SizedBox(width: 5),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+              color: selected ? accent : AppUi.muted(context),
             ),
-            const SizedBox(width: 5),
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w900,
-                color: selected ? accent : AppUi.muted(context),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -339,9 +370,10 @@ class _CategoryEntriesSheetState extends State<_CategoryEntriesSheet> {
   }
 
   /// One day, headed the way the month's own list heads its days.
-  Widget _buildDay(BuildContext context, MoneyDay day, PersonalCategory bucket) {
-    final double dayTotal = day.entries
-        .fold<double>(0, (sum, entry) => sum + entry.amount);
+  Widget _buildDay(
+      BuildContext context, MoneyDay day, PersonalCategory bucket) {
+    final double dayTotal =
+        day.entries.fold<double>(0, (sum, entry) => sum + entry.amount);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -543,11 +543,71 @@ void main() {
     expect(find.text('Weekly bazar'), findsOneWidget);
     expect(find.text('Tea'), findsOneWidget);
 
-    // And back to everything.
+    // And back to everything. The row is scrolled back first: the tag's
+    // total took width from it, and the tapped chip was kept in view at the
+    // far end — in this wide test font that leaves "All" partly off the
+    // left edge, as it would on a phone with a row of many tags.
+    await tester.drag(find.text('Restaurant'), const Offset(400, 0));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('All').last);
     await tester.pumpAndSettle();
     expect(find.text('Weekly bazar'), findsNWidgets(2));
     expect(find.text('Tea'), findsNWidgets(2));
+  });
+
+  testWidgets('the tag just tapped stays in view when its total appears',
+      (tester) async {
+    // Enough tags to overflow the row, and money on the last one so the
+    // quiet total shows up beside the row the moment it is tapped — which
+    // is what steals width from the scrolling part.
+    const List<String> names = [
+      'Tag one', 'Tag two', 'Tag three', 'Tag four',
+      'Tag five', 'Tag six', 'Tag seven', 'Tag eight',
+    ];
+    await pumpLedger(
+      tester,
+      rows: [
+        PersonalTransaction(
+          id: '1',
+          amount: 1500,
+          date: _dayIn(0, 5),
+          category: 'food',
+          subcategory: 'sub_8',
+          note: 'Feast',
+        ),
+      ],
+      subs: [
+        for (int i = 0; i < names.length; i++)
+          Subcategory(id: 'sub_${i + 1}', parent: 'food', name: names[i]),
+      ],
+    );
+
+    await tester.tap(find
+        .descendant(
+          of: find.byType(CategoryBreakdown),
+          matching: find.byIcon(Icons.chevron_right_rounded),
+        )
+        .first);
+    await tester.pumpAndSettle();
+
+    // Scroll the tab row to its end and tap the last tag.
+    await tester.drag(find.text('Tag one'), const Offset(-2000, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tag eight'));
+    await tester.pumpAndSettle();
+
+    // The total is there — and the tapped chip is still wholly inside the
+    // row's viewport, not pushed under it.
+    expect(find.text('−৳1,500'), findsWidgets);
+    final Rect chip = tester.getRect(find.text('Tag eight'));
+    final Rect viewport = tester.getRect(find
+        .ancestor(
+          of: find.text('Tag eight'),
+          matching: find.byType(SingleChildScrollView),
+        )
+        .first);
+    expect(chip.left, greaterThanOrEqualTo(viewport.left - 0.5));
+    expect(chip.right, lessThanOrEqualTo(viewport.right + 0.5));
   });
 
   testWidgets('a refresh puts the whole visit back to how it opened',
