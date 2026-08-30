@@ -45,6 +45,13 @@ class AppUi {
         ),
       ];
 
+  /// The most of the screen a bottom sheet may take. A sheet that grew to
+  /// the top would stop reading as a sheet — the screen it came from should
+  /// stay visible above it — so every sheet in the app caps itself here and
+  /// scrolls inside the cap instead.
+  static BoxConstraints sheetConstraints(BuildContext context) =>
+      BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7);
+
   /// `Today` / `Yesterday` / `12 August, 2026` — dates people actually read.
   static String dayLabel(DateTime date) {
     final DateTime now = DateTime.now();

@@ -100,6 +100,7 @@ class _SubcategorySheetState extends State<_SubcategorySheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: AppUi.sheetConstraints(context),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,

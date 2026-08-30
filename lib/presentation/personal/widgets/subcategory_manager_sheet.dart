@@ -41,9 +41,7 @@ class _SubcategoryManagerSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.72,
-      ),
+      constraints: AppUi.sheetConstraints(context),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,

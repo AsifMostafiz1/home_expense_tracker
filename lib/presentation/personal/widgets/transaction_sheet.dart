@@ -199,6 +199,7 @@ class _TransactionSheetState extends State<_TransactionSheet> {
     // keyboard-height off the bottom and leaves a gap between the two — the
     // same trap the announcement sheet documents.
     return Container(
+      constraints: AppUi.sheetConstraints(context),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,

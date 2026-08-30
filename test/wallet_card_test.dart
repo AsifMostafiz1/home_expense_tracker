@@ -21,8 +21,9 @@ import 'package:demo_project/utils/app_ui.dart';
 class _FakeLedger implements PersonalRepository {
   final List<PersonalTransaction> rows;
   final List<DebtEntry> dues;
+  final List<Subcategory> subs;
 
-  _FakeLedger(this.rows, {this.dues = const []});
+  _FakeLedger(this.rows, {this.dues = const [], this.subs = const []});
 
   @override
   Stream<List<PersonalTransaction>> watchTransactions(String ownerPhone) =>
@@ -87,7 +88,7 @@ class _FakeLedger implements PersonalRepository {
 
   @override
   Stream<List<Subcategory>> watchSubcategories(String ownerPhone) =>
-      Stream<List<Subcategory>>.value(const []);
+      Stream<List<Subcategory>>.value(subs);
 
   @override
   Future<String> saveSubcategory(Subcategory subcategory) async =>
@@ -154,6 +155,7 @@ void main() {
     WidgetTester tester, {
     List<PersonalTransaction>? rows,
     List<DebtEntry> dues = const [],
+    List<Subcategory> subs = const [],
   }) async {
     SharedPreferences.setMockInitialValues({
       'userPhone': '01711111111',
@@ -168,7 +170,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     Get.testMode = true;
-    Get.put<PersonalRepository>(_FakeLedger(rows ?? ledger, dues: dues));
+    Get.put<PersonalRepository>(
+        _FakeLedger(rows ?? ledger, dues: dues, subs: subs));
     Get.put(PersonalController(repository: Get.find<PersonalRepository>()));
     addTearDown(Get.reset);
 
@@ -479,6 +482,72 @@ void main() {
     // The figure is in the sheet's header and its day heading, on top of the
     // screen it was opened from — the count above is the unique assertion.
     expect(find.text('−৳88,888.5'), findsWidgets);
+  });
+
+  testWidgets('the category sheet opens on All and narrows by tag',
+      (tester) async {
+    await pumpLedger(
+      tester,
+      rows: [
+        PersonalTransaction(
+          id: '1',
+          amount: 300,
+          date: _dayIn(0, 5),
+          category: 'food',
+          subcategory: 'sub_bazar',
+          note: 'Weekly bazar',
+        ),
+        PersonalTransaction(
+          id: '2',
+          amount: 120,
+          date: _dayIn(0, 6),
+          category: 'food',
+          subcategory: 'sub_resto',
+          note: 'Kacchi night',
+        ),
+        PersonalTransaction(
+          id: '3',
+          amount: 80,
+          date: _dayIn(0, 7),
+          category: 'food',
+          note: 'Tea',
+        ),
+      ],
+      subs: const [
+        Subcategory(id: 'sub_bazar', parent: 'food', name: 'Groceries'),
+        Subcategory(id: 'sub_resto', parent: 'food', name: 'Restaurant'),
+      ],
+    );
+
+    await tester.tap(find
+        .descendant(
+          of: find.byType(CategoryBreakdown),
+          matching: find.byIcon(Icons.chevron_right_rounded),
+        )
+        .first);
+    await tester.pumpAndSettle();
+
+    // Every note is now on screen twice: once in the month's list behind,
+    // once in the sheet — the sheet opened on All.
+    expect(find.text('Weekly bazar'), findsNWidgets(2));
+    expect(find.text('Kacchi night'), findsNWidgets(2));
+    expect(find.text('Tea'), findsNWidgets(2));
+    expect(find.text('Groceries'), findsOneWidget);
+    expect(find.text('Restaurant'), findsOneWidget);
+
+    // One tag on: only its row stays in the sheet, the others are left to
+    // the list behind. The untagged one goes too.
+    await tester.tap(find.text('Restaurant'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kacchi night'), findsNWidgets(2));
+    expect(find.text('Weekly bazar'), findsOneWidget);
+    expect(find.text('Tea'), findsOneWidget);
+
+    // And back to everything.
+    await tester.tap(find.text('All').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Weekly bazar'), findsNWidgets(2));
+    expect(find.text('Tea'), findsNWidgets(2));
   });
 
   testWidgets('a refresh puts the whole visit back to how it opened',
