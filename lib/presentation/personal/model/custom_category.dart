@@ -155,23 +155,73 @@ class CategoryOrder {
   final List<String> expense;
   final List<String> income;
 
-  const CategoryOrder({this.expense = const [], this.income = const []});
+  /// The subcategory arrangements, one list of ids per parent key. A parent
+  /// that was never dragged is simply absent and keeps its default order.
+  final Map<String, List<String>> subs;
+
+  /// Whether this account has been dealt its starter subcategories. Kept on
+  /// the same document so no extra read or listener is needed to know.
+  final bool subsSeeded;
+
+  /// True when this snapshot came out of the local cache rather than the
+  /// server. Not stored — it is about the read, not the record. The seeding
+  /// check refuses to act on it: a fresh install with no cache reads as
+  /// "never seeded", and acting on that would deal a second hand to an
+  /// account that was seeded and then pruned on another device.
+  final bool fromCache;
+
+  const CategoryOrder({
+    this.expense = const [],
+    this.income = const [],
+    this.subs = const {},
+    this.subsSeeded = false,
+    this.fromCache = false,
+  });
 
   List<String> forIncome(bool isIncome) => isIncome ? income : expense;
+
+  List<String> subsOf(String parent) => subs[parent] ?? const [];
 
   CategoryOrder withSide(bool isIncome, List<String> keys) => CategoryOrder(
         expense: isIncome ? expense : keys,
         income: isIncome ? keys : income,
+        subs: subs,
+        subsSeeded: subsSeeded,
+        fromCache: fromCache,
       );
 
-  factory CategoryOrder.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const CategoryOrder();
-    List<String> read(String field) => [
-          for (final dynamic key in (map[field] as List<dynamic>? ?? const []))
+  CategoryOrder withSubs(String parent, List<String> ids) => CategoryOrder(
+        expense: expense,
+        income: income,
+        subs: {...subs, parent: ids},
+        subsSeeded: subsSeeded,
+        fromCache: fromCache,
+      );
+
+  factory CategoryOrder.fromMap(
+    Map<String, dynamic>? map, {
+    bool fromCache = false,
+  }) {
+    if (map == null) return CategoryOrder(fromCache: fromCache);
+    List<String> read(dynamic value) => [
+          for (final dynamic key in (value as List<dynamic>? ?? const []))
             key.toString(),
         ];
-    return CategoryOrder(expense: read('expense'), income: read('income'));
+    return CategoryOrder(
+      expense: read(map['expense']),
+      income: read(map['income']),
+      subs: {
+        for (final MapEntry<String, dynamic> entry
+            in ((map['subs'] as Map<String, dynamic>?) ?? const {}).entries)
+          entry.key: read(entry.value),
+      },
+      subsSeeded: map['subs_seeded'] == true,
+      fromCache: fromCache,
+    );
   }
 
-  Map<String, dynamic> toMap() => {'expense': expense, 'income': income};
+  /// The arrangements alone — the seeded flag is written by the seeding
+  /// batch and must not be dragged along by every drag of a chip.
+  Map<String, dynamic> toMap() =>
+      {'expense': expense, 'income': income, 'subs': subs};
 }

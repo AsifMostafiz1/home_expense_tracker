@@ -16,6 +16,12 @@ class PersonalTransaction {
   final MoneyFlow flow;
   final double amount;
   final String category;
+
+  /// The finer cut inside [category] — a `Subcategory` document id, or empty
+  /// for none. Carried so a month can one day be filtered by it; nothing is
+  /// computed from it yet.
+  final String subcategory;
+
   final String note;
 
   /// Where the row came from. Empty for one the member typed in themselves;
@@ -44,6 +50,7 @@ class PersonalTransaction {
     this.flow = MoneyFlow.expense,
     this.amount = 0,
     this.category = '',
+    this.subcategory = '',
     this.note = '',
     this.date = '',
     this.timeHour = 0,
@@ -103,6 +110,7 @@ class PersonalTransaction {
           : MoneyFlow.expense,
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
       category: (map['category'] ?? '').toString(),
+      subcategory: (map['subcategory'] ?? '').toString(),
       note: (map['note'] ?? '').toString(),
       date: (map['date'] ?? '').toString(),
       timeHour: (map['time_hour'] as num?)?.toInt() ?? 0,
@@ -118,6 +126,7 @@ class PersonalTransaction {
         'type': isIncome ? 'income' : 'expense',
         'amount': amount,
         'category': category,
+        'subcategory': subcategory,
         'note': note,
         'date': date,
         'time_hour': timeHour,
@@ -130,6 +139,7 @@ class PersonalTransaction {
     MoneyFlow? flow,
     double? amount,
     String? category,
+    String? subcategory,
     String? note,
     String? date,
     int? timeHour,
@@ -141,6 +151,7 @@ class PersonalTransaction {
       flow: flow ?? this.flow,
       amount: amount ?? this.amount,
       category: category ?? this.category,
+      subcategory: subcategory ?? this.subcategory,
       note: note ?? this.note,
       date: date ?? this.date,
       timeHour: timeHour ?? this.timeHour,

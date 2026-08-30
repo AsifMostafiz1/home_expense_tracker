@@ -11,8 +11,11 @@ import '../controller/personal_controller.dart';
 import '../model/custom_category.dart';
 import '../model/personal_category.dart';
 import '../model/personal_transaction.dart';
+import '../model/subcategory.dart';
 import 'category_editor_sheet.dart';
 import 'category_manager_sheet.dart';
+import 'subcategory_editor_sheet.dart';
+import 'subcategory_manager_sheet.dart';
 
 /// Records money earned or money spent.
 ///
@@ -79,6 +82,8 @@ class _TransactionSheetState extends State<_TransactionSheet> {
   late String _category = widget.entry?.category ??
       PersonalCategory.forIncome(_flow == MoneyFlow.income).first.key;
 
+  late String _subcategory = widget.entry?.subcategory ?? '';
+
   late DateTime _date = widget.entry?.day ?? widget.initialDate;
   late TimeOfDay _time =
       widget.entry?.time ?? TimeOfDay.fromDateTime(DateTime.now());
@@ -107,8 +112,10 @@ class _TransactionSheetState extends State<_TransactionSheet> {
     if (_flow == flow) return;
     setState(() {
       _flow = flow;
-      // The categories differ per side, so the old pick cannot stand.
+      // The categories differ per side, so the old pick cannot stand — and
+      // the subcategory belonged to it.
       _category = PersonalCategory.forIncome(flow == MoneyFlow.income).first.key;
+      _subcategory = '';
     });
   }
 
@@ -155,12 +162,25 @@ class _TransactionSheetState extends State<_TransactionSheet> {
           _flow == MoneyFlow.income ? 'other_income' : 'other_expense';
     }
 
-    final bool saved =
-        await Get.find<PersonalController>().saveTransaction(
+    final PersonalController controller = Get.find<PersonalController>();
+
+    // The tag must still exist and still sit inside the category being
+    // written — one deleted while the sheet sat open, or left over from a
+    // category stepped away from, is dropped rather than saved.
+    String subcategory = _subcategory;
+    if (subcategory.isNotEmpty &&
+        !controller
+            .subcategoriesOf(category)
+            .any((sub) => sub.id == subcategory)) {
+      subcategory = '';
+    }
+
+    final bool saved = await controller.saveTransaction(
       existing: widget.entry,
       flow: _flow,
       amount: amount,
       category: category,
+      subcategory: subcategory,
       note: _note.text,
       date: _date,
       time: _time,
@@ -269,7 +289,9 @@ class _TransactionSheetState extends State<_TransactionSheet> {
             ),
             const SizedBox(height: 10),
             _buildCategories(context, isIncome),
-            const SizedBox(height: 18),
+            const SizedBox(height: 10),
+            _buildSubcategories(context),
+            const SizedBox(height: 16),
             _buildDateTimeRow(context, accent),
             const SizedBox(height: 16),
             CustomTextField(
@@ -401,6 +423,153 @@ class _TransactionSheetState extends State<_TransactionSheet> {
     );
   }
 
+  /// One line under the categories, scrolled sideways: the finer cuts of
+  /// whichever category is picked, and the way to make another. Optional by
+  /// design — a tap selects, tapping the same one again clears it, and an
+  /// entry with no tag is a perfectly finished entry.
+  Widget _buildSubcategories(BuildContext context) {
+    return GetBuilder<PersonalController>(
+      builder: (c) {
+        // No row under a key the app cannot name — a subcategory cut from a
+        // category that is already gone would be orphaned on arrival.
+        final PersonalCategory parent = PersonalCategory.of(_category);
+        if (identical(parent, PersonalCategory.unknown)) {
+          return const SizedBox.shrink();
+        }
+
+        final List<Subcategory> subs = c.subcategoriesOf(_category);
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final Subcategory sub in subs) ...[
+                _subcategoryChip(context, sub, parent.color),
+                const SizedBox(width: 8),
+              ],
+              _addSubcategoryChip(context, showLabel: subs.isEmpty),
+              // Nothing to arrange until there are two — the pill would
+              // only be a question with one answer.
+              if (subs.length >= 2) ...[
+                const SizedBox(width: 8),
+                _arrangeSubcategoriesChip(context),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _subcategoryChip(
+    BuildContext context,
+    Subcategory sub,
+    MaterialColor color,
+  ) {
+    final bool selected = _subcategory == sub.id;
+    final Color accent = AppUi.accent(context, color);
+
+    return GestureDetector(
+      onTap: () =>
+          setState(() => _subcategory = selected ? '' : sub.id),
+      onLongPress: () => _editSubcategory(sub),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppUi.tint(context, color)
+              : AppUi.neutralSurface(context),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color:
+                selected ? accent.withOpacity(0.6) : AppUi.hairline(context),
+          ),
+        ),
+        child: Text(
+          sub.name,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            color: selected ? accent : AppUi.body(context),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The pill spells itself out while the row is empty; once there are tags
+  /// to read beside it, the plus alone says it.
+  Widget _addSubcategoryChip(BuildContext context, {required bool showLabel}) {
+    return GestureDetector(
+      onTap: () async {
+        final SubcategoryEditorResult? result =
+            await showSubcategorySheet(context, parent: _category);
+        final String? id = result?.savedId;
+        if (id != null && mounted) setState(() => _subcategory = id);
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(
+            horizontal: showLabel ? 11 : 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppUi.neutralSurface(context),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppUi.hairline(context)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add_rounded, size: 14, color: AppUi.muted(context)),
+            if (showLabel) ...[
+              const SizedBox(width: 5),
+              Text(
+                'add_subcategory'.tr,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppUi.muted(context),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _arrangeSubcategoriesChip(BuildContext context) {
+    return GestureDetector(
+      onTap: () =>
+          showSubcategoryManagerSheet(context, parent: _category),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppUi.neutralSurface(context),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppUi.hairline(context)),
+        ),
+        child: Icon(Icons.swap_horiz_rounded,
+            size: 14, color: AppUi.muted(context)),
+      ),
+    );
+  }
+
+  Future<void> _editSubcategory(Subcategory subcategory) async {
+    final SubcategoryEditorResult? result = await showSubcategorySheet(
+      context,
+      parent: subcategory.parent,
+      existing: subcategory,
+    );
+
+    // Unlike a deleted category, whose entries move somewhere real, a
+    // deleted tag leaves nothing behind to follow — the selection just
+    // comes off.
+    if (result?.deleted == true &&
+        _subcategory == subcategory.id &&
+        mounted) {
+      setState(() => _subcategory = '');
+    }
+  }
+
   /// Opens the editor on a custom chip's category. A fixed chip never gets
   /// here — the gesture is only wired for custom ones.
   Future<void> _editCategory(PersonalCategory category) async {
@@ -462,7 +631,12 @@ class _TransactionSheetState extends State<_TransactionSheet> {
     final Color accent = AppUi.accent(context, category.color);
 
     return GestureDetector(
-      onTap: () => setState(() => _category = category.key),
+      onTap: () => setState(() {
+        // Stepping onto another category walks off its subcategory too —
+        // the tag only means something inside the category it was cut from.
+        if (_category != category.key) _subcategory = '';
+        _category = category.key;
+      }),
       onLongPress:
           category.isCustom ? () => _editCategory(category) : null,
       child: Container(

@@ -10,6 +10,7 @@ import '../model/custom_category.dart';
 import '../model/debt_entry.dart';
 import '../model/ledger_person.dart';
 import '../model/personal_transaction.dart';
+import '../model/subcategory.dart';
 import 'personal_repository.dart';
 
 /// Firestore-backed and offline-first, the same shape as the meal and expense
@@ -45,6 +46,10 @@ class PersonalRepositoryImpl implements PersonalRepository {
   CollectionReference<Map<String, dynamic>> get _categoryOrder =>
       FirebaseFirestore.instance
           .collection(AppConstant.collectionPersonalCategoryOrder);
+
+  CollectionReference<Map<String, dynamic>> get _subcategories =>
+      FirebaseFirestore.instance
+          .collection(AppConstant.collectionPersonalSubcategories);
 
   @override
   Stream<List<PersonalTransaction>> watchTransactions(String ownerPhone) {
@@ -161,28 +166,42 @@ class PersonalRepositoryImpl implements PersonalRepository {
   Future<void> deleteCategory(
     String id, {
     required List<PersonalTransaction> entries,
+    List<String> subcategoryIds = const [],
   }) async {
     // The refiled entries ride in the same batch as the delete, so no
     // snapshot ever shows the category gone while rows still name it. A
     // batch holds 500 writes; a ledger past that is split, entries first —
-    // the category document goes in the last batch, after every row it
-    // still owns has been moved off it. Each entry falls back to the
-    // "other" bucket of its own side, not the category's: whichever way
-    // the row's money went is the side its total must stay on.
+    // the category document, and the subcategories that lived inside it, go
+    // in the last batch, after every row they still own has been moved off
+    // them. Each entry falls back to the "other" bucket of its own side,
+    // not the category's: whichever way the row's money went is the side
+    // its total must stay on. Its subcategory tag comes off too — the tag
+    // belonged to the category that is going.
     const int batchLimit = 400;
     final List<WriteBatch> batches = [FirebaseFirestore.instance.batch()];
     int writes = 0;
 
-    for (final PersonalTransaction entry in entries) {
-      if (entry.id.isEmpty) continue;
+    void spill() {
       if (writes >= batchLimit) {
         batches.add(FirebaseFirestore.instance.batch());
         writes = 0;
       }
+    }
+
+    for (final PersonalTransaction entry in entries) {
+      if (entry.id.isEmpty) continue;
+      spill();
       batches.last.update(_transactions.doc(entry.id), {
         'category': entry.isIncome ? 'other_income' : 'other_expense',
+        'subcategory': '',
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      writes++;
+    }
+    for (final String subcategoryId in subcategoryIds) {
+      if (subcategoryId.isEmpty) continue;
+      spill();
+      batches.last.delete(_subcategories.doc(subcategoryId));
       writes++;
     }
     batches.last.delete(_categories.doc(id));
@@ -206,7 +225,10 @@ class PersonalRepositoryImpl implements PersonalRepository {
         .snapshots(includeMetadataChanges: true)
         .map((snapshot) {
       if (!snapshot.metadata.isFromCache) connectivity?.reportReachable();
-      return CategoryOrder.fromMap(snapshot.data());
+      return CategoryOrder.fromMap(
+        snapshot.data(),
+        fromCache: snapshot.metadata.isFromCache,
+      );
     });
   }
 
@@ -217,6 +239,121 @@ class PersonalRepositoryImpl implements PersonalRepository {
       ...order.toMap(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true)));
+  }
+
+  @override
+  Stream<List<Subcategory>> watchSubcategories(String ownerPhone) {
+    if (ownerPhone.isEmpty) return Stream<List<Subcategory>>.value(const []);
+
+    return _subcategories
+        .where('owner_phone', isEqualTo: ownerPhone)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
+      if (!snapshot.metadata.isFromCache) connectivity?.reportReachable();
+
+      final List<Subcategory> items = snapshot.docs
+          .map((doc) => Subcategory.fromMap(
+                doc.id,
+                doc.data(),
+                pending: doc.metadata.hasPendingWrites,
+              ))
+          .toList();
+
+      // Oldest first inside each parent, the same reasoning as the
+      // categories: a chip that keeps its place is one the thumb learns.
+      // Ties fall to the name — the whole starter set shares one commit
+      // stamp, and List.sort is not stable, so without this the seeded
+      // chips could shuffle between one snapshot and the next.
+      items.sort((a, b) {
+        final DateTime? aAt = a.createdAt;
+        final DateTime? bAt = b.createdAt;
+        int byDate = 0;
+        if (aAt == null || bAt == null) {
+          if (aAt != bAt) return aAt == null ? 1 : -1;
+        } else {
+          byDate = aAt.compareTo(bAt);
+        }
+        if (byDate != 0) return byDate;
+        final int byName = a.name.compareTo(b.name);
+        return byName != 0 ? byName : a.id.compareTo(b.id);
+      });
+      return items;
+    });
+  }
+
+  @override
+  Future<String> saveSubcategory(Subcategory subcategory) {
+    final Map<String, dynamic> data = {
+      ...subcategory.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (subcategory.id.isEmpty) {
+      final DocumentReference<Map<String, dynamic>> doc = _subcategories.doc();
+      return _commit(doc.set({
+        ...data,
+        'createdAt': FieldValue.serverTimestamp(),
+      })).then((_) => doc.id);
+    }
+
+    // `update` for the same reason saveCategory uses it: an edit racing a
+    // delete must fail rather than write the document back.
+    return _commit(_subcategories.doc(subcategory.id).update(data))
+        .then((_) => subcategory.id);
+  }
+
+  @override
+  Future<void> deleteSubcategory(
+    String id, {
+    required List<PersonalTransaction> entries,
+  }) async {
+    // Same shape as deleteCategory, but gentler: the entries keep their
+    // category and only lose the tag, and the document goes in the last
+    // batch after every row that carried it has been untied.
+    const int batchLimit = 400;
+    final List<WriteBatch> batches = [FirebaseFirestore.instance.batch()];
+    int writes = 0;
+
+    for (final PersonalTransaction entry in entries) {
+      if (entry.id.isEmpty) continue;
+      if (writes >= batchLimit) {
+        batches.add(FirebaseFirestore.instance.batch());
+        writes = 0;
+      }
+      batches.last.update(_transactions.doc(entry.id), {
+        'subcategory': '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      writes++;
+    }
+    batches.last.delete(_subcategories.doc(id));
+
+    for (final WriteBatch batch in batches) {
+      await _commit(batch.commit());
+    }
+  }
+
+  @override
+  Future<void> seedSubcategories(
+    String ownerPhone,
+    List<Subcategory> seeds,
+  ) {
+    // Plain `set` on ids the seeds brought with them: two devices dealing
+    // the same fresh account write the same documents, not two of each.
+    final WriteBatch batch = FirebaseFirestore.instance.batch();
+    for (final Subcategory seed in seeds) {
+      batch.set(_subcategories.doc(seed.id), {
+        ...seed.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    batch.set(_categoryOrder.doc(ownerPhone), {
+      'owner_phone': ownerPhone,
+      'subs_seeded': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    return _commit(batch.commit());
   }
 
   @override

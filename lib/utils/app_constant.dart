@@ -107,6 +107,11 @@ class AppConstant {
   /// see `CategoryOrder`.
   static const String collectionPersonalCategoryOrder =
       'personal_category_order';
+
+  /// The finer cuts a member keeps inside their categories — see
+  /// `Subcategory`.
+  static const String collectionPersonalSubcategories =
+      'personal_subcategories';
   
   static const double appVersion = 1.1;
 

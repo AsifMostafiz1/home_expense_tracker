@@ -418,6 +418,26 @@ class AppTranslations extends Translations {
           'drag_to_reorder':
               'Hold a handle and drag to reorder. Tap one of your own to edit it.',
           'failed_save_order': 'Could not save the arrangement',
+          // subcategories
+          'add_subcategory': 'Sub-category',
+          'add_subcategory_button': 'Add sub-category',
+          'new_subcategory': 'New sub-category',
+          'edit_subcategory': 'Edit sub-category',
+          'subcategory_name': 'Sub-category name',
+          'subcategory_name_hint': 'e.g. Groceries, Restaurant',
+          'enter_subcategory_name': 'Give the sub-category a name',
+          'subcategory_name_exists': 'This category already has one by that name',
+          'subcategory_added': 'Sub-category added',
+          'subcategory_updated': 'Sub-category updated',
+          'subcategory_deleted': 'Sub-category deleted',
+          'delete_subcategory': 'Delete sub-category',
+          'delete_subcategory_message':
+              'Entries keep their category — only the "@name" tag comes off them.',
+          'failed_save_subcategory': 'Could not save the sub-category',
+          'failed_delete_subcategory': 'Could not delete the sub-category',
+          'manage_subcategories': 'Arrange sub-categories',
+          'drag_to_reorder_subs':
+              'Hold a handle and drag to reorder. Tap one to edit it.',
           // dues
           'add_due_entry': 'Add a due',
           'due_entry_hint':
@@ -1286,6 +1306,26 @@ class AppTranslations extends Translations {
           'drag_to_reorder':
               'হ্যান্ডেল ধরে টেনে পছন্দমতো সাজান। নিজের বানানো খাতে চাপ দিলে সম্পাদনা করা যাবে।',
           'failed_save_order': 'সাজানোটা সংরক্ষণ করা যায়নি',
+          // subcategories
+          'add_subcategory': 'সাব-খাত',
+          'add_subcategory_button': 'সাব-খাত যোগ করুন',
+          'new_subcategory': 'নতুন সাব-খাত',
+          'edit_subcategory': 'সাব-খাত সম্পাদনা',
+          'subcategory_name': 'সাব-খাতের নাম',
+          'subcategory_name_hint': 'যেমন: বাজার, রেস্টুরেন্ট',
+          'enter_subcategory_name': 'সাব-খাতের একটি নাম দিন',
+          'subcategory_name_exists': 'এই খাতে এই নামে একটি সাব-খাত আগে থেকেই আছে',
+          'subcategory_added': 'সাব-খাত যোগ হয়েছে',
+          'subcategory_updated': 'সাব-খাত আপডেট হয়েছে',
+          'subcategory_deleted': 'সাব-খাত মুছে ফেলা হয়েছে',
+          'delete_subcategory': 'সাব-খাত মুছে ফেলুন',
+          'delete_subcategory_message':
+              'এন্ট্রিগুলো নিজের খাতেই থাকবে — শুধু "@name" ট্যাগটা উঠে যাবে।',
+          'failed_save_subcategory': 'সাব-খাতটি সংরক্ষণ করা যায়নি',
+          'failed_delete_subcategory': 'সাব-খাতটি মোছা যায়নি',
+          'manage_subcategories': 'সাব-খাত সাজান',
+          'drag_to_reorder_subs':
+              'হ্যান্ডেল ধরে টেনে পছন্দমতো সাজান। যেকোনোটায় চাপ দিলে সম্পাদনা করা যাবে।',
           // dues
           'add_due_entry': 'দেনা-পাওনা যোগ করুন',
           'due_entry_hint':

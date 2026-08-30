@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:demo_project/presentation/personal/model/custom_category.dart';
+import 'package:demo_project/presentation/personal/model/default_subcategories.dart';
 import 'package:demo_project/presentation/personal/model/personal_category.dart';
 import 'package:demo_project/presentation/personal/model/personal_transaction.dart';
+import 'package:demo_project/presentation/personal/model/subcategory.dart';
 
 void main() {
   tearDown(PersonalCategory.clearRegistry);
@@ -91,5 +93,50 @@ void main() {
 
     expect(next.income, ['bonus', 'salary']);
     expect(next.expense, ['transport', 'food']);
+  });
+
+  test('a subcategory arrangement rides beside the others and round-trips',
+      () {
+    const CategoryOrder order = CategoryOrder(expense: ['transport']);
+    final CategoryOrder dragged =
+        order.withSubs('food', const ['b', 'a']).withSubs('rent', const ['x']);
+
+    // Arranging tags touches neither the categories nor other parents.
+    expect(dragged.expense, ['transport']);
+    expect(dragged.subsOf('food'), ['b', 'a']);
+    expect(dragged.subsOf('rent'), ['x']);
+    expect(dragged.subsOf('health'), isEmpty);
+
+    // What is written comes back whole — and a category drag afterwards
+    // carries the sub arrangements with it.
+    final CategoryOrder read = CategoryOrder.fromMap(dragged.toMap());
+    expect(read.subsOf('food'), ['b', 'a']);
+    expect(read.withSide(false, const ['food']).subsOf('rent'), ['x']);
+  });
+
+  test('every starter subcategory lands under a real fixed category', () {
+    final List<Subcategory> seeds =
+        DefaultSubcategories.forOwner('01700000000');
+    final Set<String> fixedKeys = {
+      for (final PersonalCategory c in PersonalCategory.forIncome(false))
+        c.key,
+      for (final PersonalCategory c in PersonalCategory.forIncome(true)) c.key,
+    };
+
+    expect(seeds, isNotEmpty);
+    for (final Subcategory seed in seeds) {
+      expect(fixedKeys, contains(seed.parent),
+          reason: '${seed.name} points at ${seed.parent}');
+      expect(seed.name, isNotEmpty);
+      expect(seed.ownerPhone, '01700000000');
+    }
+
+    // Deterministic and distinct: the same account is always dealt the same
+    // documents, and no two seeds share one.
+    final List<String> ids = seeds.map((s) => s.id).toList();
+    expect(ids.toSet().length, ids.length);
+    expect(
+        DefaultSubcategories.forOwner('01700000000').map((s) => s.id).toList(),
+        ids);
   });
 }

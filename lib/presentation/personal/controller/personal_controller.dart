@@ -10,10 +10,12 @@ import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../model/custom_category.dart';
 import '../model/debt_entry.dart';
+import '../model/default_subcategories.dart';
 import '../model/ledger_person.dart';
 import '../model/personal_category.dart';
 import '../model/personal_summary.dart';
 import '../model/personal_transaction.dart';
+import '../model/subcategory.dart';
 import '../repository/personal_repository.dart';
 
 /// A member's own books: what they earned, what they spent, and what is owed
@@ -54,6 +56,10 @@ class PersonalController extends GetxController implements GetxService {
   /// [PersonalCategory.registerOrder] the same way.
   CategoryOrder categoryOrder = const CategoryOrder();
 
+  /// The finer cuts inside their categories, all parents together — the
+  /// sheet takes its slice through [subcategoriesOf].
+  List<Subcategory> subcategories = [];
+
   /// The month the money tab is showing. Always the first of the month.
   DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
@@ -62,11 +68,17 @@ class PersonalController extends GetxController implements GetxService {
   StreamSubscription<List<LedgerPerson>>? _peopleSub;
   StreamSubscription<List<CustomCategory>>? _categoriesSub;
   StreamSubscription<CategoryOrder>? _orderSub;
+  StreamSubscription<List<Subcategory>>? _subcategoriesSub;
 
   bool _transactionsLoaded = false;
   bool _debtsLoaded = false;
   bool _peopleLoaded = false;
   bool _categoriesLoaded = false;
+
+  // What the seeding decision waits for — see [_maybeSeedDefaults].
+  bool _orderSeen = false;
+  bool _subsSeen = false;
+  bool _seedStarted = false;
 
   bool get _isOffline =>
       Get.isRegistered<ConnectivityService>() &&
@@ -85,6 +97,7 @@ class PersonalController extends GetxController implements GetxService {
     _peopleSub?.cancel();
     _categoriesSub?.cancel();
     _orderSub?.cancel();
+    _subcategoriesSub?.cancel();
     // The registry is static and this sign-in's — logout deletes this
     // controller, and the next account must not read this one's categories
     // while their own snapshot is still on its way.
@@ -112,6 +125,7 @@ class PersonalController extends GetxController implements GetxService {
     _peopleSub?.cancel();
     _categoriesSub?.cancel();
     _orderSub?.cancel();
+    _subcategoriesSub?.cancel();
 
     _transactionsSub = repository.watchTransactions(userPhone).listen(
       (list) {
@@ -178,6 +192,8 @@ class PersonalController extends GetxController implements GetxService {
       (order) {
         categoryOrder = order;
         PersonalCategory.registerOrder(order);
+        _orderSeen = true;
+        _maybeSeedDefaults();
         update();
       },
       onError: (Object e) {
@@ -186,6 +202,48 @@ class PersonalController extends GetxController implements GetxService {
         // gate.
         debugPrint('Personal: category order stream failed — $e');
       },
+    );
+
+    _subcategoriesSub = repository.watchSubcategories(userPhone).listen(
+      (list) {
+        subcategories = list;
+        _subsSeen = true;
+        _maybeSeedDefaults();
+        update();
+      },
+      onError: (Object e) {
+        // Like the order: a picker with no subcategory row is still a
+        // whole picker, so no loading gate here either.
+        debugPrint('Personal: subcategories stream failed — $e');
+      },
+    );
+  }
+
+  /// Deals a fresh account its starter subcategories, once — see
+  /// [DefaultSubcategories]. Not a blocking step anywhere: the picker works
+  /// before, during and without it.
+  ///
+  /// It waits for both streams and for an order snapshot the SERVER has
+  /// confirmed. A fresh install with no cache also reads as "never seeded",
+  /// and acting on that would deal a second hand to an account that was
+  /// seeded and then pruned on another device. An account that made its own
+  /// subcategories before this shipped keeps them exactly as they are — the
+  /// mark is set and nothing is added beside them.
+  void _maybeSeedDefaults() {
+    if (_seedStarted || !_orderSeen || !_subsSeen) return;
+    if (categoryOrder.subsSeeded || categoryOrder.fromCache) return;
+    if (userPhone.isEmpty) return;
+
+    _seedStarted = true;
+    final List<Subcategory> seeds = subcategories.isNotEmpty
+        ? const []
+        : DefaultSubcategories.forOwner(userPhone);
+
+    unawaited(
+      repository.seedSubcategories(userPhone, seeds).catchError(
+            (Object e) =>
+                debugPrint('Personal: seeding subcategories failed — $e'),
+          ),
     );
   }
 
@@ -363,6 +421,7 @@ class PersonalController extends GetxController implements GetxService {
     required MoneyFlow flow,
     required double amount,
     required String category,
+    String subcategory = '',
     required String note,
     required DateTime date,
     required TimeOfDay time,
@@ -385,6 +444,7 @@ class PersonalController extends GetxController implements GetxService {
         flow: flow,
         amount: amount,
         category: category,
+        subcategory: subcategory,
         note: note.trim(),
         date: PersonalTransaction.keyOf(date),
         timeHour: time.hour,
@@ -447,9 +507,23 @@ class PersonalController extends GetxController implements GetxService {
     final String clean = name.trim();
     if (clean.isEmpty) return null;
 
+    // Against the member's own names as typed, and against the built-in
+    // names in every language the app has — see [reservedNamesFor] for why
+    // the current label alone would not hold.
+    //
+    // A category keeping its own name is exempt from all of it: the name
+    // already stands, so it collides with nothing new — and a colour or
+    // icon change must not be refused because the name it has always had
+    // is one that could not be chosen today.
     final String lower = clean.toLowerCase();
-    final bool taken = PersonalCategory.pickerFor(income).any((category) =>
-        category.key != existing?.id && category.label.toLowerCase() == lower);
+    final bool keepsOwnName =
+        existing != null && existing.name.trim().toLowerCase() == lower;
+    final bool taken = !keepsOwnName &&
+        (PersonalCategory.reservedNamesFor(income).contains(lower) ||
+            customCategories.any((category) =>
+                category.id != existing?.id &&
+                category.isIncome == income &&
+                category.name.trim().toLowerCase() == lower));
     if (taken) {
       CustomSnackbar.show(
           type: SnackbarType.info, message: 'category_name_exists'.tr);
@@ -502,6 +576,10 @@ class PersonalController extends GetxController implements GetxService {
         entries: transactions
             .where((entry) => entry.category == category.id)
             .toList(),
+        subcategoryIds: subcategories
+            .where((subcategory) => subcategory.parent == category.id)
+            .map((subcategory) => subcategory.id)
+            .toList(),
       );
 
       CustomSnackbar.show(
@@ -541,6 +619,138 @@ class PersonalController extends GetxController implements GetxService {
       debugPrint('Error saving category order: $e');
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_save_order'.tr);
+    }
+  }
+
+  /// ---------------------------------------------------------- subcategories
+
+  /// The finer cuts inside one category — however the member arranged them,
+  /// and in the order they were made until they have. The saved order leads
+  /// and whatever it has not met follows, the same bargain the category
+  /// picker strikes: a deleted id is passed over, a new tag shows at the
+  /// end.
+  List<Subcategory> subcategoriesOf(String parent) {
+    final Map<String, Subcategory> byId = {
+      for (final Subcategory subcategory in subcategories)
+        if (subcategory.parent == parent) subcategory.id: subcategory,
+    };
+
+    final List<Subcategory> arranged = [];
+    for (final String id in categoryOrder.subsOf(parent)) {
+      final Subcategory? subcategory = byId.remove(id);
+      if (subcategory != null) arranged.add(subcategory);
+    }
+    arranged.addAll(byId.values);
+    return arranged;
+  }
+
+  /// Writes one category's new subcategory arrangement, [ids] first to
+  /// last. Optimistic and silent, exactly as [arrangeCategories] is, and
+  /// for the same reasons.
+  Future<void> arrangeSubcategories({
+    required String parent,
+    required List<String> ids,
+  }) async {
+    if (userPhone.isEmpty || parent.isEmpty) return;
+
+    final CategoryOrder next = categoryOrder.withSubs(parent, ids);
+    categoryOrder = next;
+    PersonalCategory.registerOrder(next);
+    update();
+
+    try {
+      await repository.saveCategoryOrder(userPhone, next);
+    } catch (e) {
+      debugPrint('Error saving subcategory order: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_save_order'.tr);
+    }
+  }
+
+  /// Saves one of the member's subcategories and returns the id entries are
+  /// tagged with. Null means nothing was written — the name was empty, or
+  /// its category already has one by that name.
+  Future<String?> saveSubcategory({
+    Subcategory? existing,
+    required String parent,
+    required String name,
+  }) async {
+    if (userPhone.isEmpty || parent.isEmpty) return null;
+
+    final String clean = name.trim();
+    if (clean.isEmpty) return null;
+
+    // Only within the parent: "bazar" inside food and "bazar" inside a
+    // custom category are two different cuts, and neither is in the way of
+    // the other.
+    final String lower = clean.toLowerCase();
+    final bool taken = subcategories.any((subcategory) =>
+        subcategory.id != existing?.id &&
+        subcategory.parent == parent &&
+        subcategory.name.trim().toLowerCase() == lower);
+    if (taken) {
+      CustomSnackbar.show(
+          type: SnackbarType.info, message: 'subcategory_name_exists'.tr);
+      return null;
+    }
+
+    try {
+      isSaving = true;
+      update();
+
+      final bool offline = _isOffline;
+
+      final String id = await repository.saveSubcategory(Subcategory(
+        id: existing?.id ?? '',
+        ownerPhone: userPhone,
+        parent: parent,
+        name: clean,
+      ));
+
+      CustomSnackbar.show(
+        type: offline ? SnackbarType.info : SnackbarType.success,
+        message: offline
+            ? 'saved_offline_generic'.tr
+            : (existing == null
+                ? 'subcategory_added'.tr
+                : 'subcategory_updated'.tr),
+      );
+      return id;
+    } catch (e) {
+      debugPrint('Error saving subcategory: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_save_subcategory'.tr);
+      return null;
+    } finally {
+      isSaving = false;
+      update();
+    }
+  }
+
+  /// Removes one subcategory. The entries tagged with it keep their category
+  /// — only the tag comes off, in the same write.
+  Future<bool> deleteSubcategory(Subcategory subcategory) async {
+    try {
+      final bool offline = _isOffline;
+
+      await repository.deleteSubcategory(
+        subcategory.id,
+        entries: transactions
+            .where((entry) => entry.subcategory == subcategory.id)
+            .toList(),
+      );
+
+      CustomSnackbar.show(
+        type: offline ? SnackbarType.info : SnackbarType.success,
+        message:
+            offline ? 'saved_offline_generic'.tr : 'subcategory_deleted'.tr,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting subcategory: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_delete_subcategory'.tr);
+      return false;
     }
   }
 

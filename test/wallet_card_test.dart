@@ -9,6 +9,7 @@ import 'package:demo_project/presentation/personal/model/custom_category.dart';
 import 'package:demo_project/presentation/personal/model/debt_entry.dart';
 import 'package:demo_project/presentation/personal/model/ledger_person.dart';
 import 'package:demo_project/presentation/personal/model/personal_transaction.dart';
+import 'package:demo_project/presentation/personal/model/subcategory.dart';
 import 'package:demo_project/presentation/personal/repository/personal_repository.dart';
 import 'package:demo_project/presentation/personal/view/personal_finance_screen.dart';
 import 'package:demo_project/presentation/personal/widgets/category_breakdown.dart';
@@ -74,6 +75,7 @@ class _FakeLedger implements PersonalRepository {
   Future<void> deleteCategory(
     String id, {
     required List<PersonalTransaction> entries,
+    List<String> subcategoryIds = const [],
   }) async {}
 
   @override
@@ -82,6 +84,26 @@ class _FakeLedger implements PersonalRepository {
 
   @override
   Future<void> saveCategoryOrder(String ownerPhone, CategoryOrder order) async {}
+
+  @override
+  Stream<List<Subcategory>> watchSubcategories(String ownerPhone) =>
+      Stream<List<Subcategory>>.value(const []);
+
+  @override
+  Future<String> saveSubcategory(Subcategory subcategory) async =>
+      subcategory.id;
+
+  @override
+  Future<void> deleteSubcategory(
+    String id, {
+    required List<PersonalTransaction> entries,
+  }) async {}
+
+  @override
+  Future<void> seedSubcategories(
+    String ownerPhone,
+    List<Subcategory> seeds,
+  ) async {}
 }
 
 /// `yyyy-MM-dd` inside the month [monthsBack] before this one, so the fixtures

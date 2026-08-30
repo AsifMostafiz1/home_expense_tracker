@@ -2,6 +2,7 @@ import '../model/custom_category.dart';
 import '../model/debt_entry.dart';
 import '../model/ledger_person.dart';
 import '../model/personal_transaction.dart';
+import '../model/subcategory.dart';
 
 /// One member's private books. Every method is scoped to their phone — there
 /// is no call here that can read or write anybody else's ledger.
@@ -21,10 +22,13 @@ abstract class PersonalRepository {
 
   /// Removes one custom category and refiles [entries] — the transactions
   /// still pointing at it — each under the fixed "other" bucket of its own
-  /// side, batched so the category is never gone while entries still name it.
+  /// side, batched so the category is never gone while entries still name
+  /// it. The category's own subcategories go with it, [subcategoryIds], and
+  /// the refiled entries lose their subcategory tag in the same write.
   Future<void> deleteCategory(
     String id, {
     required List<PersonalTransaction> entries,
+    List<String> subcategoryIds = const [],
   });
 
   /// How this member arranged their picker — the default order until they
@@ -32,6 +36,28 @@ abstract class PersonalRepository {
   Stream<CategoryOrder> watchCategoryOrder(String ownerPhone);
 
   Future<void> saveCategoryOrder(String ownerPhone, CategoryOrder order);
+
+  /// The finer cuts this member keeps inside their categories, all of them
+  /// in one stream — a picker groups them by parent in memory.
+  Stream<List<Subcategory>> watchSubcategories(String ownerPhone);
+
+  /// Returns the subcategory's document id, known before the write lands —
+  /// same contract as `saveCategory`.
+  Future<String> saveSubcategory(Subcategory subcategory);
+
+  /// Removes one subcategory and unties [entries] — the transactions still
+  /// tagged with it — in the same batch. The entries keep their category;
+  /// only the tag comes off.
+  Future<void> deleteSubcategory(
+    String id, {
+    required List<PersonalTransaction> entries,
+  });
+
+  /// Writes a fresh account's starter subcategories and marks the account
+  /// dealt, one batch for both so neither can land without the other.
+  /// [seeds] carry their own document ids; an empty list just sets the
+  /// mark — the account brought its own subcategories.
+  Future<void> seedSubcategories(String ownerPhone, List<Subcategory> seeds);
 
   Stream<List<DebtEntry>> watchDebts(String ownerPhone);
 

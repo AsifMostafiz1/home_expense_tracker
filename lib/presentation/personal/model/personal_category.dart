@@ -135,6 +135,28 @@ class PersonalCategory {
   static String forHouseExpense(String houseType) =>
       houseType == 'others' ? 'other_expense' : 'food';
 
+  /// Every name one side's built-in categories answer to, in every language
+  /// the app speaks, lowercased — the retired ones included, since their
+  /// label still shows on old entries.
+  ///
+  /// The duplicate check reads this rather than [label]: a label is the
+  /// language of the moment, so a custom "Food" typed under a Bangla UI
+  /// would slip past a guard that was reading 'খাবার' just then, and the two
+  /// chips would meet the day the language changed.
+  static Set<String> reservedNamesFor(bool isIncome) {
+    final Set<String> names = {};
+    for (final PersonalCategory category in [
+      ...forIncome(isIncome),
+      if (!isIncome) ..._retired,
+    ]) {
+      for (final Map<String, String> locale in Get.translations.values) {
+        final String? name = locale['cat_${category.key}'];
+        if (name != null) names.add(name.toLowerCase());
+      }
+    }
+    return names;
+  }
+
   /// The category behind a stored key, whichever side it belongs to.
   static PersonalCategory of(String key) {
     for (final PersonalCategory category in expense) {
