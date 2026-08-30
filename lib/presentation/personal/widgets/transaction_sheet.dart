@@ -439,23 +439,36 @@ class _TransactionSheetState extends State<_TransactionSheet> {
 
         final List<Subcategory> subs = c.subcategoriesOf(_category);
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final Subcategory sub in subs) ...[
-                _subcategoryChip(context, sub, parent.color),
-                const SizedBox(width: 8),
-              ],
-              _addSubcategoryChip(context, showLabel: subs.isEmpty),
-              // Nothing to arrange until there are two — the pill would
-              // only be a question with one answer.
-              if (subs.length >= 2) ...[
-                const SizedBox(width: 8),
-                _arrangeSubcategoriesChip(context),
-              ],
+        // Only the tags scroll; the two buttons stand outside the scroll.
+        // The loose fit keeps them right beside the tags while everything
+        // still fits — the row as it always looked — and pins them to the
+        // right edge the moment the tags outgrow it, so however far the
+        // row runs, adding and arranging never scroll out from under the
+        // thumb.
+        return Row(
+          children: [
+            Flexible(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final Subcategory sub in subs) ...[
+                      _subcategoryChip(context, sub, parent.color),
+                      const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            _addSubcategoryChip(context, showLabel: subs.isEmpty),
+            // Nothing to arrange until there are two — the pill would
+            // only be a question with one answer.
+            if (subs.length >= 2) ...[
+              const SizedBox(width: 8),
+              _arrangeSubcategoriesChip(context),
             ],
-          ),
+          ],
         );
       },
     );
