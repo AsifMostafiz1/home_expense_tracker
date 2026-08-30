@@ -8,6 +8,7 @@ import '../../../common/widgets/custom_snackbar.dart';
 import '../../../services/connectivity_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
+import '../model/custom_category.dart';
 import '../model/debt_entry.dart';
 import '../model/ledger_person.dart';
 import '../model/personal_category.dart';
@@ -45,16 +46,27 @@ class PersonalController extends GetxController implements GetxService {
   /// through them yet — see [LedgerPerson].
   List<LedgerPerson> savedPeople = [];
 
+  /// The member's own categories, fed into [PersonalCategory.register] on
+  /// every snapshot so a custom key resolves wherever a fixed one does.
+  List<CustomCategory> customCategories = [];
+
+  /// How they arranged the picker, fed into
+  /// [PersonalCategory.registerOrder] the same way.
+  CategoryOrder categoryOrder = const CategoryOrder();
+
   /// The month the money tab is showing. Always the first of the month.
   DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   StreamSubscription<List<PersonalTransaction>>? _transactionsSub;
   StreamSubscription<List<DebtEntry>>? _debtsSub;
   StreamSubscription<List<LedgerPerson>>? _peopleSub;
+  StreamSubscription<List<CustomCategory>>? _categoriesSub;
+  StreamSubscription<CategoryOrder>? _orderSub;
 
   bool _transactionsLoaded = false;
   bool _debtsLoaded = false;
   bool _peopleLoaded = false;
+  bool _categoriesLoaded = false;
 
   bool get _isOffline =>
       Get.isRegistered<ConnectivityService>() &&
@@ -71,6 +83,12 @@ class PersonalController extends GetxController implements GetxService {
     _transactionsSub?.cancel();
     _debtsSub?.cancel();
     _peopleSub?.cancel();
+    _categoriesSub?.cancel();
+    _orderSub?.cancel();
+    // The registry is static and this sign-in's — logout deletes this
+    // controller, and the next account must not read this one's categories
+    // while their own snapshot is still on its way.
+    PersonalCategory.clearRegistry();
     super.onClose();
   }
 
@@ -92,6 +110,8 @@ class PersonalController extends GetxController implements GetxService {
     _transactionsSub?.cancel();
     _debtsSub?.cancel();
     _peopleSub?.cancel();
+    _categoriesSub?.cancel();
+    _orderSub?.cancel();
 
     _transactionsSub = repository.watchTransactions(userPhone).listen(
       (list) {
@@ -136,10 +156,46 @@ class PersonalController extends GetxController implements GetxService {
         _settleLoading();
       },
     );
+
+    _categoriesSub = repository.watchCategories(userPhone).listen(
+      (list) {
+        customCategories = list;
+        PersonalCategory.register(list);
+        _categoriesLoaded = true;
+        _settleLoading();
+      },
+      onError: (Object e) {
+        debugPrint('Personal: categories stream failed — $e');
+        // Also not held against the screen: without them the fixed list
+        // still works, and an entry under a custom key shows as
+        // uncategorised until the stream recovers.
+        _categoriesLoaded = true;
+        _settleLoading();
+      },
+    );
+
+    _orderSub = repository.watchCategoryOrder(userPhone).listen(
+      (order) {
+        categoryOrder = order;
+        PersonalCategory.registerOrder(order);
+        update();
+      },
+      onError: (Object e) {
+        // Never held against the screen: the default order is a perfectly
+        // good one, so this stream does not even take part in the loading
+        // gate.
+        debugPrint('Personal: category order stream failed — $e');
+      },
+    );
   }
 
   void _settleLoading() {
-    if (_transactionsLoaded && _debtsLoaded && _peopleLoaded) isLoading = false;
+    if (_transactionsLoaded &&
+        _debtsLoaded &&
+        _peopleLoaded &&
+        _categoriesLoaded) {
+      isLoading = false;
+    }
     update();
   }
 
@@ -367,6 +423,124 @@ class PersonalController extends GetxController implements GetxService {
       debugPrint('Error deleting personal transaction: $e');
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_delete_entry'.tr);
+    }
+  }
+
+  /// ------------------------------------------------------------- categories
+
+  /// Saves a category of the member's own and returns the key entries store
+  /// it under, so the picker that just made one can select it. Null means
+  /// nothing was written — the name was empty, or already taken.
+  ///
+  /// The name is checked against everything on that side of the picker,
+  /// fixed labels included: two chips reading "Food" would be two piles for
+  /// the same money, which is the thing categories exist to prevent.
+  Future<String?> saveCategory({
+    CustomCategory? existing,
+    required bool income,
+    required String name,
+    required String iconKey,
+    required String colorKey,
+  }) async {
+    if (userPhone.isEmpty) return null;
+
+    final String clean = name.trim();
+    if (clean.isEmpty) return null;
+
+    final String lower = clean.toLowerCase();
+    final bool taken = PersonalCategory.pickerFor(income).any((category) =>
+        category.key != existing?.id && category.label.toLowerCase() == lower);
+    if (taken) {
+      CustomSnackbar.show(
+          type: SnackbarType.info, message: 'category_name_exists'.tr);
+      return null;
+    }
+
+    try {
+      isSaving = true;
+      update();
+
+      final bool offline = _isOffline;
+
+      final String id = await repository.saveCategory(CustomCategory(
+        id: existing?.id ?? '',
+        ownerPhone: userPhone,
+        name: clean,
+        flow: income ? MoneyFlow.income : MoneyFlow.expense,
+        iconKey: iconKey,
+        colorKey: colorKey,
+      ));
+
+      CustomSnackbar.show(
+        type: offline ? SnackbarType.info : SnackbarType.success,
+        message: offline
+            ? 'saved_offline_generic'.tr
+            : (existing == null ? 'category_added'.tr : 'category_updated'.tr),
+      );
+      return id;
+    } catch (e) {
+      debugPrint('Error saving custom category: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_save_category'.tr);
+      return null;
+    } finally {
+      isSaving = false;
+      update();
+    }
+  }
+
+  /// Removes one of the member's own categories. Whatever was filed under it
+  /// — the whole ledger's worth, not just this month's — moves to the fixed
+  /// "other" bucket of its side, in the same write, so no entry is ever left
+  /// pointing at a category that is gone.
+  Future<bool> deleteCategory(CustomCategory category) async {
+    try {
+      final bool offline = _isOffline;
+
+      await repository.deleteCategory(
+        category.id,
+        entries: transactions
+            .where((entry) => entry.category == category.id)
+            .toList(),
+      );
+
+      CustomSnackbar.show(
+        type: offline ? SnackbarType.info : SnackbarType.success,
+        message: offline ? 'saved_offline_generic'.tr : 'category_deleted'.tr,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting custom category: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_delete_category'.tr);
+      return false;
+    }
+  }
+
+  /// Writes the picker's new arrangement for one side, [keys] first to last.
+  ///
+  /// Optimistic, unlike every other write here: the registry takes the new
+  /// order before Firestore has it, so the row the member just dropped does
+  /// not snap back while the write settles. No toast either way — the list
+  /// moving is its own confirmation, and a drag is too small an act to
+  /// announce.
+  Future<void> arrangeCategories({
+    required bool income,
+    required List<String> keys,
+  }) async {
+    if (userPhone.isEmpty) return;
+
+    final CategoryOrder next = categoryOrder.withSide(income, keys);
+    categoryOrder = next;
+    PersonalCategory.registerOrder(next);
+    update();
+
+    try {
+      await repository.saveCategoryOrder(userPhone, next);
+    } catch (e) {
+      debugPrint('Error saving category order: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_save_order'.tr);
     }
   }
 

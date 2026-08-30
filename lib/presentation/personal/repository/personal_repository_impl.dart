@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../../../services/background_sync_service.dart';
 import '../../../services/connectivity_service.dart';
 import '../../../utils/app_constant.dart';
+import '../model/custom_category.dart';
 import '../model/debt_entry.dart';
 import '../model/ledger_person.dart';
 import '../model/personal_transaction.dart';
@@ -36,6 +37,14 @@ class PersonalRepositoryImpl implements PersonalRepository {
   CollectionReference<Map<String, dynamic>> get _people =>
       FirebaseFirestore.instance
           .collection(AppConstant.collectionPersonalPeople);
+
+  CollectionReference<Map<String, dynamic>> get _categories =>
+      FirebaseFirestore.instance
+          .collection(AppConstant.collectionPersonalCategories);
+
+  CollectionReference<Map<String, dynamic>> get _categoryOrder =>
+      FirebaseFirestore.instance
+          .collection(AppConstant.collectionPersonalCategoryOrder);
 
   @override
   Stream<List<PersonalTransaction>> watchTransactions(String ownerPhone) {
@@ -90,6 +99,125 @@ class PersonalRepositoryImpl implements PersonalRepository {
   @override
   Future<void> deleteTransaction(String id) =>
       _commit(_transactions.doc(id).delete());
+
+  @override
+  Stream<List<CustomCategory>> watchCategories(String ownerPhone) {
+    if (ownerPhone.isEmpty) return Stream<List<CustomCategory>>.value(const []);
+
+    return _categories
+        .where('owner_phone', isEqualTo: ownerPhone)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
+      if (!snapshot.metadata.isFromCache) connectivity?.reportReachable();
+
+      final List<CustomCategory> items = snapshot.docs
+          .map((doc) => CustomCategory.fromMap(
+                doc.id,
+                doc.data(),
+                pending: doc.metadata.hasPendingWrites,
+              ))
+          .toList();
+
+      // Oldest first: the picker shows these after the fixed list, and a
+      // chip that keeps its place is one the thumb learns. A record with no
+      // timestamp yet is one this device has just written — the newest, so
+      // it goes last.
+      items.sort((a, b) {
+        final DateTime? aAt = a.createdAt;
+        final DateTime? bAt = b.createdAt;
+        if (aAt == null || bAt == null) {
+          if (aAt == bAt) return 0;
+          return aAt == null ? 1 : -1;
+        }
+        return aAt.compareTo(bAt);
+      });
+      return items;
+    });
+  }
+
+  @override
+  Future<String> saveCategory(CustomCategory category) {
+    final Map<String, dynamic> data = {
+      ...category.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (category.id.isEmpty) {
+      final DocumentReference<Map<String, dynamic>> doc = _categories.doc();
+      return _commit(doc.set({
+        ...data,
+        'createdAt': FieldValue.serverTimestamp(),
+      })).then((_) => doc.id);
+    }
+
+    // `update` rather than `set`: an edit racing a delete of the same
+    // category must fail, not quietly write the document back — the same
+    // reasoning renamePerson gives for its batch.
+    return _commit(_categories.doc(category.id).update(data))
+        .then((_) => category.id);
+  }
+
+  @override
+  Future<void> deleteCategory(
+    String id, {
+    required List<PersonalTransaction> entries,
+  }) async {
+    // The refiled entries ride in the same batch as the delete, so no
+    // snapshot ever shows the category gone while rows still name it. A
+    // batch holds 500 writes; a ledger past that is split, entries first —
+    // the category document goes in the last batch, after every row it
+    // still owns has been moved off it. Each entry falls back to the
+    // "other" bucket of its own side, not the category's: whichever way
+    // the row's money went is the side its total must stay on.
+    const int batchLimit = 400;
+    final List<WriteBatch> batches = [FirebaseFirestore.instance.batch()];
+    int writes = 0;
+
+    for (final PersonalTransaction entry in entries) {
+      if (entry.id.isEmpty) continue;
+      if (writes >= batchLimit) {
+        batches.add(FirebaseFirestore.instance.batch());
+        writes = 0;
+      }
+      batches.last.update(_transactions.doc(entry.id), {
+        'category': entry.isIncome ? 'other_income' : 'other_expense',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      writes++;
+    }
+    batches.last.delete(_categories.doc(id));
+
+    for (final WriteBatch batch in batches) {
+      await _commit(batch.commit());
+    }
+  }
+
+  @override
+  Stream<CategoryOrder> watchCategoryOrder(String ownerPhone) {
+    if (ownerPhone.isEmpty) {
+      return Stream<CategoryOrder>.value(const CategoryOrder());
+    }
+
+    // One document, keyed by the phone the way `users` documents are — no
+    // query, and a member who never dragged anything has no document, which
+    // reads as the default order.
+    return _categoryOrder
+        .doc(ownerPhone)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
+      if (!snapshot.metadata.isFromCache) connectivity?.reportReachable();
+      return CategoryOrder.fromMap(snapshot.data());
+    });
+  }
+
+  @override
+  Future<void> saveCategoryOrder(String ownerPhone, CategoryOrder order) {
+    return _commit(_categoryOrder.doc(ownerPhone).set({
+      'owner_phone': ownerPhone,
+      ...order.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true)));
+  }
 
   @override
   Stream<List<DebtEntry>> watchDebts(String ownerPhone) {

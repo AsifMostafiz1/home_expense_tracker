@@ -8,8 +8,11 @@ import '../../../common/widgets/custom_button.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/personal_controller.dart';
+import '../model/custom_category.dart';
 import '../model/personal_category.dart';
 import '../model/personal_transaction.dart';
+import 'category_editor_sheet.dart';
+import 'category_manager_sheet.dart';
 
 /// Records money earned or money spent.
 ///
@@ -143,12 +146,21 @@ class _TransactionSheetState extends State<_TransactionSheet> {
       return;
     }
 
+    // A key the app can no longer name — a custom category deleted while
+    // this sheet sat open — is not written back; the entry follows the rest
+    // of that category into the "other" bucket of its side.
+    String category = _category;
+    if (identical(PersonalCategory.of(category), PersonalCategory.unknown)) {
+      category =
+          _flow == MoneyFlow.income ? 'other_income' : 'other_expense';
+    }
+
     final bool saved =
         await Get.find<PersonalController>().saveTransaction(
       existing: widget.entry,
       flow: _flow,
       amount: amount,
-      category: _category,
+      category: category,
       note: _note.text,
       date: _date,
       time: _time,
@@ -188,14 +200,9 @@ class _TransactionSheetState extends State<_TransactionSheet> {
                 ),
               ),
             ),
-            Text(
-              _isEditing ? 'edit_entry'.tr : 'add_entry'.tr,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
+            // No title: the toggle right below already says which of the two
+            // this is, and the button at the bottom says what it will do —
+            // the sheet reads cleaner with nothing repeating them.
             _buildFlowToggle(context),
             const SizedBox(height: 18),
             CustomTextField(
@@ -216,17 +223,49 @@ class _TransactionSheetState extends State<_TransactionSheet> {
               },
             ),
             const SizedBox(height: 18),
-            Text(
-              'category'.tr,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.color
-                    ?.withOpacity(0.8),
-              ),
+            Row(
+              children: [
+                Text(
+                  'category'.tr,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.color
+                        ?.withOpacity(0.8),
+                  ),
+                ),
+                const Spacer(),
+                // The doorway to rearranging: dragging happens in a list of
+                // its own, not between these chips, whose long-press is
+                // already the way to an edit.
+                InkWell(
+                  onTap: () =>
+                      showCategoryManagerSheet(context, income: isIncome),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    child: Row(
+                      children: [
+                        Icon(Icons.swap_vert_rounded,
+                            size: 15, color: AppUi.muted(context)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'arrange_categories'.tr,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppUi.muted(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             _buildCategories(context, isIncome),
@@ -238,7 +277,7 @@ class _TransactionSheetState extends State<_TransactionSheet> {
               labelText: 'note_optional'.tr,
               hintText: 'note_hint'.tr,
               prefixIcon: Icons.notes_rounded,
-              maxLines: 2,
+              maxLines: 1,
               maxLength: 140,
               textCapitalization: TextCapitalization.sentences,
             ),
@@ -331,15 +370,90 @@ class _TransactionSheetState extends State<_TransactionSheet> {
     );
   }
 
+  /// The fixed list, then the member's own, then the way to make another.
+  ///
+  /// Inside a GetBuilder because the custom chips live in Firestore: one
+  /// made a moment ago — here or on another device — joins the row the
+  /// moment its snapshot lands, and a rename reads through at once.
   Widget _buildCategories(BuildContext context, bool isIncome) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final PersonalCategory category
-            in PersonalCategory.forIncome(isIncome))
-          _categoryChip(context, category),
-      ],
+    return GetBuilder<PersonalController>(
+      builder: (_) {
+        final List<PersonalCategory> categories =
+            PersonalCategory.pickerFor(isIncome);
+        final bool listed =
+            categories.any((category) => category.key == _category);
+
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            // An entry filed under a key the picker no longer offers — a
+            // retired category, or a custom one just deleted — keeps its
+            // chip, so what is selected is never invisible.
+            if (!listed)
+              _categoryChip(context, PersonalCategory.of(_category)),
+            for (final PersonalCategory category in categories)
+              _categoryChip(context, category),
+            _addCategoryChip(context, isIncome),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Opens the editor on a custom chip's category. A fixed chip never gets
+  /// here — the gesture is only wired for custom ones.
+  Future<void> _editCategory(PersonalCategory category) async {
+    final PersonalController controller = Get.find<PersonalController>();
+    final CustomCategory? existing = controller.customCategories
+        .firstWhereOrNull((custom) => custom.id == category.key);
+    if (existing == null) return;
+
+    final CategoryEditorResult? result = await showCategoryEditorSheet(
+      context,
+      income: existing.isIncome,
+      existing: existing,
+    );
+
+    // The entries under a deleted category are refiled to "other" in the
+    // same batch, so a selection pointing at it follows them.
+    if (result?.deleted == true && _category == category.key && mounted) {
+      setState(() => _category =
+          existing.isIncome ? 'other_income' : 'other_expense');
+    }
+  }
+
+  Widget _addCategoryChip(BuildContext context, bool isIncome) {
+    return GestureDetector(
+      onTap: () async {
+        final CategoryEditorResult? result =
+            await showCategoryEditorSheet(context, income: isIncome);
+        final String? key = result?.savedKey;
+        if (key != null && mounted) setState(() => _category = key);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: AppUi.neutralSurface(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppUi.hairline(context)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add_rounded, size: 15, color: AppUi.muted(context)),
+            const SizedBox(width: 7),
+            Text(
+              'new_category_chip'.tr,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: AppUi.body(context),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -349,6 +463,8 @@ class _TransactionSheetState extends State<_TransactionSheet> {
 
     return GestureDetector(
       onTap: () => setState(() => _category = category.key),
+      onLongPress:
+          category.isCustom ? () => _editCategory(category) : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(

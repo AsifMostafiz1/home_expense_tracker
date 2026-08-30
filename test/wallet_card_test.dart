@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:demo_project/presentation/personal/controller/personal_controller.dart';
+import 'package:demo_project/presentation/personal/model/custom_category.dart';
 import 'package:demo_project/presentation/personal/model/debt_entry.dart';
 import 'package:demo_project/presentation/personal/model/ledger_person.dart';
 import 'package:demo_project/presentation/personal/model/personal_transaction.dart';
@@ -61,6 +62,26 @@ class _FakeLedger implements PersonalRepository {
     List<DebtEntry> entries, {
     List<String> personIds = const [],
   }) async {}
+
+  @override
+  Stream<List<CustomCategory>> watchCategories(String ownerPhone) =>
+      Stream<List<CustomCategory>>.value(const []);
+
+  @override
+  Future<String> saveCategory(CustomCategory category) async => category.id;
+
+  @override
+  Future<void> deleteCategory(
+    String id, {
+    required List<PersonalTransaction> entries,
+  }) async {}
+
+  @override
+  Stream<CategoryOrder> watchCategoryOrder(String ownerPhone) =>
+      Stream<CategoryOrder>.value(const CategoryOrder());
+
+  @override
+  Future<void> saveCategoryOrder(String ownerPhone, CategoryOrder order) async {}
 }
 
 /// `yyyy-MM-dd` inside the month [monthsBack] before this one, so the fixtures

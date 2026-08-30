@@ -394,6 +394,30 @@ class AppTranslations extends Translations {
           'enter_an_amount': 'Enter an amount',
           'enter_a_name': 'Enter a name',
           'note_hint': 'What was it for?',
+          // own categories
+          'new_category': 'New category',
+          'edit_category': 'Edit category',
+          'new_category_chip': 'New',
+          'add_category': 'Add category',
+          'category_name': 'Category name',
+          'category_name_hint': 'e.g. Pet care, Gym',
+          'choose_icon': 'Icon',
+          'choose_color': 'Color',
+          'enter_category_name': 'Give the category a name',
+          'category_name_exists': 'A category with this name already exists',
+          'category_added': 'Category added',
+          'category_updated': 'Category updated',
+          'category_deleted': 'Category deleted — its entries moved to "Other"',
+          'delete_category': 'Delete category',
+          'delete_category_message':
+              'Entries under "@name" will move to "Other". The entries themselves stay.',
+          'failed_save_category': 'Could not save the category',
+          'failed_delete_category': 'Could not delete the category',
+          'arrange_categories': 'Arrange',
+          'manage_categories': 'Arrange categories',
+          'drag_to_reorder':
+              'Hold a handle and drag to reorder. Tap one of your own to edit it.',
+          'failed_save_order': 'Could not save the arrangement',
           // dues
           'add_due_entry': 'Add a due',
           'due_entry_hint':
@@ -1238,6 +1262,30 @@ class AppTranslations extends Translations {
           'enter_an_amount': 'টাকার অঙ্ক লিখুন',
           'enter_a_name': 'নাম লিখুন',
           'note_hint': 'কিসের জন্য?',
+          // own categories
+          'new_category': 'নতুন খাত',
+          'edit_category': 'খাত সম্পাদনা',
+          'new_category_chip': 'নতুন',
+          'add_category': 'খাত যোগ করুন',
+          'category_name': 'খাতের নাম',
+          'category_name_hint': 'যেমন: পোষা প্রাণী, জিম',
+          'choose_icon': 'আইকন',
+          'choose_color': 'রং',
+          'enter_category_name': 'খাতের একটি নাম দিন',
+          'category_name_exists': 'এই নামে একটি খাত আগে থেকেই আছে',
+          'category_added': 'খাত যোগ হয়েছে',
+          'category_updated': 'খাত আপডেট হয়েছে',
+          'category_deleted': 'খাত মুছে ফেলা হয়েছে — এর এন্ট্রিগুলো "অন্যান্য"-তে গেছে',
+          'delete_category': 'খাত মুছে ফেলুন',
+          'delete_category_message':
+              '"@name" খাতের এন্ট্রিগুলো "অন্যান্য"-তে চলে যাবে। এন্ট্রিগুলো মুছবে না।',
+          'failed_save_category': 'খাতটি সংরক্ষণ করা যায়নি',
+          'failed_delete_category': 'খাতটি মোছা যায়নি',
+          'arrange_categories': 'সাজান',
+          'manage_categories': 'খাত সাজান',
+          'drag_to_reorder':
+              'হ্যান্ডেল ধরে টেনে পছন্দমতো সাজান। নিজের বানানো খাতে চাপ দিলে সম্পাদনা করা যাবে।',
+          'failed_save_order': 'সাজানোটা সংরক্ষণ করা যায়নি',
           // dues
           'add_due_entry': 'দেনা-পাওনা যোগ করুন',
           'due_entry_hint':

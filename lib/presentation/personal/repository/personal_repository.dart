@@ -1,3 +1,4 @@
+import '../model/custom_category.dart';
 import '../model/debt_entry.dart';
 import '../model/ledger_person.dart';
 import '../model/personal_transaction.dart';
@@ -10,6 +11,27 @@ abstract class PersonalRepository {
   Future<void> saveTransaction(PersonalTransaction transaction);
 
   Future<void> deleteTransaction(String id);
+
+  /// The categories this member made for themselves, beside the fixed list.
+  Stream<List<CustomCategory>> watchCategories(String ownerPhone);
+
+  /// Returns the category's document id — known before the write lands, so
+  /// the sheet that just made one can select it at once, online or off.
+  Future<String> saveCategory(CustomCategory category);
+
+  /// Removes one custom category and refiles [entries] — the transactions
+  /// still pointing at it — each under the fixed "other" bucket of its own
+  /// side, batched so the category is never gone while entries still name it.
+  Future<void> deleteCategory(
+    String id, {
+    required List<PersonalTransaction> entries,
+  });
+
+  /// How this member arranged their picker — the default order until they
+  /// first drag something.
+  Stream<CategoryOrder> watchCategoryOrder(String ownerPhone);
+
+  Future<void> saveCategoryOrder(String ownerPhone, CategoryOrder order);
 
   Stream<List<DebtEntry>> watchDebts(String ownerPhone);
 

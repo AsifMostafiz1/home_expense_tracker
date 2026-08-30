@@ -252,6 +252,9 @@ service cloud.firestore {
     match /house_rule_acks/{phone} { allow read, write: if client(); }
     match /personal_transactions/{id} { allow read, write: if client(); }
     match /personal_debts/{id}    { allow read, write: if client(); }
+    match /personal_people/{id}   { allow read, write: if client(); }
+    match /personal_categories/{id} { allow read, write: if client(); }
+    match /personal_category_order/{phone} { allow read, write: if client(); }
     match /config/{docId}         { allow read, write: if client(); }
   }
 }

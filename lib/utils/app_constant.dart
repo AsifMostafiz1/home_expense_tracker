@@ -98,6 +98,15 @@ class AppConstant {
   /// The people those dues are kept with, saved on their own so an account
   /// can be opened before any money has moved — see `LedgerPerson`.
   static const String collectionPersonalPeople = 'personal_people';
+
+  /// Categories a member added for themselves, beside the fixed list —
+  /// see `CustomCategory`.
+  static const String collectionPersonalCategories = 'personal_categories';
+
+  /// How each member arranged their category picker, one document per phone —
+  /// see `CategoryOrder`.
+  static const String collectionPersonalCategoryOrder =
+      'personal_category_order';
   
   static const double appVersion = 1.1;
 
