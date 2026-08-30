@@ -72,6 +72,8 @@ dependencies:
   # one-off job the OS runs once there is a network, in a headless isolate,
   # that drains Firestore's queue and uploads the waiting receipts.
   workmanager: ^0.10.5
+  pdf: ^3.12.0
+  printing: ^5.14.3
 
 dev_dependencies:
   flutter_test:

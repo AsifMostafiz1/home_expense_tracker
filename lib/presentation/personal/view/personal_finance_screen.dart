@@ -19,6 +19,7 @@ import '../widgets/money_trend_chart.dart';
 import '../widgets/personal_skeletons.dart';
 import '../widgets/transaction_sheet.dart';
 import 'person_ledger_screen.dart';
+import 'personal_report_screen.dart';
 import 'wallet_breakdown_screen.dart';
 
 /// A member's own books, kept apart from everything the house shares.
@@ -320,9 +321,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           ),
         const PopupMenuDivider(height: 1),
         _dayFilterItem(context, c,
-            value: _DayFilter.custom,
-            label: 'custom_range'.tr,
-            active: active),
+            value: _DayFilter.custom, label: 'custom_range'.tr, active: active),
       ],
       child: Container(
         padding: EdgeInsets.fromLTRB(on ? 10 : 7, 6, 7, 6),
@@ -631,8 +630,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           children: [
             if (icon != null) ...[
               Icon(icon,
-                  size: 13,
-                  color: selected ? accent : AppUi.muted(context)),
+                  size: 13, color: selected ? accent : AppUi.muted(context)),
               const SizedBox(width: 6),
             ],
             Text(
@@ -821,6 +819,24 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   /// Drawn on a gradient like the house expense summary, so a member's two
   /// ledgers open with the same kind of card. Value contrast does the work on
   /// top of it: accent hues would fight the ground, as they do over there.
+  Widget _reportButton(BuildContext context) {
+    return Tooltip(
+      message: 'personal_report'.tr,
+      child: Material(
+        color: Colors.white.withOpacity(0.18),
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Get.to(() => const PersonalReportScreen()),
+          child: const Padding(
+            padding: EdgeInsets.all(7),
+            child: Icon(Icons.summarize_rounded, size: 17, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildWalletHero(BuildContext context, PersonalController c) {
     final Color primary = Theme.of(context).colorScheme.primary;
     final MonthMoney month = c.monthMoney;
@@ -871,7 +887,11 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
               const Icon(Icons.lock_outline_rounded,
                   size: 12, color: Colors.white70),
               const SizedBox(width: 4),
-              Flexible(
+              // Capped rather than flexed: a second flex child would be
+              // dealt half the row's slack and leave it empty at the end,
+              // with the button sitting short of the corner.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 170),
                 child: Text(
                   'private_to_you'.tr,
                   maxLines: 1,
@@ -879,6 +899,11 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                   style: const TextStyle(color: Colors.white70, fontSize: 10.5),
                 ),
               ),
+              const SizedBox(width: 10),
+              // The way to the report, in the corner of the card it reports
+              // on — the wallet is the whole of what the report is about, so
+              // this is where somebody looks for it.
+              _reportButton(context),
             ],
           ),
           const SizedBox(height: 16),
@@ -917,8 +942,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                         color: Colors.white70,
                         padding: EdgeInsets.zero,
                         visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints(
-                            minWidth: 34, minHeight: 34),
+                        constraints:
+                            const BoxConstraints(minWidth: 34, minHeight: 34),
                         splashRadius: 18,
                         tooltip: 'how_it_adds_up'.tr,
                       ),
@@ -1067,7 +1092,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     PersonalTransaction entry,
   ) {
     final PersonalCategory category = PersonalCategory.of(entry.category);
-    final MaterialColor tone = entry.isIncome ? Colors.green : Colors.deepOrange;
+    final MaterialColor tone =
+        entry.isIncome ? Colors.green : Colors.deepOrange;
     // Paid for the house: shown here because the money was this member's, but
     // the entry belongs to the house screen and is only changed there.
     final bool fromHouse = entry.isFromHouse;
@@ -1173,7 +1199,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                   icon: Icon(Icons.lock_outline_rounded,
                       size: 18, color: AppUi.muted(context)),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  constraints:
+                      const BoxConstraints(minWidth: 40, minHeight: 40),
                   splashRadius: 18,
                   tooltip: 'from_house_expense'.tr,
                   onPressed: _explainHouseEntry,
@@ -1193,7 +1220,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     PersonalTransaction entry,
   ) {
     return PopupMenuButton<String>(
-      icon: Icon(Icons.more_vert_rounded, size: 18, color: AppUi.muted(context)),
+      icon:
+          Icon(Icons.more_vert_rounded, size: 18, color: AppUi.muted(context)),
       padding: EdgeInsets.zero,
       splashRadius: 18,
       tooltip: 'options'.tr,
@@ -1447,8 +1475,8 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                           : '$label · ${AppUi.dayLabel(person.lastActivity!)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          TextStyle(fontSize: 11.5, color: AppUi.muted(context)),
+                      style: TextStyle(
+                          fontSize: 11.5, color: AppUi.muted(context)),
                     ),
                   ],
                 ),

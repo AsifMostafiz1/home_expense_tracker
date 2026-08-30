@@ -362,6 +362,19 @@ class PersonalController extends GetxController implements GetxService {
     });
   }
 
+  /// The first day anything was recorded — where "all time" begins. Null
+  /// on an empty ledger.
+  DateTime? get earliestEntry {
+    if (transactions.isEmpty) return null;
+    // The list is newest first, so the oldest is at the end — but read
+    // rather than assumed, in case something ever hands it over otherwise.
+    String earliest = transactions.first.date;
+    for (final PersonalTransaction entry in transactions) {
+      if (entry.date.compareTo(earliest) < 0) earliest = entry.date;
+    }
+    return DateTime.tryParse(earliest);
+  }
+
   MonthMoney get monthMoney => MonthMoney.of(selectedMonth, transactions);
 
   /// What the member is worth as the month on screen closes — every month
@@ -402,8 +415,9 @@ class PersonalController extends GetxController implements GetxService {
     final Map<String, double> totals = {};
     for (final PersonalTransaction entry in monthTransactions) {
       if (entry.isIncome != income) continue;
-      final String key =
-          entry.category.isEmpty ? PersonalCategory.unknown.key : entry.category;
+      final String key = entry.category.isEmpty
+          ? PersonalCategory.unknown.key
+          : entry.category;
       totals[key] = (totals[key] ?? 0) + entry.amount;
     }
 
@@ -793,8 +807,10 @@ class PersonalController extends GetxController implements GetxService {
 
   /// Names already in the ledger — the editor offers them so a second entry
   /// for the same person does not start a second account.
-  List<String> get knownPeople =>
-      people.map((person) => person.name).where((name) => name.isNotEmpty).toList();
+  List<String> get knownPeople => people
+      .map((person) => person.name)
+      .where((name) => name.isNotEmpty)
+      .toList();
 
   /// The keys already on the dues list, for anything offering people to add:
   /// somebody who is on it once should not be offered as new.
