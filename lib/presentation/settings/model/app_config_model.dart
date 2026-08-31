@@ -23,6 +23,11 @@ class AppConfigModel {
   /// because the job that reads this runs with no one around to correct it.
   final String reminderTime;
 
+  /// The master switch over every notification the app sends. True unless an
+  /// admin has switched the whole system off — and true for a document that
+  /// has never held the field, so an existing house keeps its notifications.
+  final bool notificationsEnabled;
+
   /// Six in the evening — after the day's meals are known and before anyone
   /// has gone to bed.
   static const String defaultReminderTime = '18:00';
@@ -34,6 +39,7 @@ class AppConfigModel {
     this.updatedAt,
     this.reminderEnabled = false,
     this.reminderTime = defaultReminderTime,
+    this.notificationsEnabled = true,
   });
 
   double get versionValue => versionOf(appVersion);
@@ -96,6 +102,9 @@ class AppConfigModel {
       updatedAt: _readDate(map['updatedAt']),
       reminderEnabled: map[AppConstant.fieldReminderEnabled] == true,
       reminderTime: normalizeTime(map[AppConstant.fieldReminderTime]),
+      // `!= false` rather than `== true`: a missing field means the switch
+      // has never been touched, and notifications stay on.
+      notificationsEnabled: map[AppConstant.fieldNotificationsEnabled] != false,
     );
   }
 
@@ -105,6 +114,7 @@ class AppConfigModel {
     String? updatedBy,
     bool? reminderEnabled,
     String? reminderTime,
+    bool? notificationsEnabled,
   }) {
     return AppConfigModel(
       appVersion: appVersion ?? this.appVersion,
@@ -113,6 +123,7 @@ class AppConfigModel {
       updatedAt: updatedAt,
       reminderEnabled: reminderEnabled ?? this.reminderEnabled,
       reminderTime: reminderTime ?? this.reminderTime,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
     );
   }
 
@@ -135,11 +146,18 @@ class AppConfigModel {
         AppConstant.fieldReminderTime: reminderTime,
       };
 
+  /// The master switch alone, for the same reason [toReminderMap] exists:
+  /// flipping it must not touch the version gate or the reminder schedule.
+  Map<String, dynamic> toGateMap() => {
+        AppConstant.fieldNotificationsEnabled: notificationsEnabled,
+      };
+
   /// The whole document, in a form `jsonEncode` accepts — what the splash
   /// screen falls back to when the read fails.
   Map<String, dynamic> toCacheJson() => {
         ...toMap(),
         ...toReminderMap(),
+        ...toGateMap(),
         'updated_by': updatedBy,
         'updatedAt': updatedAt?.toIso8601String(),
       };

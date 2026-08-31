@@ -55,6 +55,11 @@ class ProfileHeader extends StatelessWidget {
   final String mealPaid;
   final String otherPaid;
 
+  /// Whether the three running figures are shown at all. False for a general
+  /// user, whose account has no meals or house spending to count — the header
+  /// closes down to the identity alone, and every measurement below follows.
+  final bool showStats;
+
   const ProfileHeader({
     super.key,
     required this.offset,
@@ -66,6 +71,7 @@ class ProfileHeader extends StatelessWidget {
     required this.mealCount,
     required this.mealPaid,
     required this.otherPaid,
+    this.showStats = true,
   });
 
   static const double hPad = 20;
@@ -154,30 +160,36 @@ class ProfileHeader extends StatelessWidget {
   /// bar has to give up as it collapses.
   ///
   /// Derived from the same figures the layout uses, so the two cannot drift
-  /// apart and leave the stat cards clipped against the bar's edge.
-  static double heightFor(double textScale) {
+  /// apart and leave the stat cards clipped against the bar's edge. Without
+  /// the stats the header ends where the identity does.
+  static double heightFor(double textScale, {bool withStats = true}) {
     final double s = _clampScale(textScale);
+    if (!withStats) {
+      return _gapTop + _avatarOpen + _gapAvatarName + _nameBlock(s) + gapBelow;
+    }
     return _statsTop(s) + _statsHeight(s) + gapBelow;
   }
 
   /// What the bar keeps below the toolbar once it has closed — the strip of
-  /// figures and the air around it.
-  static double collapsedFor(double textScale) {
+  /// figures and the air around it, or nothing when there are no figures.
+  static double collapsedFor(double textScale, {bool withStats = true}) {
+    if (!withStats) return 0;
     final double s = _clampScale(textScale);
     return _stripGapAbove + _stripHeight(s) + _stripGapBelow;
   }
 
   /// The scroll the header answers to: what it gives up between open and
   /// closed. Past it the page scrolls on and the bar stays as it is.
-  static double travelFor(double textScale) =>
-      heightFor(textScale) - collapsedFor(textScale);
+  static double travelFor(double textScale, {bool withStats = true}) =>
+      heightFor(textScale, withStats: withStats) -
+      collapsedFor(textScale, withStats: withStats);
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final double s =
         _clampScale(MediaQuery.textScalerOf(context).scale(100) / 100);
-    final double travel = travelFor(s);
+    final double travel = travelFor(s, withStats: showStats);
     final double dock = dockDistance(s);
     final double scrolled = offset.clamp(0.0, travel);
 
@@ -241,23 +253,26 @@ class ProfileHeader extends StatelessWidget {
                 // Up behind the identity and no further: the strip comes to
                 // rest just under the toolbar and stays there for the whole of
                 // the page.
-                Positioned(
-                  left: hPad,
-                  right: hPad,
-                  top: lerpDouble(
-                      blockTop + _statsTop(s), blockTop + _stripGapAbove, q)!,
-                  child: Row(
-                    children: [
-                      _statCard(theme, q, title: 'meal'.tr, value: mealCount),
-                      SizedBox(width: lerpDouble(_statGap, _statGapDocked, q)),
-                      _statCard(theme, q,
-                          title: 'meal_paid'.tr, value: mealPaid),
-                      SizedBox(width: lerpDouble(_statGap, _statGapDocked, q)),
-                      _statCard(theme, q,
-                          title: 'other_paid'.tr, value: otherPaid),
-                    ],
+                if (showStats)
+                  Positioned(
+                    left: hPad,
+                    right: hPad,
+                    top: lerpDouble(
+                        blockTop + _statsTop(s), blockTop + _stripGapAbove, q)!,
+                    child: Row(
+                      children: [
+                        _statCard(theme, q, title: 'meal'.tr, value: mealCount),
+                        SizedBox(
+                            width: lerpDouble(_statGap, _statGapDocked, q)),
+                        _statCard(theme, q,
+                            title: 'meal_paid'.tr, value: mealPaid),
+                        SizedBox(
+                            width: lerpDouble(_statGap, _statGapDocked, q)),
+                        _statCard(theme, q,
+                            title: 'other_paid'.tr, value: otherPaid),
+                      ],
+                    ),
                   ),
-                ),
 
                 Positioned(
                   left: hPad,

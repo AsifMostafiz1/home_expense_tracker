@@ -12,7 +12,18 @@ class AppConstant {
   static const String keySavedPhone = 'savedPhone';
   static const String keySavedPassword = 'savedPassword';
   static const String keyIsAdmin = 'isAdmin';
+
+  /// 'meal' or 'general' — which side of the app this account gets. Mirrored
+  /// from the user document by the splash on every launch, the same way the
+  /// admin flag is, so an admin's change lands at the member's next launch.
+  static const String keyUserType = 'userType';
   static const String keyDismissedAnnouncementId = 'dismissedAnnouncementId';
+
+  /// The values [keyUserType] — and the `userType` field on a user document —
+  /// can hold. A document without the field is a meal user, so every account
+  /// that existed before the field did keeps the access it always had.
+  static const String userTypeMeal = 'meal';
+  static const String userTypeGeneral = 'general';
 
   /// Set once the OS notification prompt has been shown at least once, so a
   /// later refusal can be told apart from a first launch.
@@ -129,6 +140,14 @@ class AppConstant {
   /// `HH:mm`, 24-hour, in each device's own local time — see
   /// `DailyReminderService`.
   static const String fieldReminderTime = 'daily_reminder_time';
+
+  /// The house's master notification switch, on the same
+  /// `config/business_config` document. False silences every notification
+  /// the app sends — chat, announcements, bills, the evening reminder, all
+  /// of it. A document without the field reads as true, so nothing changes
+  /// for a house that has never touched the switch. Checked at send time by
+  /// `PushNotificationService` and at the hour by `DailyReminderService`.
+  static const String fieldNotificationsEnabled = 'notifications_enabled';
 
   /// The reminder settings as this device last saw them, as JSON. The headless
   /// job that raises the reminder falls back to it when Firestore cannot be

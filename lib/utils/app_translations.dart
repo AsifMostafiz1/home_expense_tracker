@@ -261,6 +261,34 @@ class AppTranslations extends Translations {
           'admin_granted_body': '@name gave you admin access to this house.',
           'admin_revoked_title': 'Admin access removed',
           'admin_revoked_body': '@name removed your admin access.',
+          'nav_report': 'Report',
+          'member_type': 'Member type',
+          'meal_user': 'Meal',
+          'general_user': 'General',
+          'general_badge': 'General',
+          'meal_user_hint':
+              'Full access — meals, shared expenses, bills and the group chat.',
+          'general_user_hint':
+              'Personal wallet only — no meals, shared expenses or group chat.',
+          'make_general_user': 'Make general member',
+          'make_meal_user': 'Make meal member',
+          'confirm_make_general':
+              'Limit @name to their personal wallet only?',
+          'confirm_make_meal':
+              'Give @name full access to meals and shared expenses?',
+          'general_user_note':
+              'Meals and expenses they already recorded stay in their months, so no shared total changes. Their app switches at their next launch.',
+          'meal_user_note':
+              'They will be part of the meal counts, shared expenses and monthly bills from now on. Their app switches at their next launch.',
+          'general_user_set': '@name is now a general member',
+          'meal_user_set': '@name is now a meal member',
+          'failed_update_member_type': 'Failed to update member type',
+          'general_user_set_title': 'Your account was changed',
+          'general_user_set_body':
+              '@name set your account to personal wallet only. It applies the next time you open the app.',
+          'meal_user_set_title': 'You are now a meal member',
+          'meal_user_set_body':
+              '@name gave you full access to the house — meals, expenses and the group chat. It applies the next time you open the app.',
           'role_takes_effect_hint': 'Changes apply on their device the next time they open the app.',
           // ---------------------------------------------------- house bills
           // ---------------------------------------------------- app settings
@@ -298,6 +326,23 @@ class AppTranslations extends Translations {
           'no_changes_to_save': 'Nothing has changed yet',
           // -------------------------------------------- daily meal reminder
           'daily_meal_reminder': 'Daily meal reminder',
+          'master_notifications': 'Send notifications',
+          'master_notifications_hint':
+              'The master switch for everything the app sends — chat, announcements, bills, reminders, all of it.',
+          'master_notifications_off_note':
+              'Notifications are switched off. Nothing will be sent to anyone until this is turned back on.',
+          'turn_off_notifications': 'Turn off all notifications?',
+          'confirm_notifications_off':
+              'No notification of any kind will be sent to anyone in the house.',
+          'notifications_off_note':
+              'Chat messages, announcements and bills will still be saved as usual — only the notifications about them stop. Turn the switch back on any time.',
+          'turn_off': 'Turn off',
+          'notifications_turned_on': 'Notifications are on again',
+          'notifications_turned_off': 'All notifications are now off',
+          'failed_update_notifications':
+              'Could not update the notification switch',
+          'update_saved_notifications_off':
+              'Version saved, but notifications are off — members will meet the update screen at their next launch instead of being notified.',
           'reminder_schedule': 'Reminder schedule',
           'reminder_on': 'On',
           'reminder_off': 'Off',
@@ -1199,6 +1244,34 @@ class AppTranslations extends Translations {
           'admin_granted_body': '@name আপনাকে এই বাসার অ্যাডমিন অ্যাক্সেস দিয়েছেন।',
           'admin_revoked_title': 'অ্যাডমিন অ্যাক্সেস সরানো হয়েছে',
           'admin_revoked_body': '@name আপনার অ্যাডমিন অ্যাক্সেস সরিয়ে দিয়েছেন।',
+          'nav_report': 'রিপোর্ট',
+          'member_type': 'সদস্যের ধরন',
+          'meal_user': 'মিল',
+          'general_user': 'জেনারেল',
+          'general_badge': 'জেনারেল',
+          'meal_user_hint':
+              'সম্পূর্ণ অ্যাক্সেস — মিল, শেয়ার করা খরচ, বিল ও গ্রুপ চ্যাট।',
+          'general_user_hint':
+              'শুধু ব্যক্তিগত ওয়ালেট — মিল, শেয়ার করা খরচ বা গ্রুপ চ্যাট নেই।',
+          'make_general_user': 'জেনারেল সদস্য করুন',
+          'make_meal_user': 'মিল সদস্য করুন',
+          'confirm_make_general':
+              '@name কে শুধু ব্যক্তিগত ওয়ালেটে সীমাবদ্ধ করবেন?',
+          'confirm_make_meal':
+              '@name কে মিল ও শেয়ার করা খরচের সম্পূর্ণ অ্যাক্সেস দেবেন?',
+          'general_user_note':
+              'তাদের আগে লেখা মিল ও খরচ নিজ নিজ মাসে থেকে যাবে, তাই কোনো শেয়ার করা হিসাব বদলাবে না। পরেরবার অ্যাপ খুললে তাদের অ্যাপ বদলে যাবে।',
+          'meal_user_note':
+              'এখন থেকে তারা মিলের হিসাব, শেয়ার করা খরচ ও মাসিক বিলের অংশ হবে। পরেরবার অ্যাপ খুললে তাদের অ্যাপ বদলে যাবে।',
+          'general_user_set': '@name এখন একজন জেনারেল সদস্য',
+          'meal_user_set': '@name এখন একজন মিল সদস্য',
+          'failed_update_member_type': 'সদস্যের ধরন আপডেট করা যায়নি',
+          'general_user_set_title': 'আপনার অ্যাকাউন্ট পরিবর্তন হয়েছে',
+          'general_user_set_body':
+              '@name আপনার অ্যাকাউন্ট শুধু ব্যক্তিগত ওয়ালেটে সীমাবদ্ধ করেছেন। পরেরবার অ্যাপ খুললে এটি কার্যকর হবে।',
+          'meal_user_set_title': 'আপনি এখন একজন মিল সদস্য',
+          'meal_user_set_body':
+              '@name আপনাকে বাসার সম্পূর্ণ অ্যাক্সেস দিয়েছেন — মিল, খরচ ও গ্রুপ চ্যাট। পরেরবার অ্যাপ খুললে এটি কার্যকর হবে।',
           'role_takes_effect_hint': 'সদস্যের ডিভাইসে পরিবর্তনটি পরেরবার অ্যাপ খুললে কার্যকর হবে।',
           // ---------------------------------------------------- house bills
           // ---------------------------------------------------- app settings
@@ -1236,6 +1309,22 @@ class AppTranslations extends Translations {
           'no_changes_to_save': 'এখনো কিছু পরিবর্তন হয়নি',
           // -------------------------------------------- daily meal reminder
           'daily_meal_reminder': 'দৈনিক মিল রিমাইন্ডার',
+          'master_notifications': 'নোটিফিকেশন পাঠানো',
+          'master_notifications_hint':
+              'অ্যাপ যা কিছু পাঠায় তার মূল সুইচ — চ্যাট, ঘোষণা, বিল, রিমাইন্ডার, সব।',
+          'master_notifications_off_note':
+              'নোটিফিকেশন বন্ধ আছে। এটি আবার চালু না করা পর্যন্ত কাউকে কিছুই পাঠানো হবে না।',
+          'turn_off_notifications': 'সব নোটিফিকেশন বন্ধ করবেন?',
+          'confirm_notifications_off':
+              'বাসার কাউকে কোনো ধরনের নোটিফিকেশন পাঠানো হবে না।',
+          'notifications_off_note':
+              'চ্যাট, ঘোষণা ও বিল আগের মতোই সংরক্ষিত হবে — শুধু সেগুলোর নোটিফিকেশন বন্ধ থাকবে। যেকোনো সময় সুইচটি আবার চালু করতে পারবেন।',
+          'turn_off': 'বন্ধ করুন',
+          'notifications_turned_on': 'নোটিফিকেশন আবার চালু হয়েছে',
+          'notifications_turned_off': 'সব নোটিফিকেশন এখন বন্ধ',
+          'failed_update_notifications': 'নোটিফিকেশন সুইচ আপডেট করা যায়নি',
+          'update_saved_notifications_off':
+              'ভার্সন সংরক্ষিত হয়েছে, কিন্তু নোটিফিকেশন বন্ধ — সদস্যরা নোটিফিকেশনের বদলে পরেরবার অ্যাপ খুললে আপডেট স্ক্রিন দেখবে।',
           'reminder_schedule': 'রিমাইন্ডারের সময়',
           'reminder_on': 'চালু',
           'reminder_off': 'বন্ধ',

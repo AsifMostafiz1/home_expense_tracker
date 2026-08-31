@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -226,7 +227,7 @@ class PushNotificationService {
     // is never, and the app would sit on the native splash for as long as it
     // stayed offline. The SDK persists the request and retries by itself, so
     // nothing is lost by moving on.
-    subscribeToGroupTopic();
+    syncBroadcastSubscription();
 
     // Subscribe to personal topic based on phone number
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -250,6 +251,32 @@ class PushNotificationService {
     }
   }
 
+  /// Joins or leaves the broadcast topic to match the account's type.
+  ///
+  /// Everything sent to the whole house — group messages, announcements,
+  /// meals, expenses — goes out on this one topic, so leaving it is what
+  /// keeps a general user's phone quiet about a house life they are not part
+  /// of. Their personal topic stays: direct messages and role changes are
+  /// still theirs. Called at app start, after sign-in, and by the splash once
+  /// it has re-read the account, so an admin's change lands with the role.
+  Future<void> syncBroadcastSubscription() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final bool general = prefs.getString(AppConstant.keyUserType) ==
+          AppConstant.userTypeGeneral;
+
+      if (general) {
+        await _fcm.unsubscribeFromTopic('group_chat');
+        print('FCM: General user — left the group_chat topic');
+      } else {
+        await _fcm.subscribeToTopic('group_chat');
+        print('FCM: Successfully subscribed to group_chat topic');
+      }
+    } catch (e) {
+      print('FCM: Error syncing group_chat topic: $e');
+    }
+  }
+
   Future<void> subscribeToUserTopic(String phone) async {
     if (phone.isEmpty) return;
     try {
@@ -259,6 +286,75 @@ class PushNotificationService {
     } catch (e) {
       print('FCM: Error subscribing to personal topic: $e');
     }
+  }
+
+  /// ------------------------------------------------ master notification gate
+
+  /// The last answer the master switch gave, and when — see
+  /// [_notificationsAllowed]. Statics rather than fields: the service is
+  /// constructed freshly in several places, and every copy must share one
+  /// answer.
+  static bool? _gateOpen;
+  static DateTime? _gateReadAt;
+
+  /// How long one answer stands before the document is asked again. Long
+  /// enough that a burst of chat messages costs one read, short enough that
+  /// an admin flipping the switch reaches every other device's sends within
+  /// about a minute.
+  static const Duration _gateTtl = Duration(seconds: 45);
+
+  /// Applies a just-saved answer at once, so the admin who flipped the switch
+  /// is not sending against their own stale cache for another TTL.
+  static void primeGate(bool allowed) {
+    _gateOpen = allowed;
+    _gateReadAt = DateTime.now();
+  }
+
+  /// Whether the house's master notification switch is on.
+  ///
+  /// Asked of `config/business_config` itself rather than of a copy pushed
+  /// around: a silenced house must stay silent even on a device that missed
+  /// every announcement of the fact. Firestore answers from its own offline
+  /// cache when the network is down; failing even that, the launch-cached
+  /// config stands in; failing everything, the switch reads as on — a lost
+  /// notification is a smaller failure than a house that went quiet because
+  /// one read timed out.
+  static Future<bool> _notificationsAllowed() async {
+    final DateTime now = DateTime.now();
+    if (_gateOpen != null &&
+        _gateReadAt != null &&
+        now.difference(_gateReadAt!) < _gateTtl) {
+      return _gateOpen!;
+    }
+
+    bool allowed = true;
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> doc =
+          await FirebaseFirestore.instance
+              .collection(AppConstant.collectionConfig)
+              .doc(AppConstant.docBusinessConfig)
+              .get()
+              .timeout(const Duration(seconds: 6));
+      allowed = doc.data()?[AppConstant.fieldNotificationsEnabled] != false;
+    } catch (e) {
+      print('FCM: master switch read failed ($e) — using cached config');
+      try {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final String? raw = prefs.getString(AppConstant.keyCachedAppConfig);
+        if (raw != null && raw.isNotEmpty) {
+          final dynamic cached = jsonDecode(raw);
+          if (cached is Map) {
+            allowed = cached[AppConstant.fieldNotificationsEnabled] != false;
+          }
+        }
+      } catch (_) {
+        // Both reads failed; the default above keeps notifications flowing.
+      }
+    }
+
+    _gateOpen = allowed;
+    _gateReadAt = now;
+    return allowed;
   }
 
   /// Returns true when every topic accepted the message. False covers both
@@ -281,6 +377,19 @@ class PushNotificationService {
     bool dataOnly = false,
   }) async {
     try {
+      // The house's master switch, checked at the one door every push in the
+      // app leaves through. Silenced means *pretend delivered*: returning
+      // false here would put the message into the outbox's retry loop and
+      // jam everything queued behind it, when the whole point is that it
+      // must not go out. The reminder_config payload is exempt — it shows
+      // nobody anything, it only carries the admin's reminder settings to
+      // the other devices, and blocking it would quietly desynchronise them.
+      if (data?['type'] != 'reminder_config' &&
+          !await _notificationsAllowed()) {
+        print('FCM: master notification switch is off — dropped "$title"');
+        return true;
+      }
+
       final String accessToken = await FcmV1Service().getAccessToken();
       if (accessToken.isEmpty) {
         print('Notification Error: Failed to get access token');

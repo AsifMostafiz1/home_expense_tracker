@@ -8,8 +8,10 @@ import '../../../common/widgets/custom_snackbar.dart';
 import '../../../services/daily_reminder_service.dart';
 import '../../../services/notification_permission_service.dart';
 import '../../../services/notification_router.dart';
+import '../../../services/push_notification_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
+import '../../../utils/user_session.dart';
 import '../../dashboard/view/dashboard_screen.dart';
 import '../../auth/view/sign_in_screen.dart';
 import '../../settings/model/app_config_model.dart';
@@ -124,6 +126,17 @@ class SplashController extends GetxController {
       _stampInstalledVersion(prefs, account);
     }
 
+    // The dashboard reads the type synchronously to decide its tabs, so it is
+    // loaded before the route change. An offline launch — [account] null —
+    // falls back to whatever this device last saw.
+    await UserSession.load();
+
+    // The broadcast topic carries every house-wide push; a general user does
+    // not take part in any of it. Re-decided here so an admin's change lands
+    // on the same launch the new role does. Not awaited — FCM confirms topic
+    // changes against the server, and the home screen must not wait on that.
+    unawaited(PushNotificationService().syncBroadcastSubscription());
+
     Get.offAll(() => const DashboardScreen());
 
     // A notification that started this launch has been waiting since main():
@@ -165,6 +178,12 @@ class SplashController extends GetxController {
   ) async {
     await prefs.setString(
         AppConstant.keyIsAdmin, (account['isAdmin'] ?? '0').toString());
+    await prefs.setString(
+      AppConstant.keyUserType,
+      account['userType'] == AppConstant.userTypeGeneral
+          ? AppConstant.userTypeGeneral
+          : AppConstant.userTypeMeal,
+    );
 
     final String name = (account['name'] ?? '').toString();
     if (name.isNotEmpty) {
@@ -208,6 +227,8 @@ class SplashController extends GetxController {
     await prefs.remove(AppConstant.keyUserName);
     await prefs.remove(AppConstant.keyUserProfileImage);
     await prefs.remove(AppConstant.keyIsAdmin);
+    await prefs.remove(AppConstant.keyUserType);
+    UserSession.reset();
     await prefs.remove(AppConstant.keySavedPhone);
     await prefs.remove(AppConstant.keySavedPassword);
   }

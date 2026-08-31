@@ -17,6 +17,7 @@ import '../presentation/monthly_stats/controller/monthly_stats_controller.dart';
 import '../presentation/monthly_stats/view/monthly_stats_screen.dart';
 import '../presentation/splash/view/splash_screen.dart';
 import '../utils/app_constant.dart';
+import '../utils/user_session.dart';
 import 'home_refresh.dart';
 
 /// Where a tapped notification lands.
@@ -192,6 +193,25 @@ class NotificationRouter {
     // outlived the session it belonged to.
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool(AppConstant.keyIsLoggedIn) ?? false)) return;
+
+    // A general user's home has none of the house destinations: their first
+    // tabs are their own money, the group thread is not on their chat list,
+    // and the bills and rules are not theirs. A stray house notification —
+    // one sent before the topic change landed, or one that outlived a role
+    // change — opens the app where it stands rather than a screen that no
+    // longer belongs to them. Their own destinations fall through untouched.
+    if (UserSession.isGeneral) {
+      switch (destination) {
+        case NotificationDestination.meals:
+        case NotificationDestination.expenses:
+        case NotificationDestination.groupThread:
+        case NotificationDestination.houseRules:
+        case NotificationDestination.monthlyBill:
+          return;
+        default:
+          break;
+      }
+    }
 
     await _openTab(destination.tab);
 

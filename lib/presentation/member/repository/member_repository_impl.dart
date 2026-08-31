@@ -33,6 +33,19 @@ class MemberRepositoryImpl implements MemberRepository {
   }
 
   @override
+  Future<void> setUserType(
+      String phone, String userType, String changedBy) async {
+    await FirebaseFirestore.instance
+        .collection(AppConstant.collectionUsers)
+        .doc(phone)
+        .set({
+      'userType': userType,
+      'type_changed_by': changedBy,
+      'type_changed_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  @override
   Future<void> removeMember(String phone, String removedBy) async {
     await FirebaseFirestore.instance
         .collection(AppConstant.collectionUsers)

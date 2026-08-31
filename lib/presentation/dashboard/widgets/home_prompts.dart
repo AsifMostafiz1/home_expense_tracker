@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../../../utils/user_session.dart';
 import '../../house_rules/widgets/house_rules_gate.dart';
 import '../../meal/widgets/bulk_meal_prompt_sheet.dart';
 import '../../profile/widgets/profile_photo_prompt_sheet.dart';
@@ -40,7 +41,12 @@ class HomePrompts {
 
       final bool onHome = isHomeOnTop?.call() ?? true;
 
-      final BulkMealPromptResult meals = onHome
+      // A general user has no meals to set up and no house rules to agree
+      // to — both asks belong to the house life their account is not part
+      // of. Only the photo nicety survives for them.
+      final bool general = UserSession.isGeneral;
+
+      final BulkMealPromptResult meals = onHome && !general
           ? await BulkMealPrompt.maybeShow()
           : BulkMealPromptResult.notNeeded;
 
@@ -53,8 +59,10 @@ class HomePrompts {
       // reader has ended up: agreeing to the rules is not something a member
       // gets to put off by waving a sheet away — or by having tapped a
       // notification on the way in.
-      final HouseRulesGateResult rules = await HouseRulesGate.maybeShow();
-      if (rules == HouseRulesGateResult.shown) return;
+      if (!general) {
+        final HouseRulesGateResult rules = await HouseRulesGate.maybeShow();
+        if (rules == HouseRulesGateResult.shown) return;
+      }
 
       if (!onHome) return;
       if (meals == BulkMealPromptResult.dismissed) return;
@@ -75,6 +83,7 @@ class HomePrompts {
     try {
       if (Get.context == null) return;
       if (_overlayBusy) return;
+      if (UserSession.isGeneral) return;
       await HouseRulesGate.maybeShow();
     } finally {
       _running = false;

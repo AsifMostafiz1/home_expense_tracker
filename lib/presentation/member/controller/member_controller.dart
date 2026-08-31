@@ -21,6 +21,7 @@ class MemberController extends GetxController implements GetxService {
   bool isLoading = true;
   bool isRemoving = false;
   bool isUpdatingRole = false;
+  bool isUpdatingType = false;
   String errorMessage = '';
 
   /// Who is looking at the screen — drives the "You" badge and decides
@@ -144,6 +145,78 @@ class MemberController extends GetxController implements GetxService {
       );
     } finally {
       isUpdatingRole = false;
+      update();
+    }
+  }
+
+  /// Switches a member between the two sides of the app.
+  ///
+  /// A meal member has everything; a general member gets the personal wallet
+  /// alone. Nothing already recorded is touched — the months they took part
+  /// in keep their meals and expenses, so no shared total moves — and their
+  /// own device follows at its next launch, the way a role change does.
+  Future<void> setUserType(MemberModel member, bool makeGeneral) async {
+    if (!canManageRole(member)) return;
+
+    final String userType = makeGeneral
+        ? AppConstant.userTypeGeneral
+        : AppConstant.userTypeMeal;
+    if (member.userType == userType) return;
+
+    isUpdatingType = true;
+    update();
+
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String adminName =
+          prefs.getString(AppConstant.keyUserName) ?? 'unknown'.tr;
+      final String adminPhone =
+          prefs.getString(AppConstant.keyUserPhone) ?? '';
+
+      await repository.setUserType(member.phone, userType, adminName);
+
+      await FirebaseFirestore.instance
+          .collection(AppConstant.collectionEditLogs)
+          .add({
+        'adminName': adminName,
+        'adminPhone': adminPhone,
+        'targetUserName': member.name,
+        'targetUserPhone': member.phone,
+        'type': 'role',
+        'description': makeGeneral
+            ? '"${member.name}" (${member.phone}) was set as a general member — personal wallet only'
+            : '"${member.name}" (${member.phone}) was set as a meal member — full access',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await PushNotificationService().sendPushNotification(
+        title: makeGeneral
+            ? 'general_user_set_title'.tr
+            : 'meal_user_set_title'.tr,
+        body: (makeGeneral ? 'general_user_set_body' : 'meal_user_set_body')
+            .trParams({'name': adminName}),
+        targetPhones: [member.phone],
+        // Same landing as a role change: their profile, where the change
+        // shows once the next launch has applied it.
+        data: {
+          'senderName': adminName,
+          'senderPhone': adminPhone,
+          'type': 'role',
+        },
+      );
+
+      CustomSnackbar.show(
+        type: SnackbarType.success,
+        message: (makeGeneral ? 'general_user_set' : 'meal_user_set')
+            .trParams({'name': member.name}),
+      );
+    } catch (e) {
+      CustomSnackbar.show(
+        type: SnackbarType.error,
+        message: 'failed_update_member_type'.tr,
+      );
+    } finally {
+      isUpdatingType = false;
       update();
     }
   }

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../utils/app_ui.dart';
+import '../../../utils/user_session.dart';
 import '../controller/chat_controller.dart';
 import '../controller/chat_list_controller.dart';
 import '../model/chat_message_model.dart';
@@ -100,10 +101,14 @@ class ChatListScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
           // The group is the house's own thread — always there, never filtered
-          // away by a search for a person's name.
+          // away by a search for a person's name. Except for a general user,
+          // whose chat is direct messages alone: no card, and no group
+          // controller ever built behind it.
           if (!searching) ...[
-            _GroupCard(members: c.houseMembers, onTap: c.openGroup),
-            const SizedBox(height: 20),
+            if (!UserSession.isGeneral) ...[
+              _GroupCard(members: c.houseMembers, onTap: c.openGroup),
+              const SizedBox(height: 20),
+            ],
             if (c.onlineMembers.isNotEmpty) ...[
               _SectionLabel(text: 'active_now'.tr),
               const SizedBox(height: 10),

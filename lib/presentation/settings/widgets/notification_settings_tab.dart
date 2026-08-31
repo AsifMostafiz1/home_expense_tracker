@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../../common/widgets/confirm_dialog.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/settings_controller.dart';
 
-/// The reminder half of the settings screen.
+/// The notification half of the settings screen.
 ///
-/// Two decisions, both an admin's: whether the house gets the evening meal
-/// summary at all, and at what hour. Everybody else reads the same two values
-/// greyed out — being told when to expect a notification is not privileged.
+/// The master switch first — whether the system sends anything at all — and
+/// under it the evening meal reminder: whether the house gets it, and at what
+/// hour. Every decision here is an admin's. Everybody else reads the same
+/// values greyed out — being told what to expect is not privileged.
 class NotificationSettingsTab extends StatelessWidget {
   final SettingsController controller;
 
@@ -24,6 +26,8 @@ class NotificationSettingsTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          _masterCard(context, c),
+          const SizedBox(height: 22),
           _statusCard(context, c),
           const SizedBox(height: 22),
           _sectionLabel(context, 'reminder_schedule'.tr),
@@ -45,6 +49,126 @@ class NotificationSettingsTab extends StatelessWidget {
           _footnote(context),
         ],
       ),
+    );
+  }
+
+  /// ------------------------------------------------------------ master card
+
+  /// The switch over the whole system, above everything the tab governs.
+  ///
+  /// Off is loud on purpose: the card turns amber and says out loud that
+  /// nothing is going to anybody, because a house whose notifications died
+  /// silently would go looking for the fault everywhere but here. Turning it
+  /// off asks first; turning it back on is what somebody arriving at a quiet
+  /// card wants, and applies straight away.
+  Widget _masterCard(BuildContext context, SettingsController c) {
+    final bool on = c.notificationsEnabled;
+    final bool editable = c.isAdminUser && !c.isSavingGate;
+    final MaterialColor tone = on ? Colors.green : Colors.orange;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: on ? AppUi.hairline(context) : tone.withOpacity(0.45),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile.adaptive(
+            contentPadding: const EdgeInsets.fromLTRB(16, 8, 10, 8),
+            value: on,
+            onChanged:
+                editable ? (value) => _onMasterToggle(context, c, value) : null,
+            secondary: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppUi.tint(context, tone),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: c.isSavingGate
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      on
+                          ? Icons.notifications_active_rounded
+                          : Icons.notifications_off_rounded,
+                      size: 20,
+                      color: AppUi.accent(context, tone),
+                    ),
+            ),
+            title: Text(
+              'master_notifications'.tr,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppUi.body(context),
+              ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                'master_notifications_hint'.tr,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.4,
+                  color: AppUi.muted(context),
+                ),
+              ),
+            ),
+          ),
+          if (!on) ...[
+            Divider(height: 1, color: AppUi.hairline(context)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      size: 15, color: AppUi.accent(context, Colors.orange)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'master_notifications_off_note'.tr,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.45,
+                        fontWeight: FontWeight.w500,
+                        color: AppUi.accent(context, Colors.orange),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Off is confirmed — it silences the whole house in one tap. On is not:
+  /// restoring the normal state of things needs no ceremony.
+  void _onMasterToggle(BuildContext context, SettingsController c, bool value) {
+    if (value) {
+      c.setNotificationsEnabled(true);
+      return;
+    }
+
+    showConfirmDialog(
+      title: 'turn_off_notifications'.tr,
+      message: 'confirm_notifications_off'.tr,
+      detail: 'notifications_off_note'.tr,
+      confirmText: 'turn_off'.tr,
+      confirmColor: Colors.orange,
+      onConfirm: () => c.setNotificationsEnabled(false),
     );
   }
 

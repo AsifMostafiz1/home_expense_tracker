@@ -39,6 +39,9 @@ class SettingsRepositoryImpl implements SettingsRepository {
     }
   }
 
+  @override
+  Future<void> cacheAppConfig(AppConfigModel config) => _cache(config);
+
   /// Best effort: a cache that fails to write costs nothing now, only a
   /// fallback later.
   Future<void> _cache(AppConfigModel config) async {

@@ -9,6 +9,12 @@ abstract class SettingsRepository {
   /// been one — the splash screen's answer to an offline launch.
   Future<AppConfigModel?> loadCachedAppConfig();
 
+  /// Replaces the device's cached copy with [config], for a save that must
+  /// be honoured by the offline fallbacks without waiting for the next
+  /// [fetchAppConfig] — the master notification switch cannot afford to read
+  /// stale off a cache the flip never touched.
+  Future<void> cacheAppConfig(AppConfigModel config);
+
   Future<void> saveAppConfig(Map<String, dynamic> data, {String by = ''});
 
   /// The phone numbers of everyone whose last-seen build is behind

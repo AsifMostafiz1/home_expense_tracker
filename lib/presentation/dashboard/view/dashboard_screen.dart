@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../common/widgets/confirm_dialog.dart';
+import '../../../utils/user_session.dart';
 import '../../meal/view/meal_screen.dart';
 import '../../expense/view/expense_screen.dart';
 import '../../chat/view/chat_list_screen.dart';
 import '../../personal/view/personal_finance_screen.dart';
+import '../../personal/view/personal_report_screen.dart';
 import '../../profile/view/profile_screen.dart';
 import 'package:get/get.dart';
 import '../../profile/controller/profile_controller.dart';
@@ -41,23 +43,35 @@ class _DashboardScreenState extends State<DashboardScreen>
     with WidgetsBindingObserver {
   late int _selectedIndex;
 
+  /// Whether this home screen was built for a general user. Read once: the
+  /// type only ever changes underneath a session from the server, and half a
+  /// dashboard swapping its tabs mid-use would be worse than waiting for the
+  /// next launch the manage sheet already promises.
+  late final bool _isGeneral;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     DashboardScreen._select = _selectTab;
     _selectedIndex = widget.initialIndex;
+    _isGeneral = UserSession.isGeneral;
     // Pre-load data for other tabs
     Get.find<ProfileController>();
-    // Built here rather than left to the banner's own GetBuilder: whichever
-    // widget first resolves a lazy dependency owns it, and would take it down
-    // with itself on dispose. It also works out this month's figure, which is
-    // what the banner is waiting on.
-    Get.find<MonthlyStatsController>();
-    // Held, not read: the group thread's controller drives the tab badge and
-    // the preview on the chat list, so it has to be listening from launch
-    // rather than from the first time somebody opens the thread.
-    Get.find<ChatController>();
+    if (!_isGeneral) {
+      // Built here rather than left to the banner's own GetBuilder: whichever
+      // widget first resolves a lazy dependency owns it, and would take it
+      // down with itself on dispose. It also works out this month's figure,
+      // which is what the banner is waiting on. A general user has no banner
+      // and no bills, so nothing may resolve the controller for them — its
+      // onInit would start reading the house's months.
+      Get.find<MonthlyStatsController>();
+      // Held, not read: the group thread's controller drives the tab badge
+      // and the preview on the chat list, so it has to be listening from
+      // launch rather than from the first time somebody opens the thread.
+      // A general user has no group thread, so it is never built for them.
+      Get.find<ChatController>();
+    }
     Get.find<ChatListController>();
 
     // Setting up the month's meals, the house rules, then the profile
@@ -130,13 +144,28 @@ class _DashboardScreenState extends State<DashboardScreen>
   /// The chat tab is the list of conversations now, not a thread: the group
   /// and every direct chat open from it as their own routes, and each marks
   /// itself read while it is on screen.
-  static const List<Widget> _screens = <Widget>[
-    MealScreen(),
-    ExpenseScreen(),
-    ChatListScreen(),
-    PersonalFinanceScreen(),
-    ProfileScreen(),
-  ];
+  ///
+  /// A general user gets the personal wallet spread across the same five
+  /// slots: their money where the meals were, their dues where the shared
+  /// expenses were, direct messages, the report where the combined ledger
+  /// was, and the same profile. The chat keeps its slot on purpose — a tapped
+  /// message notification still lands on index 2 whichever kind of user
+  /// tapped it.
+  List<Widget> get _screens => _isGeneral
+      ? const <Widget>[
+          PersonalFinanceScreen(view: LedgerView.money),
+          PersonalFinanceScreen(view: LedgerView.dues),
+          ChatListScreen(),
+          PersonalReportScreen(),
+          ProfileScreen(),
+        ]
+      : const <Widget>[
+          MealScreen(),
+          ExpenseScreen(),
+          ChatListScreen(),
+          PersonalFinanceScreen(),
+          ProfileScreen(),
+        ];
 
   void _onItemTapped(int index) => _selectTab(index);
 
@@ -260,9 +289,13 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildHome(BuildContext context) {
+    final Widget tab = _screens[_selectedIndex];
+
     return Scaffold(
-      // Above every tab's app bar, in the place the offline strip uses.
-      body: DueBanner(child: _screens[_selectedIndex]),
+      // Above every tab's app bar, in the place the offline strip uses. A
+      // general user owes no house bill, so their tabs stand alone — wrapping
+      // them would also build the controller the banner reads from.
+      body: _isGeneral ? tab : DueBanner(child: tab),
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.only(bottom: 12),
@@ -277,32 +310,63 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ],
           ),
-          // Both, because the number on the tab is the group's unread plus
-          // every direct thread's — and the two are counted in different
-          // places.
-          child: GetBuilder<ChatController>(
-            builder: (_) => GetBuilder<ChatListController>(
-              builder: (chatList) {
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildNavItem(Icons.restaurant_outlined, 'meal'.tr, 0),
-                    _buildNavItem(Icons.receipt_long_outlined, 'expense'.tr, 1),
-                    _buildNavItem(
-                      Icons.chat_bubble_outline_rounded,
-                      'chat'.tr,
-                      2,
-                      badgeCount: chatList.totalUnread,
-                    ),
-                    _buildNavItem(Icons.account_balance_wallet_outlined,
-                        'nav_personal'.tr, 3),
-                    _buildNavItem(Icons.person_outline, 'profile'.tr, 4),
-                  ],
-                );
-              },
-            ),
-          ),
+          child: _buildNavRow(),
         ),
+      ),
+    );
+  }
+
+  /// The five destinations for whichever kind of user this is.
+  ///
+  /// Wrapped in the chat controllers' builders because of the badge: a meal
+  /// user's count is the group's unread plus every direct thread's — counted
+  /// in two different places — while a general user has no group thread, so
+  /// only the direct count is asked for and the group controller is left
+  /// unbuilt.
+  Widget _buildNavRow() {
+    if (_isGeneral) {
+      return GetBuilder<ChatListController>(
+        builder: (chatList) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavItem(
+                  Icons.account_balance_wallet_outlined, 'money_tab'.tr, 0),
+              _buildNavItem(Icons.swap_horiz_rounded, 'dues_tab'.tr, 1),
+              _buildNavItem(
+                Icons.chat_bubble_outline_rounded,
+                'chat'.tr,
+                2,
+                badgeCount: chatList.directUnread,
+              ),
+              _buildNavItem(Icons.summarize_outlined, 'nav_report'.tr, 3),
+              _buildNavItem(Icons.person_outline, 'profile'.tr, 4),
+            ],
+          );
+        },
+      );
+    }
+
+    return GetBuilder<ChatController>(
+      builder: (_) => GetBuilder<ChatListController>(
+        builder: (chatList) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavItem(Icons.restaurant_outlined, 'meal'.tr, 0),
+              _buildNavItem(Icons.receipt_long_outlined, 'expense'.tr, 1),
+              _buildNavItem(
+                Icons.chat_bubble_outline_rounded,
+                'chat'.tr,
+                2,
+                badgeCount: chatList.totalUnread,
+              ),
+              _buildNavItem(
+                  Icons.account_balance_wallet_outlined, 'nav_personal'.tr, 3),
+              _buildNavItem(Icons.person_outline, 'profile'.tr, 4),
+            ],
+          );
+        },
       ),
     );
   }

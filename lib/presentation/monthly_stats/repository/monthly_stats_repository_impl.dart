@@ -46,8 +46,11 @@ class MonthlyStatsRepositoryImpl implements MonthlyStatsRepository {
     List<MemberModel> members = snapshot.docs
         .map((doc) => MemberModel.fromMap(doc.data()))
         // Removed accounts stay in Firestore as tombstones; they no longer
-        // share the bills.
-        .where((member) => !member.isRemoved)
+        // share the bills. General users never did: their account is the
+        // personal wallet alone, so this month's split — and every one set
+        // up from now on — leaves them out. Months already saved keep the
+        // roster they were saved with, so nothing anyone owed moves.
+        .where((member) => !member.isRemoved && !member.isGeneralUser)
         .toList();
 
     members.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));

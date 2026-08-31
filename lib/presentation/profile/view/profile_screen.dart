@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../utils/user_session.dart';
 import '../controller/profile_controller.dart';
 import '../../member/view/member_screen.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
@@ -100,11 +101,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  /// A general user's page carries no meal figures and none of the house's
+  /// doors — the identity, their own details, and how the app looks.
+  bool get _isGeneral => UserSession.isGeneral;
+
   @override
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top;
     final double textScale = MediaQuery.textScalerOf(context).scale(100) / 100;
-    _travel = ProfileHeader.travelFor(textScale);
+    final bool withStats = !_isGeneral;
+    _travel = ProfileHeader.travelFor(textScale, withStats: withStats);
     _dock = ProfileHeader.dockDistance(textScale);
 
     return GetBuilder<ProfileController>(
@@ -120,14 +126,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     slivers: [
                       SliverAppBar(
                         pinned: true,
-                        expandedHeight:
-                            kToolbarHeight + ProfileHeader.heightFor(textScale),
+                        expandedHeight: kToolbarHeight +
+                            ProfileHeader.heightFor(textScale,
+                                withStats: withStats),
                         // The bar closes down to the toolbar and the strip of
                         // figures under it, not to the toolbar alone: those
                         // three numbers are what the page is for, and they are
                         // wanted at the bottom of it as much as the top.
                         collapsedHeight: kToolbarHeight +
-                            ProfileHeader.collapsedFor(textScale),
+                            ProfileHeader.collapsedFor(textScale,
+                                withStats: withStats),
                         backgroundColor:
                             Theme.of(context).scaffoldBackgroundColor,
                         // Material would otherwise wash the bar with a tint of
@@ -153,6 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             phone: controller.userPhone,
                             imageUrl: controller.userModel?.profileImage,
                             isAdmin: controller.isAdminUser,
+                            showStats: withStats,
                             mealCount: '${controller.totalMealsEaten}',
                             mealPaid:
                                 '৳${controller.totalMealExpense.toStringAsFixed(0)}',
@@ -167,40 +176,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                         sliver: SliverList.list(
                           children: [
-                            // House Section — open to everyone: what the house pays
-                            // and what each member owes is shared information. Only
-                            // the actions inside are held back to admins.
+                            // House Section — open to every meal user: what the
+                            // house pays and what each member owes is shared
+                            // information. Only the actions inside are held back
+                            // to admins. A general user has no share of any of
+                            // it, so the section is not there at all.
                             //
                             // The member's own ledger used to sit under this in a
                             // section of its own. It has a tab on the home bar now,
                             // and a second door to the same screen one tap deeper
                             // was only ever in the way.
-                            _buildSectionLabel(context, 'HOUSE'.tr),
-                            const SizedBox(height: 12),
-                            Material(
-                              color: Theme.of(context).cardColor,
-                              clipBehavior: Clip.antiAlias,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                side: BorderSide(
-                                    color: Theme.of(context).dividerColor),
+                            if (!_isGeneral) ...[
+                              _buildSectionLabel(context, 'HOUSE'.tr),
+                              const SizedBox(height: 12),
+                              Material(
+                                color: Theme.of(context).cardColor,
+                                clipBehavior: Clip.antiAlias,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(
+                                      color: Theme.of(context).dividerColor),
+                                ),
+                                child: _buildListTile(
+                                  context,
+                                  icon: Icons.insights_rounded,
+                                  title: 'monthly_statistics'.tr,
+                                  subtitle: 'monthly_statistics_subtitle'.tr,
+                                  // The saved months there carry a figure each; the
+                                  // launch only worked out this one — see
+                                  // MonthlyStatsController.ensureHistory.
+                                  onTap: () {
+                                    Get.find<MonthlyStatsController>()
+                                        .ensureHistory();
+                                    Get.to(() => const MonthlyStatsScreen());
+                                  },
+                                ),
                               ),
-                              child: _buildListTile(
-                                context,
-                                icon: Icons.insights_rounded,
-                                title: 'monthly_statistics'.tr,
-                                subtitle: 'monthly_statistics_subtitle'.tr,
-                                // The saved months there carry a figure each; the
-                                // launch only worked out this one — see
-                                // MonthlyStatsController.ensureHistory.
-                                onTap: () {
-                                  Get.find<MonthlyStatsController>()
-                                      .ensureHistory();
-                                  Get.to(() => const MonthlyStatsScreen());
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 24),
+                              const SizedBox(height: 24),
+                            ],
 
                             // Account Section — everything else this member might
                             // want to open, in one list: who else is here, what has
@@ -223,22 +236,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               child: Column(
                                 children: [
-                                  _buildListTile(
-                                    context,
-                                    icon: Icons.group_outlined,
-                                    title: 'registered_members'.tr,
-                                    onTap: () =>
-                                        Get.to(() => const MemberScreen()),
-                                  ),
-                                  _buildDivider(context),
-                                  _buildListTile(
-                                    context,
-                                    icon: Icons.history,
-                                    title: 'edit_history'.tr,
-                                    onTap: () =>
-                                        Get.to(() => const EditHistoryScreen()),
-                                  ),
-                                  _buildDivider(context),
+                                  // The house's doors — the roster, its log, its
+                                  // rules, its settings — belong to the meal
+                                  // side; a general user's account list is their
+                                  // own details and how the app reads.
+                                  if (!_isGeneral) ...[
+                                    _buildListTile(
+                                      context,
+                                      icon: Icons.group_outlined,
+                                      title: 'registered_members'.tr,
+                                      onTap: () =>
+                                          Get.to(() => const MemberScreen()),
+                                    ),
+                                    _buildDivider(context),
+                                    _buildListTile(
+                                      context,
+                                      icon: Icons.history,
+                                      title: 'edit_history'.tr,
+                                      onTap: () => Get.to(
+                                          () => const EditHistoryScreen()),
+                                    ),
+                                    _buildDivider(context),
+                                  ],
                                   _buildListTile(
                                     context,
                                     icon: Icons.person_outline,
@@ -247,26 +266,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         Get.to(() => const EditProfileScreen()),
                                   ),
                                   _buildDivider(context),
-                                  _buildListTile(
-                                    context,
-                                    icon: Icons.gavel_rounded,
-                                    title: 'house_rules'.tr,
-                                    onTap: () =>
-                                        Get.to(() => const HouseRulesScreen()),
-                                  ),
-                                  _buildDivider(context),
-                                  // Everyone gets in: which version the house is
-                                  // meant to run, and when the evening reminder
-                                  // goes out, are both worth seeing. The screen
-                                  // itself hands the forms to admins only.
-                                  _buildListTile(
-                                    context,
-                                    icon: Icons.settings_outlined,
-                                    title: 'settings'.tr,
-                                    onTap: () =>
-                                        Get.to(() => const SettingsScreen()),
-                                  ),
-                                  _buildDivider(context),
+                                  if (!_isGeneral) ...[
+                                    _buildListTile(
+                                      context,
+                                      icon: Icons.gavel_rounded,
+                                      title: 'house_rules'.tr,
+                                      onTap: () =>
+                                          Get.to(() => const HouseRulesScreen()),
+                                    ),
+                                    _buildDivider(context),
+                                    // Everyone gets in: which version the house is
+                                    // meant to run, and when the evening reminder
+                                    // goes out, are both worth seeing. The screen
+                                    // itself hands the forms to admins only.
+                                    _buildListTile(
+                                      context,
+                                      icon: Icons.settings_outlined,
+                                      title: 'settings'.tr,
+                                      onTap: () =>
+                                          Get.to(() => const SettingsScreen()),
+                                    ),
+                                    _buildDivider(context),
+                                  ],
                                   _buildListTile(
                                     context,
                                     icon: Icons.dark_mode_outlined,

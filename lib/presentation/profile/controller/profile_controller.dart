@@ -13,6 +13,7 @@ import '../../../services/member_avatar_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/supabase_config.dart';
 import '../../../utils/app_constant.dart';
+import '../../../utils/user_session.dart';
 import '../../auth/view/sign_in_screen.dart';
 import '../../auth/binding/auth_binding.dart';
 import '../../auth/model/user_model.dart';
@@ -149,9 +150,12 @@ class ProfileController extends GetxController implements GetxService {
           userModel = UserModel.fromMap(doc.data() as Map<String, dynamic>);
           userName = userModel!.name;
           isAdminUser = userModel!.isAdmin == '1';
-          // Sync with prefs
+          // Sync with prefs. The type is mirrored too, so an admin's change
+          // read here is already local by the next launch — which is when
+          // the home screen rebuilds around it.
           await prefs.setString(AppConstant.keyUserName, userName);
           await prefs.setString(AppConstant.keyIsAdmin, userModel!.isAdmin);
+          await prefs.setString(AppConstant.keyUserType, userModel!.userType);
         }
 
         await _fetchLifetimeStats();
@@ -541,6 +545,8 @@ class ProfileController extends GetxController implements GetxService {
     await prefs.remove(AppConstant.keyUserPhone);
     await prefs.remove(AppConstant.keyUserName);
     await prefs.remove(AppConstant.keyUserProfileImage);
+    await prefs.remove(AppConstant.keyUserType);
+    UserSession.reset();
     await FirebaseAuth.instance.signOut();
     Get.deleteAll(force: true);
     Get.offAll(() => const SignInScreen(), binding: AuthBinding());

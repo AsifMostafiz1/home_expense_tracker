@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,9 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../view/sign_in_screen.dart';
 import '../../dashboard/view/dashboard_screen.dart';
+import '../../../services/push_notification_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/supabase_config.dart';
+import '../../../utils/user_session.dart';
 import '../model/user_model.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
@@ -147,11 +150,15 @@ class AuthController extends GetxController implements GetxService {
         }
       }
 
+      // Every new account starts as a general user — the personal wallet
+      // alone. An admin brings them into the meal side from the member
+      // screen when the house is ready to count them.
       UserModel newUser = UserModel(
         name: name,
         phone: phone,
         password: password,
         profileImage: imageUrl,
+        userType: AppConstant.userTypeGeneral,
       );
 
       await repository.signUp(newUser);
@@ -161,6 +168,13 @@ class AuthController extends GetxController implements GetxService {
       await prefs.setString(AppConstant.keyUserPhone, phone);
       await prefs.setString(AppConstant.keyUserName, name);
       await prefs.setString(AppConstant.keyIsAdmin, newUser.isAdmin);
+      // The dashboard reads the type synchronously, so both copies are set
+      // before it is built.
+      await prefs.setString(AppConstant.keyUserType, newUser.userType);
+      UserSession.userType = UserSession.typeOf(newUser.userType);
+      // App start subscribed to the broadcast topic before this account
+      // existed; a general user leaves it again here.
+      unawaited(PushNotificationService().syncBroadcastSubscription());
       // The chat controller stamps outgoing messages with this.
       if (imageUrl != null) {
         await prefs.setString(AppConstant.keyUserProfileImage, imageUrl);
@@ -219,6 +233,13 @@ class AuthController extends GetxController implements GetxService {
           await prefs.setString(AppConstant.keyUserPhone, user.phone);
           await prefs.setString(AppConstant.keyUserName, user.name);
           await prefs.setString(AppConstant.keyIsAdmin, user.isAdmin);
+          await prefs.setString(AppConstant.keyUserType, user.userType);
+          UserSession.userType = UserSession.typeOf(user.userType);
+          // The broadcast topic carries every house-wide push — group chat,
+          // announcements, expenses. App start subscribed before anyone was
+          // signed in, so the choice is re-made now the account is known.
+          unawaited(
+              PushNotificationService().syncBroadcastSubscription());
           // The chat controller stamps outgoing messages with this, so it has
           // to be cached at login too — not only when the avatar is changed.
           if (user.profileImage != null && user.profileImage!.isNotEmpty) {
@@ -270,6 +291,8 @@ class AuthController extends GetxController implements GetxService {
     await prefs.remove(AppConstant.keyUserName);
     await prefs.remove(AppConstant.keyUserProfileImage);
     await prefs.remove(AppConstant.keyIsAdmin);
+    await prefs.remove(AppConstant.keyUserType);
+    UserSession.reset();
     await FirebaseAuth.instance.signOut();
     Get.deleteAll(force: true);
 

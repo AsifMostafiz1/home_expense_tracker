@@ -14,4 +14,9 @@ abstract class MemberRepository {
   /// Grants or revokes admin rights. Stored as the same `'1'` / `'0'` string
   /// the sign-in flow already writes into local preferences.
   Future<void> setAdminRole(String phone, bool isAdmin, String changedBy);
+
+  /// Sets the account's side of the app — 'meal' for the full house, or
+  /// 'general' for the personal wallet alone. The member's own device picks
+  /// it up at its next launch, the same way an admin change lands.
+  Future<void> setUserType(String phone, String userType, String changedBy);
 }

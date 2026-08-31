@@ -22,6 +22,14 @@ import 'person_ledger_screen.dart';
 import 'personal_report_screen.dart';
 import 'wallet_breakdown_screen.dart';
 
+/// How much of the ledger one screen shows.
+///
+/// [both] is the meal user's tab: the two books behind one switcher. A
+/// general user's home gives each book a whole tab of its own — [money]
+/// where the meals were, [dues] where the shared expenses were — so the same
+/// screen also runs as either book alone.
+enum LedgerView { both, money, dues }
+
 /// A member's own books, kept apart from everything the house shares.
 ///
 /// Two tabs, because they answer two different questions: what happened to my
@@ -29,7 +37,9 @@ import 'wallet_breakdown_screen.dart';
 /// shared expense or another member — this ledger is private to the phone
 /// signed in.
 class PersonalFinanceScreen extends StatefulWidget {
-  const PersonalFinanceScreen({super.key});
+  final LedgerView view;
+
+  const PersonalFinanceScreen({super.key, this.view = LedgerView.both});
 
   @override
   State<PersonalFinanceScreen> createState() => _PersonalFinanceScreenState();
@@ -80,7 +90,11 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     super.dispose();
   }
 
-  bool get _onDues => _tabs.index == 1;
+  bool get _onDues => switch (widget.view) {
+        LedgerView.both => _tabs.index == 1,
+        LedgerView.money => false,
+        LedgerView.dues => true,
+      };
 
   /// Whether the six-month chart is open. Held here rather than inside the
   /// chart: the list disposes what scrolls out of it, and a fold that reset
@@ -129,14 +143,37 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
 
     return GetBuilder<PersonalController>(
       builder: (c) {
+        final Widget moneyBook = RefreshIndicator(
+          color: primary,
+          onRefresh: () => _refreshMoney(c),
+          child: c.isLoading
+              ? const PersonalMoneySkeleton()
+              : _buildMoneyTab(context, c),
+        );
+        final Widget duesBook = RefreshIndicator(
+          color: primary,
+          onRefresh: c.refreshAll,
+          child: c.isLoading
+              ? const PersonalDebtSkeleton()
+              : _buildDuesTab(context, c),
+        );
+
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: CustomAppBar(
-            title: 'my_ledger'.tr,
-            bottom: _LedgerSwitcher(
-              index: _tabs.index,
-              onSelected: (index) => _tabs.animateTo(index),
-            ),
+            // A whole tab holds one book for a general user, so the bar
+            // names the book rather than the ledger — and has no switcher.
+            title: switch (widget.view) {
+              LedgerView.both => 'my_ledger'.tr,
+              LedgerView.money => 'money_tab'.tr,
+              LedgerView.dues => 'dues_tab'.tr,
+            },
+            bottom: widget.view == LedgerView.both
+                ? _LedgerSwitcher(
+                    index: _tabs.index,
+                    onSelected: (index) => _tabs.animateTo(index),
+                  )
+                : null,
           ),
           // Just the plus, the way the house expense screen's is: which book
           // it adds to is the tab that is open, and a label repeating that
@@ -156,25 +193,14 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
             tooltip: _onDues ? 'add_person'.tr : 'add_entry'.tr,
             child: const Icon(Icons.add_rounded),
           ),
-          body: TabBarView(
-            controller: _tabs,
-            children: [
-              RefreshIndicator(
-                color: primary,
-                onRefresh: () => _refreshMoney(c),
-                child: c.isLoading
-                    ? const PersonalMoneySkeleton()
-                    : _buildMoneyTab(context, c),
+          body: switch (widget.view) {
+            LedgerView.both => TabBarView(
+                controller: _tabs,
+                children: [moneyBook, duesBook],
               ),
-              RefreshIndicator(
-                color: primary,
-                onRefresh: c.refreshAll,
-                child: c.isLoading
-                    ? const PersonalDebtSkeleton()
-                    : _buildDuesTab(context, c),
-              ),
-            ],
-          ),
+            LedgerView.money => moneyBook,
+            LedgerView.dues => duesBook,
+          },
         );
       },
     );

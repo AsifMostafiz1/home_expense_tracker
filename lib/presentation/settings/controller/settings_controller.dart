@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../common/widgets/custom_snackbar.dart';
+import '../../../services/connectivity_service.dart';
 import '../../../services/daily_reminder_service.dart';
 import '../../../services/push_notification_service.dart';
 import '../../../services/push_outbox_service.dart';
@@ -266,6 +267,18 @@ class SettingsController extends GetxController implements GetxService {
   /// Only a version that went *up* gets here: correcting the download link,
   /// or fixing a typo in the number, is not a release.
   Future<void> _notifyMembersBehind(AppConfigModel next) async {
+    // With the master switch off the notice would be dropped at the door,
+    // and "N members were told" would be a success message about nothing.
+    // The version gate itself still stands — every device meets it at its
+    // next launch — so say that instead.
+    if (!notificationsEnabled) {
+      CustomSnackbar.show(
+        type: SnackbarType.warning,
+        message: 'update_saved_notifications_off'.tr,
+      );
+      return;
+    }
+
     try {
       final List<String> phones =
           await repository.fetchPhonesBehind(next.versionValue);
@@ -315,6 +328,83 @@ class SettingsController extends GetxController implements GetxService {
       debugPrint('Config: update notice failed — $e');
       CustomSnackbar.show(
           type: SnackbarType.error, message: 'failed_notify_update'.tr);
+    }
+  }
+
+  /// --------------------------------------------- master notification gate
+
+  bool isSavingGate = false;
+
+  /// Whether the house's notifications are on at all. Read off the config
+  /// rather than mirrored into a field of its own: the switch applies the
+  /// moment it is saved, so there is no dirty state to track and no save
+  /// button to wait for.
+  bool get notificationsEnabled => config?.notificationsEnabled ?? true;
+
+  /// Flips the master switch over every notification the app sends.
+  ///
+  /// One write, applied at once. The gate is enforced where the pushes leave
+  /// — `PushNotificationService` asks the same document at send time, and the
+  /// evening reminder asks it at the hour — so nothing needs to be told;
+  /// other devices' sends follow within the gate's own short cache window.
+  /// The admin's own device is primed directly, so their next send obeys the
+  /// flip immediately rather than after that window.
+  Future<void> setNotificationsEnabled(bool value) async {
+    if (!isAdminUser) {
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'admin_only_action'.tr);
+      return;
+    }
+    if (isSavingGate || value == notificationsEnabled) return;
+
+    // Refused rather than queued: offline, the Firestore write would sit in
+    // its local queue and the await below would never come back — a spinner
+    // forever, and a kill switch that flips itself later without anyone
+    // being told. A switch this consequential either applies now or says why
+    // it cannot.
+    if (Get.isRegistered<ConnectivityService>() &&
+        Get.find<ConnectivityService>().isOffline) {
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'check_connection'.tr);
+      return;
+    }
+
+    try {
+      isSavingGate = true;
+      update();
+
+      final AppConfigModel next = (config ?? const AppConfigModel())
+          .copyWith(notificationsEnabled: value, updatedBy: userName);
+
+      // Only the switch's own field — see [AppConfigModel.toGateMap].
+      // Bounded, because the connectivity probe above can be wrong about a
+      // link that is up but going nowhere — better a failure message than a
+      // switch that hangs.
+      await repository
+          .saveAppConfig(next.toGateMap(), by: userName)
+          .timeout(const Duration(seconds: 10));
+
+      config = next;
+      PushNotificationService.primeGate(value);
+
+      // The offline fallbacks — the evening reminder's above all — read the
+      // launch-cached copy, which nothing else would refresh until the next
+      // fetch. A silenced house must survive this device going offline.
+      await repository.cacheAppConfig(next);
+
+      CustomSnackbar.show(
+        type: value ? SnackbarType.success : SnackbarType.warning,
+        message:
+            (value ? 'notifications_turned_on' : 'notifications_turned_off')
+                .tr,
+      );
+    } catch (e) {
+      debugPrint('Error saving the notification switch: $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_update_notifications'.tr);
+    } finally {
+      isSavingGate = false;
+      update();
     }
   }
 

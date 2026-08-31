@@ -169,6 +169,10 @@ class MemberScreen extends GetView<MemberController> {
                         const SizedBox(width: 6),
                         _badge(context, 'admin'.tr, Colors.indigo),
                       ],
+                      if (member.isGeneralUser) ...[
+                        const SizedBox(width: 6),
+                        _badge(context, 'general_badge'.tr, Colors.orange),
+                      ],
                       if (isMe) ...[
                         const SizedBox(width: 6),
                         _badge(context, 'you'.tr, Colors.teal),
@@ -466,6 +470,11 @@ class MemberScreen extends GetView<MemberController> {
                                     const SizedBox(width: 6),
                                     _badge(context, 'admin'.tr, Colors.indigo),
                                   ],
+                                  if (current.isGeneralUser) ...[
+                                    const SizedBox(width: 6),
+                                    _badge(context, 'general_badge'.tr,
+                                        Colors.orange),
+                                  ],
                                 ],
                               ),
                               const SizedBox(height: 3),
@@ -486,6 +495,7 @@ class MemberScreen extends GetView<MemberController> {
                   ),
                   Divider(height: 1, color: AppUi.hairline(context)),
                   _buildRoleRow(context, c, current),
+                  _buildTypeRow(context, c, current),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
                     child: Row(
@@ -605,6 +615,141 @@ class MemberScreen extends GetView<MemberController> {
             ),
         ],
       ),
+    );
+  }
+
+  /// Which side of the app the member gets: the whole house, or the personal
+  /// wallet alone. Two named choices rather than a switch, because neither is
+  /// the "on" of the other — and both directions are confirmed, since either
+  /// way their home screen is rebuilt around the answer.
+  Widget _buildTypeRow(
+    BuildContext context,
+    MemberController c,
+    MemberModel member,
+  ) {
+    const MaterialColor color = Colors.orange;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 12, 16),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppUi.tint(context, color),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(Icons.account_balance_wallet_outlined,
+                size: 19, color: AppUi.accent(context, color)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'member_type'.tr,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppUi.body(context),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  member.isGeneralUser
+                      ? 'general_user_hint'.tr
+                      : 'meal_user_hint'.tr,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: AppUi.muted(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (c.isUpdatingType)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            _typeSwitcher(context, member),
+        ],
+      ),
+    );
+  }
+
+  /// The two types as one small segmented pill — the same control the ledger
+  /// switches its books with, shrunk to fit a sheet row.
+  Widget _typeSwitcher(BuildContext context, MemberModel member) {
+    Widget segment(String label, bool selected, VoidCallback? onTap) {
+      final Color primary = Theme.of(context).colorScheme.primary;
+
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.bold,
+              color: selected ? Colors.white : AppUi.muted(context),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final bool isGeneral = member.isGeneralUser;
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppUi.neutralSurface(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppUi.hairline(context)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          segment(
+            'meal_user'.tr,
+            !isGeneral,
+            // Tapping the type already set is not a change worth confirming.
+            isGeneral ? () => _confirmTypeChange(member, false) : null,
+          ),
+          segment(
+            'general_user'.tr,
+            isGeneral,
+            isGeneral ? null : () => _confirmTypeChange(member, true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmTypeChange(MemberModel member, bool makeGeneral) {
+    showConfirmDialog(
+      title: makeGeneral ? 'make_general_user'.tr : 'make_meal_user'.tr,
+      message: (makeGeneral ? 'confirm_make_general' : 'confirm_make_meal')
+          .trParams({'name': member.name}),
+      detail: makeGeneral ? 'general_user_note'.tr : 'meal_user_note'.tr,
+      confirmText: makeGeneral ? 'make_general_user'.tr : 'make_meal_user'.tr,
+      confirmColor: makeGeneral ? Colors.orange : Colors.indigo,
+      onConfirm: () => controller.setUserType(member, makeGeneral),
     );
   }
 

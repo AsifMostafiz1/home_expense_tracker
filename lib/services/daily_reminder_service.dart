@@ -74,8 +74,10 @@ class DailyReminderService {
 
     // Nothing to remind someone who is not signed in — the house's meals are
     // not theirs to see. [run] checks this again at the hour, in case the
-    // session ends between now and then.
-    if (!(prefs.getBool(AppConstant.keyIsLoggedIn) ?? false)) {
+    // session ends between now and then. A general user is signed in but
+    // eats none of those meals, so their evening is left alone too.
+    if (!(prefs.getBool(AppConstant.keyIsLoggedIn) ?? false) ||
+        _isGeneralUser(prefs)) {
       await cancel();
       return true;
     }
@@ -105,7 +107,52 @@ class DailyReminderService {
     await _cache(prefs, enabled, time);
 
     if (!(prefs.getBool(AppConstant.keyIsLoggedIn) ?? false)) return;
+    if (_isGeneralUser(prefs)) return;
     await _arm(enabled, time);
+  }
+
+  /// Whether this device belongs to a general user — no meals, no reminder.
+  static bool _isGeneralUser(SharedPreferences prefs) =>
+      prefs.getString(AppConstant.keyUserType) == AppConstant.userTypeGeneral;
+
+  /// The master notification switch, as well as this isolate can know it.
+  ///
+  /// The live config wins. With none — the read failed — Firestore's own
+  /// local copy of the document is asked first: it has read-your-writes, so
+  /// an admin who flipped the switch and then lost the network is honoured
+  /// tonight, not at their next launch. The launch-cached JSON stands in
+  /// after that; with nothing at all, the switch reads as on, the same
+  /// default the send-time gate falls back to.
+  static Future<bool> _masterEnabled(
+    SharedPreferences prefs,
+    AppConfigModel? config,
+  ) async {
+    if (config != null) return config.notificationsEnabled;
+
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> doc =
+          await FirebaseFirestore.instance
+              .collection(AppConstant.collectionConfig)
+              .doc(AppConstant.docBusinessConfig)
+              .get(const GetOptions(source: Source.cache))
+              .timeout(const Duration(seconds: 5));
+      final Map<String, dynamic>? data = doc.data();
+      if (data != null) {
+        return data[AppConstant.fieldNotificationsEnabled] != false;
+      }
+    } catch (_) {
+      // No local copy of the document; the launch-cached JSON is next.
+    }
+
+    try {
+      final String? raw = prefs.getString(AppConstant.keyCachedAppConfig);
+      if (raw == null || raw.isEmpty) return true;
+      final dynamic cached = jsonDecode(raw);
+      if (cached is Map) {
+        return cached[AppConstant.fieldNotificationsEnabled] != false;
+      }
+    } catch (_) {}
+    return true;
   }
 
   /// Stops the reminder on this device. Signing out, and an admin switching it
@@ -199,8 +246,10 @@ class DailyReminderService {
 
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-    // The session may have ended since the job was armed.
-    if (!(prefs.getBool(AppConstant.keyIsLoggedIn) ?? false)) {
+    // The session may have ended since the job was armed — or the account
+    // may have become a general user's, whose meals are nobody's to count.
+    if (!(prefs.getBool(AppConstant.keyIsLoggedIn) ?? false) ||
+        _isGeneralUser(prefs)) {
       await cancel();
       return true;
     }
@@ -222,7 +271,12 @@ class DailyReminderService {
       return true;
     }
 
-    if (isOnTime(time)) {
+    // The house's master notification switch — the same one every push obeys
+    // at send time. Skipped rather than cancelled: the schedule survives, so
+    // the evening the switch comes back on needs no re-arming from anywhere.
+    if (!await _masterEnabled(prefs, config)) {
+      debugPrint('DailyReminder: master notification switch is off — skipped');
+    } else if (isOnTime(time)) {
       try {
         await _notify(prefs, fromBackgroundIsolate: true);
       } catch (e) {
@@ -402,6 +456,9 @@ class DailyReminderService {
         in userSnap?.docs ?? const []) {
       final Map<String, dynamic> data = doc.data();
       if (data['removed'] == true) continue;
+      // A general user is not part of the meal programme; without this they
+      // would stand in "skipping" every evening forever.
+      if (data['userType'] == AppConstant.userTypeGeneral) continue;
 
       final String phone = doc.id;
       final String name = (data['name'] ?? '').toString().trim().isNotEmpty
