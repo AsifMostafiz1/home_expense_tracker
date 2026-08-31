@@ -60,6 +60,11 @@ class MealRepositoryImpl implements MealRepository {
     int myCount = 0;
     int totalCount = 0;
     final Map<String, Map<String, dynamic>> othersMap = {};
+    // Everyone the month actually has records for — a meal or an expense of
+    // either kind. This is the divisor behind the "other" rate: the cost is
+    // split between the people who were part of the month, not between
+    // whoever happens to hold an account today.
+    final Set<String> participants = {};
     final Map<String, int> dailyMeals = {};
     final Map<String, int> totalDailyMeals = {};
     final Map<String, List<Map<String, dynamic>>> userDailyMeals = {};
@@ -71,6 +76,7 @@ class MealRepositoryImpl implements MealRepository {
       String name = data['user_name'] ?? 'Unknown';
       String dateStr = data['date_time'];
       DateTime date = DateTime.parse(dateStr);
+      if (phone.isNotEmpty) participants.add(phone);
       String dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
       
       // Calculate total for all users per day
@@ -103,22 +109,6 @@ class MealRepositoryImpl implements MealRepository {
       }
     }
 
-    // How many people share the house.
-    //
-    // Removed accounts stay in Firestore as tombstones, so the raw document
-    // count is not the member count — the same `removed == true` rule the
-    // member and monthly-bill lists use has to be applied here too. It is not
-    // only a label: this is the divisor behind the "other" rate, so counting a
-    // tombstone spreads the house's spending one head too thin and everybody
-    // is charged too little.
-    QuerySnapshot usersSnap = await FirebaseFirestore.instance
-        .collection(AppConstant.collectionUsers)
-        .get();
-    int userCount = usersSnap.docs.where((doc) {
-      final data = doc.data() as Map<String, dynamic>?;
-      return data?['removed'] != true;
-    }).length;
-
     // Expenses
     QuerySnapshot expenseSnap = await FirebaseFirestore.instance
         .collection(AppConstant.collectionExpenses)
@@ -138,6 +128,7 @@ class MealRepositoryImpl implements MealRepository {
       String phone = data['user_phone'] ?? '';
       String name = data['user_name'] ?? 'Unknown';
       String type = data['type'] ?? 'expense';
+      if (phone.isNotEmpty) participants.add(phone);
 
       final expenseItem = ExpenseModel.fromMap(doc.id, data);
 
@@ -189,6 +180,17 @@ class MealRepositoryImpl implements MealRepository {
         }
       }
     }
+
+    // The month's head count, read off the month itself.
+    //
+    // It used to be the house roster (every account not marked `removed`),
+    // which drifts from what the screen shows: someone who left mid-year is
+    // gone from the roster but still has last spring's meals, and a member
+    // who joined today has none. Counting the people the month has records
+    // for keeps the "other" rate in step with the cards below it, and is the
+    // same figure on every phone because it comes from the data, not from
+    // who is looking.
+    final int userCount = participants.length;
 
     // Ensure fields exist for all others
     for (var key in othersMap.keys) {

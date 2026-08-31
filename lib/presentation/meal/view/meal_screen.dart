@@ -631,10 +631,9 @@ class MealScreen extends GetView<MealController> {
                     Icon(Icons.people_alt_rounded,
                         size: 13, color: _mutedColor(context)),
                     const SizedBox(width: 5),
-                    // The same count the total card shows. It used to be
-                    // the length of the list below, which counts whoever
-                    // logged a meal or an expense this month rather than
-                    // whoever lives here — two figures for one question.
+                    // The same count the total card shows, and the same
+                    // one the "other" rate is split between: everybody who
+                    // logged a meal or an expense this month.
                     Text(
                       '${controller.userCount}',
                       style: TextStyle(

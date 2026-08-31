@@ -98,6 +98,9 @@ class MealController extends GetxController implements GetxService {
     return totalMonthlyExpense / totalMealCount;
   }
 
+  /// The month's non-meal spending, split between everybody the month has
+  /// records for ([userCount]) — not between the house roster, which can hold
+  /// people who ate nothing this month and miss people who have since left.
   double get otherCostPerPerson {
     if (userCount == 0) return 0.0;
     return totalOtherExpense / userCount;
