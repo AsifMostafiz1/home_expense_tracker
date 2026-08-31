@@ -1,7 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
+import 'local_image.dart';
 
 /// One picture, full screen and zoomable — a chat photo, a receipt, anything
 /// the app can point at.
@@ -15,8 +15,9 @@ import 'package:get/get.dart';
 class ImageViewerScreen extends StatefulWidget {
   final String? imageUrl;
 
-  /// A picture that is still only on this device.
-  final File? imageFile;
+  /// A picture that is still only on this device — a file path on mobile, a
+  /// blob URL on web. See [LocalImage] for why it is a string.
+  final String? localPath;
 
   /// Shown in the bar. The chat puts the sender here and the time underneath;
   /// an expense puts what was bought and what it cost.
@@ -33,12 +34,12 @@ class ImageViewerScreen extends StatefulWidget {
   const ImageViewerScreen({
     super.key,
     this.imageUrl,
-    this.imageFile,
+    this.localPath,
     this.title,
     this.subtitle,
     this.caption,
     this.heroTag,
-  }) : assert(imageUrl != null || imageFile != null,
+  }) : assert(imageUrl != null || localPath != null,
             'ImageViewerScreen needs something to show');
 
   @override
@@ -180,8 +181,8 @@ class _ImageViewerScreenState extends State<ImageViewerScreen>
         minScale: 1,
         maxScale: 5,
         child: SizedBox.expand(
-          child: widget.imageFile != null
-              ? Image.file(widget.imageFile!, fit: BoxFit.contain)
+          child: widget.localPath != null
+              ? LocalImage(widget.localPath!, fit: BoxFit.contain)
               : _network(),
         ),
       ),

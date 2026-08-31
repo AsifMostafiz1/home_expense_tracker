@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../common/widgets/avatar_picker.dart';
+import '../../../common/widgets/local_image.dart';
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../common/widgets/custom_text_field.dart';
@@ -49,7 +48,7 @@ class _GroupSettingsSheetState extends State<_GroupSettingsSheet> {
       TextEditingController(text: _chat.groupInfo.name);
 
   /// Chosen on this device, not uploaded yet.
-  File? _picked;
+  XFile? _picked;
 
   /// Set when the current picture is to go, putting the members' icon back.
   bool _clearing = false;
@@ -81,7 +80,7 @@ class _GroupSettingsSheetState extends State<_GroupSettingsSheet> {
       );
       if (picked == null) return;
       setState(() {
-        _picked = File(picked.path);
+        _picked = picked;
         _clearing = false;
       });
     } catch (e) {
@@ -104,7 +103,7 @@ class _GroupSettingsSheetState extends State<_GroupSettingsSheet> {
       if (_clearing) {
         imageUrl = null;
       } else if (_picked != null) {
-        imageUrl = await _storage.uploadFile(
+        imageUrl = await _storage.uploadXFile(
           _picked!,
           folder: SupabaseConfig.folderProfile,
         );
@@ -240,7 +239,7 @@ class _GroupSettingsSheetState extends State<_GroupSettingsSheet> {
 
     final Widget preview = _picked != null
         ? ClipOval(
-            child: Image.file(_picked!,
+            child: LocalImage(_picked!.path,
                 width: 96, height: 96, fit: BoxFit.cover),
           )
         : GroupAvatar(

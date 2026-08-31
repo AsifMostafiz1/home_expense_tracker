@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -115,7 +116,9 @@ class ExpenseController extends GetxController implements GetxService {
 
   /// Receipt chosen in the form but not uploaded yet. The upload waits for
   /// "save": backing out of the sheet should leave nothing behind in storage.
-  File? pickedReceipt;
+  /// An [XFile] rather than a `dart:io` file so the same flow runs on web,
+  /// where the picker hands out a blob URL instead of a path.
+  XFile? pickedReceipt;
 
   /// The receipt already on the entry being edited, if any.
   String? existingReceiptUrl;
@@ -186,7 +189,8 @@ class ExpenseController extends GetxController implements GetxService {
     selectedType = item.type;
     // A receipt still waiting in the outbox comes back into the form as the
     // picked file: saving online uploads it, saving offline re-queues it.
-    pickedReceipt = item.pendingReceiptFile;
+    pickedReceipt =
+        item.hasPendingReceipt ? XFile(item.pendingReceiptPath!) : null;
     receiptWaitingUpload = pickedReceipt != null;
     removeReceipt = false;
     existingReceiptUrl = item.imageUrl;
@@ -215,7 +219,7 @@ class ExpenseController extends GetxController implements GetxService {
       );
       if (picked == null) return;
 
-      pickedReceipt = File(picked.path);
+      pickedReceipt = picked;
       receiptWaitingUpload = false;
       removeReceipt = false;
       update();
@@ -429,7 +433,7 @@ class ExpenseController extends GetxController implements GetxService {
       // device believes it is online — the picture is safe either way.
       final String? previousReceipt = existingExpense?.imageUrl;
       String? receiptUrl = previousReceipt;
-      File? deferredReceipt;
+      XFile? deferredReceipt;
       if (removeReceipt) {
         receiptUrl = null;
       } else if (pickedReceipt != null) {
@@ -476,11 +480,16 @@ class ExpenseController extends GetxController implements GetxService {
       );
 
       if (deferredReceipt != null) {
-        await _outbox.enqueue(
-          expenseId: expenseId,
-          file: deferredReceipt,
-          replacesUrl: previousReceipt,
-        );
+        // Not on web: the outbox keeps its copy on disk, and a browser has
+        // none to give — the entry is saved without the picture and the
+        // toast below says so, so it can be re-attached from the entry.
+        if (!kIsWeb) {
+          await _outbox.enqueue(
+            expenseId: expenseId,
+            file: File(deferredReceipt.path),
+            replacesUrl: previousReceipt,
+          );
+        }
       } else {
         // Uploaded now, or removed: nothing left waiting for this entry.
         await _outbox.remove(expenseId);
@@ -538,7 +547,12 @@ class ExpenseController extends GetxController implements GetxService {
       closeOverlayRoute();
 
       final String message;
-      if (!online) {
+      if (kIsWeb && deferredReceipt != null) {
+        // Checked before the offline branch: on web the receipt was dropped,
+        // not queued, and "saved offline" would promise an upload that is
+        // never coming.
+        message = 'receipt_upload_failed'.tr;
+      } else if (!online) {
         message = 'expense_saved_offline'.tr;
       } else if (deferredReceipt != null) {
         message = 'receipt_upload_deferred'.tr;
@@ -571,12 +585,12 @@ class ExpenseController extends GetxController implements GetxService {
 
   /// The receipt's public URL, or null when the upload did not go through —
   /// the caller queues the file for later rather than failing the save.
-  Future<String?> _tryUploadReceipt(File file) async {
+  Future<String?> _tryUploadReceipt(XFile file) async {
     try {
       // Bounded: a link the OS calls "up" can still go nowhere, and the entry
       // must not wait on it — the outbox will get the picture there later.
       return await _storage
-          .uploadFile(file, folder: SupabaseConfig.folderExpense)
+          .uploadXFile(file, folder: SupabaseConfig.folderExpense)
           .timeout(const Duration(seconds: 45));
     } catch (e) {
       debugPrint('Receipt upload failed, queued for later: $e');

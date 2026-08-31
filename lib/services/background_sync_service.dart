@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
 import 'package:workmanager/workmanager.dart';
@@ -48,6 +49,9 @@ class BackgroundSyncService {
 
   /// Registers the callback the OS will run. Once, from `main`.
   static Future<void> init() async {
+    // No OS to hand the job to on web — a closed tab is simply gone. The
+    // in-app flushes still run; only the "app never reopened" path is lost.
+    if (kIsWeb) return;
     try {
       await Workmanager().initialize(callbackDispatcher);
     } catch (e) {
@@ -58,7 +62,7 @@ class BackgroundSyncService {
   /// Asks the OS to run [runSync] once there is a network. Cheap to call as
   /// often as needed: nothing is registered while an armed job is pending.
   static Future<void> schedule() async {
-    if (_armed) return;
+    if (kIsWeb || _armed) return;
     _armed = true;
 
     try {

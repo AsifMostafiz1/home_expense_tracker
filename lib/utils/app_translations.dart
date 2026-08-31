@@ -890,6 +890,8 @@ class AppTranslations extends Translations {
               'Deleted on this device — it will sync once you are back online',
           'receipt_upload_deferred':
               'Expense saved. The receipt will upload once you are back online',
+          'receipt_upload_failed':
+              'Expense saved, but the receipt could not upload — edit the entry to attach it again',
           'offline_sync_hint':
               'New entries are saved on this device and sync when you are back online',
           'pending_sync_count': '@count waiting to sync',
@@ -1863,6 +1865,8 @@ class AppTranslations extends Translations {
               'এই ডিভাইস থেকে মুছে ফেলা হয়েছে — অনলাইনে এলে সিঙ্ক হয়ে যাবে',
           'receipt_upload_deferred':
               'খরচ সেভ হয়েছে। রসিদটি অনলাইনে এলে আপলোড হবে',
+          'receipt_upload_failed':
+              'খরচ সেভ হয়েছে, কিন্তু রসিদ আপলোড হয়নি — এন্ট্রিটি এডিট করে আবার যুক্ত করুন',
           'offline_sync_hint':
               'নতুন এন্ট্রি এই ডিভাইসে সেভ থাকবে, অনলাইনে এলে সিঙ্ক হয়ে যাবে',
           'pending_sync_count': '@count টি সিঙ্কের অপেক্ষায়',

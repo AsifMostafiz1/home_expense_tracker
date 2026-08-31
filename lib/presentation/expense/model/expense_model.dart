@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 class ExpenseModel {
@@ -44,10 +42,6 @@ class ExpenseModel {
 
   bool get hasPendingReceipt =>
       pendingReceiptPath != null && pendingReceiptPath!.isNotEmpty;
-
-  /// The local copy of a receipt whose upload is still waiting.
-  File? get pendingReceiptFile =>
-      hasPendingReceipt ? File(pendingReceiptPath!) : null;
 
   /// Something to show for the receipt — uploaded, or waiting to be.
   bool get hasAnyReceipt => hasImage || hasPendingReceipt;

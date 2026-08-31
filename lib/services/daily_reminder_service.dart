@@ -70,6 +70,17 @@ class DailyReminderService {
   /// Returns false when the OS refused the job — the settings are saved, but
   /// nothing will come of them until it is asked again.
   static Future<bool> sync(AppConfigModel? config) async {
+    // The reminder rides on WorkManager and local notifications, and the web
+    // has neither — a tab cannot be woken at dinner time. The settings are
+    // still cached so a phone signing in later starts from the right ones.
+    if (kIsWeb) {
+      if (config != null) {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        await _cache(prefs, config.reminderEnabled, config.reminderTime);
+      }
+      return true;
+    }
+
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
     // Nothing to remind someone who is not signed in — the house's meals are
@@ -106,6 +117,7 @@ class DailyReminderService {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await _cache(prefs, enabled, time);
 
+    if (kIsWeb) return;
     if (!(prefs.getBool(AppConstant.keyIsLoggedIn) ?? false)) return;
     if (_isGeneralUser(prefs)) return;
     await _arm(enabled, time);
@@ -158,6 +170,7 @@ class DailyReminderService {
   /// Stops the reminder on this device. Signing out, and an admin switching it
   /// off for the house, both land here.
   static Future<void> cancel() async {
+    if (kIsWeb) return;
     try {
       await Workmanager().cancelByUniqueName(uniqueName);
       debugPrint('DailyReminder: job cancelled');
@@ -359,6 +372,13 @@ class DailyReminderService {
     final bool bengali =
         (prefs.getString(AppConstant.keyLanguage) ?? 'en') == 'bn';
 
+    final String title = bengali ? 'আজকের মিল' : "Today's meals";
+    final String body = summary.describe(bengali: bengali);
+
+    // No local notifications on web — but the sentence is still worth
+    // returning: the settings screen's "show now" displays it itself.
+    if (kIsWeb) return body;
+
     final FlutterLocalNotificationsPlugin plugin =
         FlutterLocalNotificationsPlugin();
 
@@ -378,9 +398,6 @@ class DailyReminderService {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_channel);
-
-    final String title = bengali ? 'আজকের মিল' : "Today's meals";
-    final String body = summary.describe(bengali: bengali);
 
     await plugin.show(
       _notificationId,

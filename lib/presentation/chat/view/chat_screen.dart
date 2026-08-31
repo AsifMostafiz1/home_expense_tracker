@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import '../../../common/widgets/avatar_picker.dart';
+import '../../../common/widgets/local_image.dart';
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_snackbar.dart';
@@ -714,8 +713,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        attachments[index].file,
+                      child: LocalImage(
+                        attachments[index].file.path,
                         width: 68,
                         height: 68,
                         fit: BoxFit.cover,
@@ -1885,7 +1884,7 @@ class _OutgoingBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color primary = Theme.of(context).colorScheme.primary;
     final bool hasImage = item.hasImage;
-    final File? file = item.file;
+    final String? imagePath = item.imagePath;
 
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 8, left: 50),
@@ -1911,7 +1910,7 @@ class _OutgoingBubble extends StatelessWidget {
                           hasImage ? 4 : 0, hasImage ? 4 : 0, hasImage ? 4 : 0, 6),
                       child: _quote(context),
                     ),
-                  if (hasImage && file != null)
+                  if (hasImage && imagePath != null)
                     ConstrainedBox(
                       constraints:
                           const BoxConstraints(maxWidth: 240, maxHeight: 320),
@@ -1925,7 +1924,7 @@ class _OutgoingBubble extends StatelessWidget {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.file(file, fit: BoxFit.cover),
+                              LocalImage(imagePath, fit: BoxFit.cover),
                               Container(
                                 color: Colors.black.withOpacity(0.35),
                                 alignment: Alignment.center,

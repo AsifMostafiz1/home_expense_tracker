@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:flutter/services.dart';
 import '../../../common/widgets/avatar_picker.dart';
 import '../../../common/widgets/custom_app_bar.dart';
+import '../../../common/widgets/local_image.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../../../common/widgets/custom_button.dart';
 import '../controller/auth_controller.dart';
@@ -43,7 +44,8 @@ class SignUpScreen extends GetView<AuthController> {
                         radius: 44,
                         image: controller.pickedProfileImage == null
                             ? null
-                            : FileImage(controller.pickedProfileImage!),
+                            : localImageProvider(
+                                controller.pickedProfileImage!.path),
                         fallback: const Icon(Icons.person_outline,
                             size: 40, color: Colors.white),
                         onPick: controller.pickProfileImage,

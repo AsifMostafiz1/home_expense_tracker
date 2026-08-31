@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -8,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 // Narrowed import: the package also exports `User`, `AuthState` and friends,
 // which would collide with the firebase_auth symbols above.
 import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
+import 'package:demo_project/utils/firebase_web_config.dart';
 import 'package:demo_project/utils/supabase_config.dart';
 import 'package:demo_project/presentation/auth/view/sign_in_screen.dart';
 import 'package:demo_project/presentation/dashboard/view/dashboard_screen.dart';
@@ -25,7 +27,11 @@ import 'package:demo_project/presentation/splash/view/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await Firebase.initializeApp();
+    // Android and iOS read their config from the platform files at build
+    // time; the web has no such file and must be handed the options.
+    await Firebase.initializeApp(
+      options: kIsWeb ? FirebaseWebConfig.options : null,
+    );
 
     // Offline support rests on this. Firestore keeps a local copy of what it
     // has read and a queue of what it has not yet delivered, so the app opens
@@ -37,12 +43,17 @@ void main() async {
       persistenceEnabled: true,
     );
 
-    print('FCM: Activating Firebase App Check...');
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug,
-      appleProvider: AppleProvider.debug,
-    );
-    print('FCM: Firebase App Check activated.');
+    // App Check on web needs a reCAPTCHA site key registered on the Firebase
+    // project; with none, activating would only fail loudly. Enforcement is
+    // off, so skipping it costs nothing.
+    if (!kIsWeb) {
+      print('FCM: Activating Firebase App Check...');
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: AndroidProvider.debug,
+        appleProvider: AppleProvider.debug,
+      );
+      print('FCM: Firebase App Check activated.');
+    }
 
     // Anonymous sign-in to provide auth token for Firebase Storage/Firestore.
     //

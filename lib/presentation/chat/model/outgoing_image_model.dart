@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 import 'chat_message_model.dart';
 
@@ -7,8 +7,11 @@ import 'chat_message_model.dart';
 /// The size is read once, here, rather than at upload time: the bubble that
 /// appears while the upload runs needs the right shape straight away, and the
 /// receiving side needs it stamped on the message for the same reason.
+///
+/// An [XFile] rather than a `dart:io` file so the same composer runs on web,
+/// where the picker hands out a blob URL instead of a path.
 class PickedImage {
-  final File file;
+  final XFile file;
   final double width;
   final double height;
 
@@ -117,8 +120,6 @@ class OutgoingMessage {
   bool get isGroup => conversationId == null;
 
   bool get hasImage => imagePath != null && imagePath!.isNotEmpty;
-
-  File? get file => hasImage ? File(imagePath!) : null;
 
   /// Width over height; a square for anything that could not be measured.
   double get aspectRatio {

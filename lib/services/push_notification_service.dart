@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_constant.dart';
@@ -143,6 +144,15 @@ class PushNotificationService {
   Future<void> init() async {
     if (_isInitialized) return;
 
+    // The web build only *sends* notifications — the send path is plain HTTP
+    // and needs none of this setup. Receiving would take a service worker, a
+    // VAPID key, and above all a server to do the topic subscriptions:
+    // delivery here rides on FCM topics, and the web SDK cannot join one.
+    if (kIsWeb) {
+      _isInitialized = true;
+      return;
+    }
+
     print('FCM: Starting PushNotificationService initialization...');
 
     // 1. Initialize local notifications FIRST
@@ -243,6 +253,7 @@ class PushNotificationService {
   }
 
   Future<void> subscribeToGroupTopic() async {
+    if (kIsWeb) return;
     try {
       await _fcm.subscribeToTopic('group_chat');
       print('FCM: Successfully subscribed to group_chat topic');
@@ -260,6 +271,7 @@ class PushNotificationService {
   /// still theirs. Called at app start, after sign-in, and by the splash once
   /// it has re-read the account, so an admin's change lands with the role.
   Future<void> syncBroadcastSubscription() async {
+    if (kIsWeb) return;
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final bool general = prefs.getString(AppConstant.keyUserType) ==
@@ -278,7 +290,7 @@ class PushNotificationService {
   }
 
   Future<void> subscribeToUserTopic(String phone) async {
-    if (phone.isEmpty) return;
+    if (kIsWeb || phone.isEmpty) return;
     try {
       String safePhone = phone.replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '');
       await _fcm.subscribeToTopic('user_$safePhone');

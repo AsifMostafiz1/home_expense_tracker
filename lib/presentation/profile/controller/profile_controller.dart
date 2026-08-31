@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -60,8 +59,9 @@ class ProfileController extends GetxController implements GetxService {
 
   /// Avatar chosen on the edit screen but not saved yet. Held locally so the
   /// upload happens on "save changes" — backing out of the form should not
-  /// have already replaced the picture.
-  File? pickedProfileImage;
+  /// have already replaced the picture. An [XFile] so the same screen runs on
+  /// web, where the picker hands out a blob URL instead of a file path.
+  XFile? pickedProfileImage;
   bool clearProfileImage = false;
 
   ThemeMode themeMode = ThemeMode.system;
@@ -436,7 +436,7 @@ class ProfileController extends GetxController implements GetxService {
       );
       if (picked == null) return;
 
-      pickedProfileImage = File(picked.path);
+      pickedProfileImage = picked;
       clearProfileImage = false;
       update();
     } catch (e) {
@@ -473,7 +473,7 @@ class ProfileController extends GetxController implements GetxService {
       if (clearProfileImage) {
         imageUrl = null;
       } else if (pickedProfileImage != null) {
-        imageUrl = await _storage.uploadFile(
+        imageUrl = await _storage.uploadXFile(
           pickedProfileImage!,
           folder: SupabaseConfig.folderProfile,
         );

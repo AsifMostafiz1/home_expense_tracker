@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -35,10 +34,11 @@ class AuthController extends GetxController implements GetxService {
 
   final SupabaseStorageService _storage = SupabaseStorageService();
 
-  /// Picture chosen on the sign-up form. Held as a plain file until the
-  /// account is actually created — abandoning the form must not leave an
-  /// orphaned object sitting in storage.
-  File? pickedProfileImage;
+  /// Picture chosen on the sign-up form. Held unsent until the account is
+  /// actually created — abandoning the form must not leave an orphaned object
+  /// sitting in storage. An [XFile] so the same form runs on web, where the
+  /// picker hands out a blob URL instead of a file path.
+  XFile? pickedProfileImage;
 
   @override
   void onInit() {
@@ -79,7 +79,7 @@ class AuthController extends GetxController implements GetxService {
       );
       if (picked == null) return;
 
-      pickedProfileImage = File(picked.path);
+      pickedProfileImage = picked;
       update();
     } catch (e) {
       debugPrint('Error picking image: $e');
@@ -139,7 +139,7 @@ class AuthController extends GetxController implements GetxService {
       String? imageUrl;
       if (pickedProfileImage != null) {
         try {
-          imageUrl = await _storage.uploadFile(
+          imageUrl = await _storage.uploadXFile(
             pickedProfileImage!,
             folder: SupabaseConfig.folderProfile,
           );

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../controller/profile_controller.dart';
 import '../../../common/widgets/avatar_picker.dart';
 import '../../../common/widgets/custom_button.dart';
+import '../../../common/widgets/local_image.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../utils/app_enums.dart';
@@ -45,7 +46,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   ImageProvider? _avatarImage(ProfileController controller) {
     if (controller.pickedProfileImage != null) {
-      return FileImage(controller.pickedProfileImage!);
+      return localImageProvider(controller.pickedProfileImage!.path);
     }
     if (controller.clearProfileImage) return null;
 

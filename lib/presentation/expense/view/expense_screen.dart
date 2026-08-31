@@ -458,7 +458,7 @@ class ExpenseScreen extends GetView<ExpenseController> {
                           const SizedBox(width: 8),
                           GestureDetector(
                             onTap: () => Get.to(() => ImageViewerScreen(
-                                  imageFile: item.pendingReceiptFile,
+                                  localPath: item.pendingReceiptPath,
                                   imageUrl: item.hasPendingReceipt
                                       ? null
                                       : item.imageUrl,

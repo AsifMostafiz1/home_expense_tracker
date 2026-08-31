@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
@@ -114,6 +115,17 @@ class ConnectivityService extends GetxController
   /// that arrive while one is in flight are dropped.
   Future<void> probe() async {
     if (!_hasNetwork || _probing) return;
+
+    // In a browser the probe would be a cross-origin request that
+    // `generate_204` does not answer with CORS headers, so it would read as
+    // "no internet" on a connection that is fine. The browser's own signal
+    // (what connectivity_plus reports here) is the best answer available.
+    if (kIsWeb) {
+      _reachable = true;
+      _publish();
+      return;
+    }
+
     _probing = true;
     try {
       final http.Response response =

@@ -60,6 +60,12 @@ dependencies:
   # only here to keep the resolver inside what the SDK can build. Drop it once
   # the toolchain is on Flutter 3.44 or newer.
   app_links: ^6.4.1
+  # Pinned for the same toolchain reason as app_links. 3.11.0 declares
+  # `sdk: ^3.6.0` but calls `Object.isA<JSObject>()`, an extension that only
+  # exists from Dart 3.12 — so the web build fails inside the package on the
+  # Dart 3.11 this Flutter ships. 3.10.0 predates that call. Drop the pin once
+  # the toolchain is on Flutter 3.44 or newer.
+  firebase_core_web: 3.10.0
   firebase_app_check: any
   firebase_auth: any
   permission_handler: ^11.3.1

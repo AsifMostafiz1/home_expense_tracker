@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -845,7 +844,7 @@ class ChatController extends GetxController implements GetxService {
       }
 
       for (final XFile file in picked.take(room)) {
-        pendingAttachments.add(await _measure(File(file.path)));
+        pendingAttachments.add(await _measure(file));
       }
       update();
     } catch (e) {
@@ -857,7 +856,7 @@ class ChatController extends GetxController implements GetxService {
 
   /// Reads a picture's pixel size. Decoded one at a time and released straight
   /// away — a batch of ten full bitmaps held at once is tens of megabytes.
-  Future<PickedImage> _measure(File file) async {
+  Future<PickedImage> _measure(XFile file) async {
     try {
       final ui.Image decoded = await decodeImageFromList(await file.readAsBytes());
       final PickedImage picked = PickedImage(

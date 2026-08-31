@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show StorageException;
@@ -127,7 +128,7 @@ class ChatOutboxService extends GetxController implements GetxService {
     String? conversationId,
     String? peerPhone,
     String? action,
-    File? image,
+    XFile? image,
     double? imageWidth,
     double? imageHeight,
     String? replyToId,
@@ -145,12 +146,19 @@ class ChatOutboxService extends GetxController implements GetxService {
   }) async {
     String? storedPath;
     if (image != null) {
-      final Directory dir = Directory(
-        '${(await getApplicationSupportDirectory()).path}/pending_chat',
-      );
-      if (!await dir.exists()) await dir.create(recursive: true);
-      storedPath = '${dir.path}/$localId${_storage.extensionOf(image.path)}';
-      await image.copy(storedPath);
+      if (kIsWeb) {
+        // A browser has no folder to copy into. The blob URL the picker gave
+        // out is kept as-is — it lives as long as the tab does, which is as
+        // long as a web session's queue survives anyway.
+        storedPath = image.path;
+      } else {
+        final Directory dir = Directory(
+          '${(await getApplicationSupportDirectory()).path}/pending_chat',
+        );
+        if (!await dir.exists()) await dir.create(recursive: true);
+        storedPath = '${dir.path}/$localId${_storage.extensionOf(image.path)}';
+        await File(image.path).copy(storedPath);
+      }
     }
 
     final OutgoingMessage item = OutgoingMessage(
@@ -261,12 +269,13 @@ class ChatOutboxService extends GetxController implements GetxService {
   Future<void> _deliver(OutgoingMessage item) async {
     String? imageUrl;
     if (item.hasImage) {
-      final File file = item.file!;
-      if (!await file.exists()) {
+      final String path = item.imagePath!;
+      if (!kIsWeb && !await File(path).exists()) {
         throw const FileSystemException('picture is gone from the outbox');
       }
+      // XFile reads a file path on mobile and fetches a blob URL on web.
       imageUrl = await _storage
-          .uploadFile(file, folder: SupabaseConfig.folderChat)
+          .uploadXFile(XFile(path), folder: SupabaseConfig.folderChat)
           .timeout(const Duration(seconds: 60));
     }
 
@@ -340,7 +349,8 @@ class ChatOutboxService extends GetxController implements GetxService {
   }
 
   Future<void> _deleteFile(String? path) async {
-    if (path == null || path.isEmpty) return;
+    // On web the "path" is a blob URL the browser reclaims on its own.
+    if (kIsWeb || path == null || path.isEmpty) return;
     try {
       final File file = File(path);
       if (await file.exists()) await file.delete();

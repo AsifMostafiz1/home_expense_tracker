@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -35,6 +36,10 @@ class NotificationPermissionService {
   bool get awaitingSettingsReturn => _awaitingSettingsReturn;
 
   Future<bool> isGranted() async {
+    // The web build receives no push (delivery rides on FCM topics, which
+    // the web SDK cannot subscribe to), so there is no permission worth
+    // asking the browser for — and no dialog worth showing about it.
+    if (kIsWeb) return true;
     if (Platform.isAndroid) {
       return Permission.notification.isGranted;
     }
@@ -50,6 +55,7 @@ class NotificationPermissionService {
   /// its own dialog, [showSettingsFallback] decides whether we explain the
   /// situation in-app and offer a route to settings.
   Future<bool> ensurePermission({bool showSettingsFallback = true}) async {
+    if (kIsWeb) return true;
     if (_inFlight) return false;
     _inFlight = true;
 

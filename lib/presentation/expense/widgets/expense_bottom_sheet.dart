@@ -1,10 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:intl/intl.dart';
 import '../../../common/widgets/avatar_picker.dart';
+import '../../../common/widgets/local_image.dart';
 import '../../../common/widgets/custom_text_field.dart';
 import '../../../common/widgets/custom_button.dart';
 import '../../../common/widgets/image_viewer_screen.dart';
@@ -64,7 +64,7 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
       );
     }
 
-    final File? picked = controller.pickedReceipt;
+    final XFile? picked = controller.pickedReceipt;
     final String? url = controller.existingReceiptUrl;
 
     return Container(
@@ -80,14 +80,15 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
           // keeping one is being able to read it.
           GestureDetector(
             onTap: () => Get.to(() => ImageViewerScreen(
-                  imageFile: picked,
+                  localPath: picked?.path,
                   imageUrl: picked == null ? url : null,
                   title: 'receipt'.tr,
                 )),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: picked != null
-                  ? Image.file(picked, width: 54, height: 54, fit: BoxFit.cover)
+                  ? LocalImage(picked.path,
+                      width: 54, height: 54, fit: BoxFit.cover)
                   : Image.network(
                       url!,
                       width: 54,

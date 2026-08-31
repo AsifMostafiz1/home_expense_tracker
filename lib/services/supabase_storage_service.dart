@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../utils/supabase_config.dart';
@@ -35,6 +36,26 @@ class SupabaseStorageService {
       bytes,
       folder: folder,
       extension: extensionOf(file.path),
+      namePrefix: namePrefix,
+    );
+  }
+
+  /// The picker's own type, which works on every platform: a real file on
+  /// mobile, a blob in the browser on web — `readAsBytes` reads both. The
+  /// pick-and-upload flows all go through here.
+  ///
+  /// On web a blob URL carries no extension; [XFile.name] usually still does,
+  /// so the extension is read from there.
+  Future<String> uploadXFile(
+    XFile file, {
+    required String folder,
+    String? namePrefix,
+  }) async {
+    final Uint8List bytes = await file.readAsBytes();
+    return uploadBytes(
+      bytes,
+      folder: folder,
+      extension: extensionOf(file.name.isNotEmpty ? file.name : file.path),
       namePrefix: namePrefix,
     );
   }
