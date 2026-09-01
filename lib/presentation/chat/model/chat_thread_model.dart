@@ -86,6 +86,12 @@ class DirectThread {
   /// zeroed when they open the thread.
   final Map<String, int> unread;
 
+  /// When each participant last deleted the thread for themselves — see
+  /// `ChatRepository.clearThreadHistory`. Nothing is removed by that; this is
+  /// the line under which a member is simply shown nothing any more, and the
+  /// other end's copy is untouched.
+  final Map<String, DateTime> cleared;
+
   const DirectThread({
     required this.id,
     this.participants = const [],
@@ -94,9 +100,29 @@ class DirectThread {
     this.lastAt,
     this.lastHasImage = false,
     this.unread = const {},
+    this.cleared = const {},
   });
 
   int unreadFor(String phone) => unread[phone] ?? 0;
+
+  DateTime? clearedFor(String phone) => cleared[phone];
+
+  /// Whether anything in this thread is still [phone]'s to see.
+  ///
+  /// What the chat list draws its row from: a thread somebody has deleted for
+  /// themselves goes back to being an invitation rather than a conversation,
+  /// until the next message arrives.
+  bool hasHistoryFor(String phone) {
+    if (!hasMessage) return false;
+
+    final DateTime? cut = cleared[phone];
+    if (cut == null) return true;
+
+    // `last_at` is a server stamp and is briefly null on the sender's own
+    // device — a message that new is certainly newer than the cut.
+    final DateTime? at = lastAt;
+    return at == null || at.isAfter(cut);
+  }
 
   /// Whether anything has been said. `last_sender_phone` is written on every
   /// send, while `last_at` is a server timestamp that is still null on the
@@ -125,6 +151,14 @@ class DirectThread {
       lastHasImage: map['last_has_image'] == true,
       unread: raw.map((key, value) =>
           MapEntry(key, (value as num?)?.toInt() ?? 0)),
+      cleared: <String, DateTime>{
+        for (final MapEntry<String, dynamic> entry
+            in Map<String, dynamic>.from(
+                    map['cleared'] ?? const <String, dynamic>{})
+                .entries)
+          if (entry.value is Timestamp)
+            entry.key: (entry.value as Timestamp).toDate(),
+      },
     );
   }
 }

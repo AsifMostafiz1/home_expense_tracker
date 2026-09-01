@@ -20,9 +20,18 @@ class ChatListEntry {
   final ChatUser user;
   final DirectThread? thread;
 
-  const ChatListEntry({required this.user, this.thread});
+  /// Whoever is reading the list. What counts as history depends on them: a
+  /// thread they have deleted for themselves has none until somebody says
+  /// something new — see `DirectThread.hasHistoryFor`.
+  final String myPhone;
 
-  bool get hasHistory => thread?.hasMessage ?? false;
+  const ChatListEntry({
+    required this.user,
+    required this.myPhone,
+    this.thread,
+  });
+
+  bool get hasHistory => thread?.hasHistoryFor(myPhone) ?? false;
 
   DateTime? get lastAt => thread?.lastAt;
 
@@ -157,11 +166,21 @@ class ChatListController extends GetxController implements GetxService {
         .where((user) => user.phone.isNotEmpty && user.phone != myPhone)
         .map((user) => ChatListEntry(
               user: user,
+              myPhone: myPhone,
               thread: _threads[
                   ChatThread.conversationIdFor(myPhone, user.phone)],
             ))
         .toList();
   }
+
+  /// When this member last deleted [conversationId] for themselves, as the
+  /// list already knows it from the thread summaries it streams.
+  ///
+  /// Read by the thread's own controller as it opens, so a conversation that
+  /// was deleted does not show its old messages for the moment it takes its
+  /// own read to answer — see `ChatController.clearHistory`.
+  DateTime? clearedAtFor(String conversationId) =>
+      _threads[conversationId]?.clearedFor(myPhone);
 
   List<ChatListEntry> _matching(List<ChatListEntry> entries) {
     final String needle = query.trim().toLowerCase();

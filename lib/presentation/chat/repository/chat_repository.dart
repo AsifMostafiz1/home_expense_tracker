@@ -2,6 +2,7 @@ import '../model/chat_media_page.dart';
 import '../model/chat_message_model.dart';
 import '../model/chat_thread_model.dart';
 import '../model/pinned_message_model.dart';
+import '../model/typing_status_model.dart';
 
 /// Every method that touches a thread takes a [conversationId]: null means the
 /// house group, anything else is the direct thread with that id. One
@@ -109,6 +110,27 @@ abstract class ChatRepository {
   /// thread is opened and again whenever a message arrives while it is open.
   Future<void> markThreadRead(String conversationId, String myPhone);
 
+  /// Deletes a direct thread for one member, and for nobody else.
+  ///
+  /// Nothing is removed: what was said stays where it is for the person at
+  /// the other end — a member does not get to unsay it. What is written is a
+  /// line under the thread, and from here on this member is shown nothing
+  /// above it, on this device and on any other they sign in to.
+  ///
+  /// Direct threads only. The house group belongs to the house, not to any
+  /// one member, and nobody gets to take their own copy of it away.
+  Future<void> clearThreadHistory({
+    required String conversationId,
+    required String userPhone,
+  });
+
+  /// Where that line currently sits, live — null until the member has ever
+  /// drawn one.
+  Stream<DateTime?> getClearedAtStream({
+    required String conversationId,
+    required String userPhone,
+  });
+
   /// Sets — or, with a null [emoji], removes — [userPhone]'s reaction. The
   /// caller decides the toggle from the message it is holding, so this is a
   /// plain field write that works offline; a transaction would not.
@@ -130,4 +152,21 @@ abstract class ChatRepository {
   Stream<List<Map<String, dynamic>>> getSeenStatusStream({
     String? conversationId,
   });
+
+  /// Raises or lowers [userPhone]'s typing flag on a thread.
+  ///
+  /// Never awaited by anything that matters: a flag is worth nothing by the
+  /// time a retry would land, and a keystroke must not wait on a round trip.
+  Future<void> setTyping({
+    required String userPhone,
+    required String userName,
+    required bool typing,
+    String? conversationId,
+  });
+
+  /// Who has the composer open in this thread, live.
+  ///
+  /// Includes the reader's own flag; the caller drops it, because that is the
+  /// one nobody ever has to be told about.
+  Stream<List<TypingStatus>> getTypingStream({String? conversationId});
 }

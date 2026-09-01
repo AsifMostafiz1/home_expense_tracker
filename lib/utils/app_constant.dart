@@ -1,5 +1,6 @@
 class AppConstant {
   static const String appName = 'Meal Tracker';
+  static const double appVersion = 1.2;
   
   // Shared Preferences Keys
   static const String keyIsLoggedIn = 'isLoggedIn';
@@ -70,6 +71,11 @@ class AppConstant {
   static const String collectionChats = 'chats';
   static const String collectionSeenStatus = 'seen_status';
 
+  /// Who has the composer open in the group thread right now — one document
+  /// per member, keyed by phone, the same shape `seen_status` has. A direct
+  /// thread keeps its own in a `typing` subcollection instead.
+  static const String collectionTypingStatus = 'typing_status';
+
   /// One document per pair of members — see `DirectThread`. The id is both
   /// phone numbers, sorted and joined, so either end builds the same one.
   /// Messages live in a `messages` subcollection under it, read receipts in
@@ -84,6 +90,7 @@ class AppConstant {
   /// Subcollections of a direct thread.
   static const String subcollectionMessages = 'messages';
   static const String subcollectionSeen = 'seen';
+  static const String subcollectionTyping = 'typing';
   static const String collectionEditLogs = 'edit_logs';
 
   /// One document per month, keyed `YYYY-MM` — the house bills an admin sets
@@ -123,8 +130,6 @@ class AppConstant {
   /// `Subcategory`.
   static const String collectionPersonalSubcategories =
       'personal_subcategories';
-  
-  static const double appVersion = 1.1;
 
   /// Where each device records the build it is running, on the member's own
   /// record — what tells an admin who a new-version notice is for.

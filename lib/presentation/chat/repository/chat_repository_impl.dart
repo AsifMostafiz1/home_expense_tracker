@@ -10,6 +10,7 @@ import '../model/chat_media_page.dart';
 import '../model/chat_message_model.dart';
 import '../model/chat_thread_model.dart';
 import '../model/pinned_message_model.dart';
+import '../model/typing_status_model.dart';
 import 'chat_repository.dart';
 
 /// Firestore-backed, and offline-first — the same shape as the expense
@@ -58,6 +59,17 @@ class ChatRepositoryImpl implements ChatRepository {
       return _firestore.collection(AppConstant.collectionSeenStatus);
     }
     return _thread(conversationId).collection(AppConstant.subcollectionSeen);
+  }
+
+  /// Where a thread's typing flags live. Laid out exactly like [_seen] and
+  /// for the same reason: the group's predate direct chats and sit in their
+  /// own top-level collection, a direct thread keeps its own beside its
+  /// messages.
+  CollectionReference<Map<String, dynamic>> _typing(String? conversationId) {
+    if (conversationId == null) {
+      return _firestore.collection(AppConstant.collectionTypingStatus);
+    }
+    return _thread(conversationId).collection(AppConstant.subcollectionTyping);
   }
 
   @override
@@ -200,7 +212,14 @@ class ChatRepositoryImpl implements ChatRepository {
   Future<List<Map<String, dynamic>>> fetchChatUsers() async {
     final snapshot =
         await _firestore.collection(AppConstant.collectionUsers).get();
-    return snapshot.docs.map((doc) => doc.data()).toList();
+    return snapshot.docs
+        .map((doc) => doc.data())
+        // Removed accounts stay in Firestore as tombstones — the same reason
+        // [getChatUsersStream] drops them. This one feeds the mention box,
+        // where offering somebody who is no longer in the house is worse
+        // than useless: the notification goes to a topic nobody listens to.
+        .where((data) => data['removed'] != true)
+        .toList();
   }
 
   @override
@@ -472,6 +491,84 @@ class ChatRepositoryImpl implements ChatRepository {
     return _seen(conversationId)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  @override
+  Future<void> clearThreadHistory({
+    required String conversationId,
+    required String userPhone,
+  }) {
+    // Written twice on purpose, because two screens need it and each already
+    // listens to one of the two places: the thread reads its own line from
+    // the per-member document beside its read receipts, and the chat list
+    // reads it from the thread summary it draws every row from. Neither has
+    // to open a listener it does not already have.
+    final WriteBatch batch = _firestore.batch();
+
+    batch.set(
+      _seen(conversationId).doc(userPhone),
+      {
+        'userPhone': userPhone,
+        'clearedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    batch.set(
+      _thread(conversationId),
+      {
+        'cleared': {userPhone: FieldValue.serverTimestamp()},
+        // Nothing left to have not read.
+        'unread': {userPhone: 0},
+      },
+      SetOptions(merge: true),
+    );
+
+    return _commit(batch.commit());
+  }
+
+  @override
+  Stream<DateTime?> getClearedAtStream({
+    required String conversationId,
+    required String userPhone,
+  }) {
+    return _seen(conversationId)
+        .doc(userPhone)
+        .snapshots()
+        .map((doc) => (doc.data()?['clearedAt'] as Timestamp?)?.toDate());
+  }
+
+  @override
+  Future<void> setTyping({
+    required String userPhone,
+    required String userName,
+    required bool typing,
+    String? conversationId,
+  }) async {
+    // Deliberately not through [_commit], and deliberately not awaited: a
+    // typing flag is worth nothing by the time a retry would land, and every
+    // keystroke would otherwise be waiting on a round trip. Offline the write
+    // sits in Firestore's queue and goes out late, which the reader's own
+    // staleness window takes care of — see [TypingStatus.isActive].
+    unawaited(
+      _typing(conversationId).doc(userPhone).set({
+        'phone': userPhone,
+        'name': userName,
+        'typing': typing,
+        'at': FieldValue.serverTimestamp(),
+      }).catchError(
+        (Object e) => debugPrint('Chat: typing flag not written — $e'),
+      ),
+    );
+  }
+
+  @override
+  Stream<List<TypingStatus>> getTypingStream({String? conversationId}) {
+    return _typing(conversationId).snapshots().map(
+          (snapshot) => snapshot.docs
+              .map((doc) => TypingStatus.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   /// Waits for the server's acknowledgement while online — a rejected write

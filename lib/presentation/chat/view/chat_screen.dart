@@ -7,7 +7,6 @@ import '../../../common/widgets/local_image.dart';
 import '../../../common/widgets/confirm_dialog.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import '../../../common/widgets/custom_snackbar.dart';
-import '../../../common/widgets/image_viewer_screen.dart';
 import '../../../common/widgets/profile_avatar.dart';
 import '../../../utils/app_enums.dart';
 import '../../../utils/app_ui.dart';
@@ -23,7 +22,9 @@ import '../widgets/chat_search_results.dart';
 import '../widgets/group_avatar.dart';
 import '../widgets/group_settings_sheet.dart';
 import '../widgets/pinned_banner.dart';
+import '../widgets/typing_bubble.dart';
 import 'chat_media_screen.dart';
+import 'chat_media_viewer.dart';
 import 'pinned_messages_screen.dart';
 
 /// The little round button that lives inside the search pill. An `IconButton`
@@ -73,7 +74,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   ChatController get controller => Get.find<ChatController>(tag: widget.tag);
 
   bool get _isDirect => widget.tag != null;
@@ -81,6 +82,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Being on screen is what marks a thread read — for the group that is the
     // in-memory badge, for a direct chat the count in Firestore.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -88,8 +90,26 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Coming back to a thread that was left open is opening it again.
+  ///
+  /// What arrived while the app was away is on screen the moment it returns,
+  /// notifications and all — and those the reader never tapped would sit in
+  /// the tray for messages they have already read.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    if (!Get.isRegistered<ChatController>(tag: widget.tag)) return;
+    if (state == AppLifecycleState.resumed) {
+      controller.setChatScreenVisible(true);
+    } else {
+      // Away from the app is not typing, whatever is left in the composer.
+      controller.stopTyping();
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // Safe from here: with `false` this only flips a flag, it does not ask
     // anything to rebuild.
     controller.setChatScreenVisible(false);
@@ -156,8 +176,9 @@ class _ChatScreenState extends State<ChatScreen> {
               // for a connection — sit past the newest message, at the
               // bottom of a reversed list.
               final int pending = controller.outgoing.length;
+              final bool typing = controller.typingUsers.isNotEmpty;
 
-              if (controller.messages.isEmpty && pending == 0) {
+              if (controller.messages.isEmpty && pending == 0 && !typing) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -186,8 +207,16 @@ class _ChatScreenState extends State<ChatScreen> {
                 controller: controller.scrollController,
                 reverse: true,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                itemCount: controller.messages.length + pending,
-                itemBuilder: (context, position) {
+                itemCount:
+                    controller.messages.length + pending + (typing ? 1 : 0),
+                itemBuilder: (context, slot) {
+                  // Slot zero is the bottom of a reversed list — where the
+                  // next message will land, and so where the dots promising
+                  // one belong.
+                  if (typing && slot == 0) return const TypingBubble();
+
+                  final int position = typing ? slot - 1 : slot;
+
                   if (position < pending) {
                     // Newest first, like everything else in a reversed list.
                     return _OutgoingBubble(
@@ -409,6 +438,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (value == 'media') openChatMedia(tag: widget.tag);
         if (value == 'settings') showGroupSettingsSheet(context);
         if (value == 'pinned') _openPinned();
+        if (value == 'delete') _confirmDeleteChat();
       },
       itemBuilder: (_) => [
         PopupMenuItem<String>(
@@ -459,19 +489,77 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
         ),
+        // Last, and the only one in red: everything above this opens
+        // something, and this one takes something away. Direct chats only —
+        // the house group is not one member's to delete.
+        if (_isDirect)
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Row(
+            children: [
+              const Icon(Icons.delete_outline_rounded,
+                  size: 19, color: Colors.red),
+              const SizedBox(width: 12),
+              Text(
+                'delete_chat'.tr,
+                style: const TextStyle(color: Colors.red),
+              ),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+
+  /// Asks before emptying the thread, and says whose copy is going.
+  ///
+  /// Worth spelling out, because a member reading "delete" reasonably fears
+  /// they are about to take the conversation away from the person they were
+  /// having it with — and what actually happens is the opposite: the other
+  /// end keeps every word, and the next message still arrives here.
+  void _confirmDeleteChat() {
+    showConfirmDialog(
+      title: 'delete_chat'.tr,
+      message:
+          'delete_chat_confirm'.trParams({'name': controller.thread.peerName}),
+      detail: 'delete_chat_note'.tr,
+      confirmText: 'delete'.tr,
+      onConfirm: () async {
+        await controller.clearHistory();
+        CustomSnackbar.show(
+          message: 'chat_deleted'.tr,
+          type: SnackbarType.success,
+        );
+      },
     );
   }
 
   void _openPinned() => Get.to(() => const PinnedMessagesScreen());
 
   /// "Active now", "Active 20m ago" — or, for the group, how many members it
-  /// has.
+  /// has. While somebody is writing, it says that instead: whatever else this
+  /// line could say, that is the one worth the space.
   Widget _buildSubtitle(
     BuildContext context,
     ChatController c,
     ChatListController list,
   ) {
+    // Somebody writing outranks whether they are around: it is the newer
+    // news, and it is what a reader is watching this line for.
+    final String? typing = c.typingLabel;
+    if (typing != null) {
+      return Text(
+        typing,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      );
+    }
+
     final ChatUser? peer = list.userByPhone(c.thread.peerPhone);
     final bool online = _isDirect && (peer?.isOnline ?? false);
 
@@ -1262,20 +1350,58 @@ class _MessageBubble extends StatelessWidget {
   /// other. Unique per message, which is all a hero tag has to be.
   String get _imageHeroTag => 'chat_image_${message.id}';
 
+  /// Opens the thread's pictures, starting at this one.
+  ///
+  /// Every picture in the thread rather than only the one that was tapped:
+  /// a photo opened from a conversation is expected to swipe on to the next,
+  /// which a single-picture screen cannot do however it is dressed up. Same
+  /// viewer the gallery uses, so the zoom, the counter, the strip along the
+  /// bottom and the way back to the message all come with it — only the list
+  /// differs, and this one is the thread's own, oldest first, the order it is
+  /// read in.
+  void _openImage(BuildContext context) {
+    final List<ChatMessageModel> photos = <ChatMessageModel>[
+      for (final ChatMessageModel item in controller.messages.reversed)
+        if (!item.deleted && (item.imageUrl?.isNotEmpty ?? false)) item,
+    ];
+
+    final int index = photos.indexWhere((item) => item.id == message.id);
+    // Only reachable if the thread moved under the tap. Nothing to open, and
+    // a viewer on a picture that is no longer there is worse than nothing.
+    if (index < 0) return;
+
+    Get.to(
+      () => ChatMediaViewer(
+        items: photos,
+        initialIndex: index,
+        // The width a bubble is capped at — the copy already decoded for the
+        // thread stands in until the full-size one arrives.
+        thumbCacheWidth:
+            (240 * MediaQuery.of(context).devicePixelRatio).round(),
+        heroTagFor: (ChatMessageModel item) => 'chat_image_${item.id}',
+        onJumpToMessage: (ChatMessageModel item) {
+          Get.back();
+          controller.scrollToMessage(item.id);
+        },
+      ),
+      // Black on black: the picture is already on screen and flying into
+      // place, so a slide underneath it only reads as a stutter.
+      opaque: false,
+      transition: Transition.fadeIn,
+      duration: const Duration(milliseconds: 220),
+      preventDuplicates: false,
+    );
+  }
+
   /// The picture inside a bubble.
   ///
   /// Laid out from the dimensions stamped on the message, so the thread keeps
   /// its shape while the bytes are still coming down — the bubble never jumps
-  /// under a reader's thumb. A tap opens it full screen.
+  /// under a reader's thumb. A tap opens it full screen, at this picture,
+  /// with the rest of the thread's a swipe away.
   Widget _buildImage(BuildContext context) {
     return GestureDetector(
-      onTap: () => Get.to(() => ImageViewerScreen(
-            imageUrl: message.imageUrl!,
-            title: message.senderName,
-            subtitle: DateFormat('dd MMM, hh:mm a').format(message.createdAt),
-            caption: message.text,
-            heroTag: _imageHeroTag,
-          )),
+      onTap: () => _openImage(context),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 240, maxHeight: 320),
         child: ClipRRect(

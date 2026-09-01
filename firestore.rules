@@ -169,6 +169,11 @@ service cloud.firestore {
       /// Read receipts, one document per participant.
       match /seen/{phone} { allow read, write: if client(); }
 
+      /// Who has the composer open, one document per participant. Ephemeral
+      /// by nature — the flag is re-stamped while somebody types, lowered
+      /// when they stop, and read with a staleness window either way.
+      match /typing/{phone} { allow read, write: if client(); }
+
       match /messages/{messageId} {
 
         function withinWindow() {
@@ -240,6 +245,10 @@ service cloud.firestore {
     match /expenses/{expenseId}   { allow read, write: if client(); }
     match /announcements/{id}     { allow read, write: if client(); }
     match /seen_status/{phone}    { allow read, write: if client(); }
+
+    /// Who is typing in the group thread, one document per member. The
+    /// direct threads keep their own under `direct_chats/{id}/typing`.
+    match /typing_status/{phone}  { allow read, write: if client(); }
 
     /// Messages pinned above the group thread, one document per pinned
     /// message keyed by that message's id. Anyone in the house may pin, unpin

@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'daily_reminder_service.dart';
 import 'fcm_v1_service.dart';
 import 'notification_router.dart';
+import 'notification_tray.dart';
 
 /// Raises the tray notification for [message], if this device should see it.
 ///
@@ -33,6 +34,23 @@ Future<void> _showNotificationIfAppropriate(
   // holding it: this runs in the headless isolate too.
   if (data['type'] == 'reminder_config') {
     await DailyReminderService.applyFromPush(data);
+    return;
+  }
+
+  // Which conversation this is about, if it is about one at all. The tag
+  // every chat notification carries, and what a thread takes its own back
+  // out of the tray by — see [NotificationTray].
+  final String? threadKey = NotificationTray.keyFor(data);
+
+  // That thread is open in front of the reader, so the message was read as
+  // it landed: nothing new belongs in the tray, and whatever was left there
+  // before they opened it goes now. Meaningful on the main isolate only — a
+  // background message runs where [NotificationTray.openThreadKey] is always
+  // null, which is right, because nothing is in front of anybody.
+  if (!fromBackgroundIsolate &&
+      threadKey != null &&
+      threadKey == NotificationTray.openThreadKey) {
+    await NotificationTray.clearThread(threadKey);
     return;
   }
 
@@ -105,7 +123,9 @@ Future<void> _showNotificationIfAppropriate(
   );
 
   await localNotificationsPlugin.show(
-    message.hashCode,
+    // A chat entry keeps the id its thread is known by, so the one posted
+    // here and the one FCM posts while the app is away are one entry.
+    threadKey == null ? message.hashCode : NotificationTray.idFor(threadKey),
     displayTitle,
     body,
     NotificationDetails(
@@ -116,6 +136,7 @@ Future<void> _showNotificationIfAppropriate(
         icon: '@mipmap/ic_launcher',
         importance: Importance.high,
         priority: Priority.high,
+        tag: threadKey,
       ),
     ),
     payload: jsonEncode(message.data),
@@ -419,6 +440,13 @@ class PushNotificationService {
         'Authorization': 'Bearer $accessToken',
       };
 
+      // The tag a chat notification is filed under, so the thread it belongs
+      // to can take it back out of the tray once it has been read — see
+      // [NotificationTray]. It also keeps a burst of messages in one
+      // conversation to one line: Android replaces an entry that shares a
+      // tag and an id with the one already there.
+      final String? threadTag = NotificationTray.keyFor(data ?? const {});
+
       final List<String> topics = [];
       if (targetPhones != null && targetPhones.isNotEmpty) {
         for (final phone in targetPhones) {
@@ -454,6 +482,7 @@ class PushNotificationService {
               if (!dataOnly)
                 'notification': {
                   'channel_id': 'high_importance_channel',
+                  if (threadTag != null) 'tag': threadTag,
                   if (imageUrl != null) 'image': imageUrl,
                 },
             },

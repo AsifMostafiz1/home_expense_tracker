@@ -397,8 +397,11 @@ class _ChatRow extends StatelessWidget {
 
     final String? lastActive = lastActiveLabel(entry.user);
 
-    // Nothing said yet reads as an invitation rather than an empty line.
-    final String preview = thread != null && thread.preview.isNotEmpty
+    // Nothing said yet — or nothing left after this member deleted the
+    // thread for themselves — reads as an invitation rather than an empty
+    // line.
+    final bool hasHistory = entry.hasHistory;
+    final String preview = hasHistory && thread!.preview.isNotEmpty
         ? (thread.lastSenderPhone == myPhone
             ? '${'you'.tr}: ${thread.preview}'
             : thread.preview)
@@ -440,9 +443,8 @@ class _ChatRow extends StatelessWidget {
                       fontSize: 12.5,
                       height: 1.25,
                       fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
-                      fontStyle: entry.hasHistory
-                          ? FontStyle.normal
-                          : FontStyle.italic,
+                      fontStyle:
+                          hasHistory ? FontStyle.normal : FontStyle.italic,
                       color: hasUnread
                           ? AppUi.body(context)
                           : AppUi.muted(context),
@@ -472,7 +474,8 @@ class _ChatRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  chatTimeLabel(entry.lastAt),
+                  // A deleted thread has no last message to date.
+                  hasHistory ? chatTimeLabel(entry.lastAt) : '',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,

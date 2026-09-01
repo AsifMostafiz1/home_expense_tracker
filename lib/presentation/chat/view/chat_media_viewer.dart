@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -9,6 +10,10 @@ import '../model/chat_message_model.dart';
 /// Ties a picture in the grid to the same picture full screen, so one flies
 /// into the other. Unique per message, which is all a hero tag has to be.
 String chatMediaHeroTag(String messageId) => 'chat_media_$messageId';
+
+/// The gallery's own tag, in the shape [ChatMediaViewer.heroTagFor] wants.
+String chatMediaHeroTagFor(ChatMessageModel message) =>
+    chatMediaHeroTag(message.id);
 
 /// Every picture in a conversation, full screen, one swipe apart.
 ///
@@ -32,12 +37,18 @@ class ChatMediaViewer extends StatefulWidget {
   /// Back to the conversation, landing on the message this picture came in.
   final void Function(ChatMessageModel message) onJumpToMessage;
 
+  /// How a picture on screen is tied to the thumbnail it flew out of. The
+  /// gallery and the thread tag theirs differently, and a flight only happens
+  /// when both ends name it the same thing.
+  final String Function(ChatMessageModel message) heroTagFor;
+
   const ChatMediaViewer({
     super.key,
     required this.items,
     required this.initialIndex,
     required this.thumbCacheWidth,
     required this.onJumpToMessage,
+    this.heroTagFor = chatMediaHeroTagFor,
   });
 
   @override
@@ -66,6 +77,21 @@ class _ChatMediaViewerState extends State<ChatMediaViewer> {
   bool _zoomed = false;
 
   bool _precached = false;
+
+  /// Which pointers may drag a page along, or the strip under it.
+  ///
+  /// Flutter's own set leaves the mouse and the trackpad out, on the grounds
+  /// that a desktop scrolls with a wheel. In a photo viewer that leaves no
+  /// way at all to reach the next picture — dragging is the only gesture it
+  /// offers — so a picture opened in a browser sits there and does nothing.
+  static const Set<PointerDeviceKind> _dragDevices = <PointerDeviceKind>{
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.invertedStylus,
+    PointerDeviceKind.unknown,
+  };
 
   @override
   void initState() {
@@ -139,13 +165,20 @@ class _ChatMediaViewerState extends State<ChatMediaViewer> {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            Positioned.fill(child: _buildPager()),
-            Positioned(top: 0, left: 0, right: 0, child: _buildTopBar(context)),
-            Positioned(
-                bottom: 0, left: 0, right: 0, child: _buildBottomBar(context)),
-          ],
+        // Around both of the things that scroll here — the pager and the
+        // strip of thumbnails at the bottom — see [_dragDevices].
+        body: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context)
+              .copyWith(dragDevices: _dragDevices, scrollbars: false),
+          child: Stack(
+            children: [
+              Positioned.fill(child: _buildPager()),
+              Positioned(
+                  top: 0, left: 0, right: 0, child: _buildTopBar(context)),
+              Positioned(
+                  bottom: 0, left: 0, right: 0, child: _buildBottomBar(context)),
+            ],
+          ),
         ),
       ),
     );
@@ -164,6 +197,7 @@ class _ChatMediaViewerState extends State<ChatMediaViewer> {
         return _ZoomablePhoto(
           key: ValueKey<String>(message.id),
           message: message,
+          heroTag: widget.heroTagFor(message),
           thumbCacheWidth: widget.thumbCacheWidth,
           isCurrent: i == _index,
           onTap: _toggleChrome,
@@ -391,6 +425,10 @@ class _ChatMediaViewerState extends State<ChatMediaViewer> {
 /// photo viewers feel like they are fighting the thumb.
 class _ZoomablePhoto extends StatefulWidget {
   final ChatMessageModel message;
+
+  /// What the thumbnail this picture came from is tagged with.
+  final String heroTag;
+
   final int thumbCacheWidth;
 
   /// Whether this is the page on screen. Only that one carries the hero, so
@@ -405,6 +443,7 @@ class _ZoomablePhoto extends StatefulWidget {
   const _ZoomablePhoto({
     super.key,
     required this.message,
+    required this.heroTag,
     required this.thumbCacheWidth,
     required this.isCurrent,
     required this.onTap,
@@ -526,7 +565,7 @@ class _ZoomablePhotoState extends State<_ZoomablePhoto>
 
     if (widget.isCurrent) {
       content = Hero(
-        tag: chatMediaHeroTag(widget.message.id),
+        tag: widget.heroTag,
         child: content,
       );
     }

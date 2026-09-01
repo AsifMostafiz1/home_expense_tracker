@@ -933,6 +933,11 @@ class AppTranslations extends Translations {
           'active_day_ago': 'Active @count d ago',
           'offline': 'Offline',
 
+          // Somebody at the other end with the composer open.
+          'typing': 'typing…',
+          'is_typing': '@name is typing…',
+          'several_typing': 'several people are typing…',
+
           // The group's own name and picture.
           'group_settings': 'Group settings',
           'group_name': 'Group name',
@@ -965,6 +970,14 @@ class AppTranslations extends Translations {
           'no_messages_found': 'Nothing matches that',
           'searching_older_messages': 'Still looking through older messages…',
           'message': 'Message',
+
+          // Deleting a conversation, which only ever deletes your own copy.
+          'delete_chat': 'Delete chat',
+          'delete_chat_confirm':
+              'Delete your copy of the conversation with @name?',
+          'delete_chat_note':
+              'Only your side is cleared. They keep every message, and anything sent from now on still arrives here.',
+          'chat_deleted': 'Conversation deleted',
 
           // The gallery: every picture a conversation has carried.
           'media': 'Media',
@@ -1908,6 +1921,11 @@ class AppTranslations extends Translations {
           'active_day_ago': '@count দিন আগে সক্রিয় ছিল',
           'offline': 'অফলাইন',
 
+          // Somebody at the other end with the composer open.
+          'typing': 'টাইপ করছে…',
+          'is_typing': '@name টাইপ করছে…',
+          'several_typing': 'কয়েকজন টাইপ করছে…',
+
           // The group's own name and picture.
           'group_settings': 'গ্রুপ সেটিংস',
           'group_name': 'গ্রুপের নাম',
@@ -1940,6 +1958,14 @@ class AppTranslations extends Translations {
           'no_messages_found': 'কিছু মেলেনি',
           'searching_older_messages': 'পুরনো বার্তাগুলোতেও খোঁজা হচ্ছে…',
           'message': 'বার্তা',
+
+          // Deleting a conversation, which only ever deletes your own copy.
+          'delete_chat': 'চ্যাট মুছুন',
+          'delete_chat_confirm':
+              '@name এর সাথের কথোপকথন আপনার দিক থেকে মুছে ফেলবেন?',
+          'delete_chat_note':
+              'শুধু আপনার দিকটাই মুছবে। ওনার কাছে সব বার্তা থেকে যাবে, আর এরপর পাঠানো বার্তা এখানে আসতেই থাকবে।',
+          'chat_deleted': 'কথোপকথন মুছে ফেলা হয়েছে',
 
           // The gallery: every picture a conversation has carried.
           'media': 'মিডিয়া',

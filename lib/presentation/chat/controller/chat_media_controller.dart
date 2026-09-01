@@ -118,7 +118,12 @@ class ChatMediaController extends GetxController {
     bool changed = false;
 
     for (final ChatMessageModel message in incoming) {
-      if (message.hasImage && !message.deleted) {
+      // The reader's own line under the thread counts here as much as a
+      // deletion does — see `ChatController.isVisibleToMe`. Checked on the
+      // way in as well as in [_rebuild], so a page walked back through a
+      // cleared conversation does not report finding pictures it will then
+      // hide.
+      if (message.hasImage && !message.deleted && chat.isVisibleToMe(message)) {
         final ChatMessageModel? held = _byId[message.id];
         // The caption and the picture are the only parts of a message this
         // screen draws, so nothing else is worth a rebuild for.
@@ -140,8 +145,12 @@ class ChatMediaController extends GetxController {
   /// months. Called once per change rather than per frame — the grid asks for
   /// [sections] on every build.
   void _rebuild() {
-    final List<ChatMessageModel> sorted = _byId.values.toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // The reader's own line under the thread applies here too: a picture from
+    // a conversation they have deleted for themselves is not theirs to look
+    // at, however deep in the history it was read back from.
+    final List<ChatMessageModel> sorted =
+        _byId.values.where(chat.isVisibleToMe).toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     all = sorted;
 
     _rebuildSenders();

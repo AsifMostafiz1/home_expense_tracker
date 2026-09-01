@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../common/widgets/custom_snackbar.dart';
 import '../../../services/chat_outbox_service.dart';
 import '../../../services/connectivity_service.dart';
+import '../../../services/notification_tray.dart';
 import '../../../services/push_notification_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/app_constant.dart';
@@ -16,7 +17,9 @@ import '../model/chat_message_model.dart';
 import '../model/chat_thread_model.dart';
 import '../model/outgoing_image_model.dart';
 import '../model/pinned_message_model.dart';
+import '../model/typing_status_model.dart';
 import '../repository/chat_repository.dart';
+import 'chat_list_controller.dart';
 
 /// One conversation on screen.
 ///
@@ -42,11 +45,26 @@ class ChatController extends GetxController implements GetxService {
 
   bool get isGroupChat => thread.isGroup;
 
+  /// The tag this thread's notifications are filed under in the tray — see
+  /// [NotificationTray].
+  String get trayKey => isGroupChat
+      ? NotificationTray.groupKey
+      : NotificationTray.directKey(conversationId!);
+
   final TextEditingController messageController = TextEditingController();
   final ScrollController scrollController = ScrollController();
   final FocusNode messageFocusNode = FocusNode();
 
   List<ChatMessageModel> messages = [];
+
+  /// Everything the thread holds, before this member's own line under it is
+  /// applied — see [clearHistory]. Kept so the visible list can be worked out
+  /// again when that line moves, without re-reading the thread.
+  List<ChatMessageModel> _rawMessages = const [];
+
+  /// Where that line sits, or null if this member has never drawn one.
+  DateTime? clearedAt;
+  StreamSubscription? _clearedSubscription;
   String userName = '';
   String userPhone = '';
   String? userProfileImage;
@@ -75,6 +93,37 @@ class ChatController extends GetxController implements GetxService {
 
   Map<String, List<Map<String, dynamic>>> messageSeenBy = {};
   StreamSubscription? _seenStatusSubscription;
+
+  /// ------------------------------------------------------------- typing
+  ///
+  /// Everyone in this thread with the composer open, this device left out.
+  /// Empty almost always, which is what the header and the thread read to
+  /// decide whether to say anything at all.
+  List<TypingStatus> typingUsers = const [];
+
+  /// Every flag on the thread, filtered down to [typingUsers] on arrival and
+  /// again on a tick — a flag does not change when it goes stale, so nothing
+  /// would arrive to re-filter it.
+  List<TypingStatus> _typingRaw = const [];
+  StreamSubscription? _typingSubscription;
+  Timer? _typingExpiryTimer;
+
+  /// Whether this device's own flag is up, and when it was last stamped, so
+  /// a long message costs a write every few seconds rather than one per key.
+  bool _typingSent = false;
+  DateTime? _typingSentAt;
+  Timer? _typingIdleTimer;
+
+  /// How long a raised flag goes before it is re-stamped. Comfortably inside
+  /// [TypingStatus.window], so a reader never ages out somebody who is still
+  /// typing.
+  static const Duration _typingRefresh = Duration(seconds: 6);
+
+  /// How long after the last keystroke somebody counts as having stopped.
+  static const Duration _typingIdle = Duration(seconds: 3);
+
+  /// How often the flags on screen are re-checked for staleness.
+  static const Duration _typingSweep = Duration(seconds: 3);
 
   /// The group's name and picture. Only ever filled on the group instance —
   /// a direct chat's identity is the person it is with.
@@ -138,8 +187,10 @@ class ChatController extends GetxController implements GetxService {
   void onInit() {
     super.onInit();
     _loadUserConfig();
+    _seedClearedAt();
     _initChatStream();
     _initSeenStatusStream();
+    _initTypingStream();
     // Only the group needs the directory: it is what the mention box is
     // filtered from, and a direct chat has exactly one other person in it.
     if (isGroupChat) _fetchAllUsers();
@@ -173,6 +224,12 @@ class ChatController extends GetxController implements GetxService {
 
   @override
   void onClose() {
+    // Before the subscriptions go, so the flag this device left up is taken
+    // down rather than left for the other end's staleness window.
+    stopTyping();
+    _typingExpiryTimer?.cancel();
+    _typingSubscription?.cancel();
+    _clearedSubscription?.cancel();
     _messagesSubscription?.cancel();
     _seenStatusSubscription?.cancel();
     _groupInfoSubscription?.cancel();
@@ -196,6 +253,11 @@ class ChatController extends GetxController implements GetxService {
   }
 
   void _onTextChanged() {
+    // Before the group-only part below: a direct chat has no mentions to
+    // offer, but the person at the other end is exactly who wants to know
+    // that something is being written.
+    _onTypingKeystroke();
+
     // Nobody to mention in a conversation of two.
     if (!isGroupChat) return;
 
@@ -284,22 +346,41 @@ class ChatController extends GetxController implements GetxService {
       _updateMySeenStatus();
       _clearThreadUnread();
     }
+    // Including which typing flags are somebody else's, which until now it
+    // had no phone number to tell apart from its own.
+    _applyTyping();
+    // Needs the phone number to know whose line to watch, so it cannot be
+    // started with the rest of the streams in `onInit`.
+    _initClearedStream();
     update();
+  }
+
+  /// Whether [message] is still this member's to see.
+  ///
+  /// Public because the gallery asks the same question of the pictures it has
+  /// read back from history, which never went through this thread at all.
+  bool isVisibleToMe(ChatMessageModel message) {
+    final DateTime? cut = clearedAt;
+    return cut == null || message.createdAt.isAfter(cut);
   }
 
   void _initChatStream() {
     _messagesSubscription = repository
         .getMessagesStream(conversationId: conversationId)
         .listen((newMessages) {
+      final List<ChatMessageModel> visible =
+          newMessages.where(isVisibleToMe).toList();
+
       if (!isChatScreenVisible && messages.isNotEmpty) {
         final existingIds = messages.map((m) => m.id).toSet();
-        for (var msg in newMessages) {
+        for (var msg in visible) {
           if (!existingIds.contains(msg.id) && msg.senderPhone != userPhone) {
             unseenCount++;
           }
         }
       }
-      messages = newMessages;
+      _rawMessages = newMessages;
+      messages = visible;
       if (isChatScreenVisible && messages.isNotEmpty) {
         _updateMySeenStatus();
         // A message that arrives while the thread is open was read as it
@@ -315,12 +396,26 @@ class ChatController extends GetxController implements GetxService {
   void setChatScreenVisible(bool visible) {
     isChatScreenVisible = visible;
     if (visible) {
+      // The thread is in front of the reader, so its notifications have done
+      // their job: what is in the tray goes, and anything that arrives while
+      // they are still here is not raised at all.
+      NotificationTray.openThreadKey = trayKey;
+      NotificationTray.clearThread(trayKey);
       unseenCount = 0;
       if (messages.isNotEmpty) {
         _updateMySeenStatus();
       }
       _clearThreadUnread();
       update();
+    } else {
+      // Off screen is not typing, whatever was left in the composer.
+      stopTyping();
+      // The tray key only goes back if it is still ours: a direct chat
+      // opened from this one has already claimed it by the time this thread
+      // is taken down.
+      if (NotificationTray.openThreadKey == trayKey) {
+        NotificationTray.openThreadKey = null;
+      }
     }
   }
 
@@ -334,6 +429,177 @@ class ChatController extends GetxController implements GetxService {
     // create a half-empty one for every member whose row was ever tapped.
     if (messages.isEmpty) return;
     repository.markThreadRead(id, userPhone);
+  }
+
+  /// -------------------------------------------------------------- clearing
+
+  /// The line the chat list already holds, applied before the thread is even
+  /// read.
+  ///
+  /// Both reads answer out of Firestore's cache in about the same instant, so
+  /// without this a conversation that was deleted can show its old messages
+  /// for the frame or two the thread wins by — which reads as a delete that
+  /// did not take.
+  void _seedClearedAt() {
+    if (isGroupChat || !Get.isRegistered<ChatListController>()) return;
+    clearedAt = Get.find<ChatListController>().clearedAtFor(conversationId!);
+  }
+
+  void _initClearedStream() {
+    // The house group has no line to watch — see [clearHistory].
+    if (isGroupChat || _clearedSubscription != null || userPhone.isEmpty) {
+      return;
+    }
+
+    _clearedSubscription = repository
+        .getClearedAtStream(
+            conversationId: conversationId!, userPhone: userPhone)
+        .listen((DateTime? cut) {
+      if (cut == clearedAt) return;
+      clearedAt = cut;
+      messages = _rawMessages.where(isVisibleToMe).toList();
+      if (messages.isEmpty) unseenCount = 0;
+      update();
+    }, onError: (Object e) => debugPrint('Chat: cleared-at stream failed — $e'));
+  }
+
+  /// Deletes this thread for this member, and for nobody else.
+  ///
+  /// Nothing actually goes: what was said stays where it is for the person at
+  /// the other end — a member does not get to unsay it — and the pictures
+  /// stay in their gallery. All that is written is a line under the thread,
+  /// which this device, and any other the member signs in to, then reads
+  /// nothing above.
+  ///
+  /// Direct threads only. The house group is the house's record of itself —
+  /// the meal figures, the bills, the announcements are all in it — and one
+  /// member deciding they have seen enough of it is not a thing this offers.
+  Future<void> clearHistory() async {
+    if (isGroupChat || userPhone.isEmpty) return;
+    // Nothing said, nothing to draw a line under — and for a direct thread
+    // the write would conjure a summary document for a conversation that
+    // never happened, the way `_clearThreadUnread` is careful not to.
+    if (_rawMessages.isEmpty) return;
+
+    // Applied here rather than waited for. The line itself is a server
+    // timestamp, and a thread that empties a round trip after the tap reads
+    // as a button that did not work; the stream carries the server's own
+    // figure a moment later and this stands in until it does.
+    clearedAt = DateTime.now();
+    _searchPool = [];
+    messages = const [];
+    unseenCount = 0;
+    update();
+
+    await repository.clearThreadHistory(
+      conversationId: conversationId!,
+      userPhone: userPhone,
+    );
+  }
+
+  /// --------------------------------------------------------------- typing
+
+  /// What the header says while somebody else is writing, or null when
+  /// nobody is.
+  ///
+  /// A direct chat needs no name — there is only one other person in it. A
+  /// group names one person and counts the rest, the way every chat app
+  /// does: three names would not fit under the title anyway.
+  String? get typingLabel {
+    if (typingUsers.isEmpty) return null;
+    if (!isGroupChat) return 'typing'.tr;
+    if (typingUsers.length > 1) return 'several_typing'.tr;
+
+    // First name only. The header has room for one word and a verb.
+    final String name = typingUsers.first.name.trim().split(' ').first;
+    return name.isEmpty ? 'typing'.tr : 'is_typing'.trParams({'name': name});
+  }
+
+  void _initTypingStream() {
+    _typingSubscription = repository
+        .getTypingStream(conversationId: conversationId)
+        .listen((List<TypingStatus> flags) {
+      _typingRaw = flags;
+      _applyTyping();
+    }, onError: (Object e) => debugPrint('Chat: typing stream failed — $e'));
+  }
+
+  /// Works out who is on screen from the flags on the thread.
+  ///
+  /// Called on every snapshot and, while anybody is typing, on a tick as
+  /// well: a flag left up by a device that went away does not change when it
+  /// goes stale, so nothing would arrive to take it down.
+  void _applyTyping() {
+    final List<TypingStatus> active = _typingRaw
+        .where((TypingStatus flag) => flag.phone != userPhone && flag.isActive)
+        .toList();
+
+    // Compared rather than assigned-and-redrawn: the sweep below runs every
+    // few seconds and must not rebuild the thread for saying nothing new.
+    final bool changed = active.length != typingUsers.length ||
+        !active.every((TypingStatus flag) =>
+            typingUsers.any((TypingStatus was) => was.phone == flag.phone));
+
+    typingUsers = active;
+
+    if (active.isEmpty) {
+      _typingExpiryTimer?.cancel();
+      _typingExpiryTimer = null;
+    } else {
+      _typingExpiryTimer ??= Timer.periodic(_typingSweep, (_) => _applyTyping());
+    }
+
+    if (changed) update();
+  }
+
+  /// A keystroke.
+  ///
+  /// Raises this device's flag when it is not up, re-stamps it once it has
+  /// stood a while, and re-arms the timer that takes it down when the keys
+  /// stop. An emptied composer counts as stopping straight away — clearing
+  /// what you were writing is the clearest way of saying you are not.
+  void _onTypingKeystroke() {
+    if (messageController.text.trim().isEmpty) {
+      stopTyping();
+      return;
+    }
+
+    _typingIdleTimer?.cancel();
+    _typingIdleTimer = Timer(_typingIdle, stopTyping);
+
+    final DateTime? sentAt = _typingSentAt;
+    final bool stale =
+        sentAt == null || DateTime.now().difference(sentAt) > _typingRefresh;
+    if (_typingSent && !stale) return;
+
+    _typingSent = true;
+    _typingSentAt = DateTime.now();
+    _writeTyping(true);
+  }
+
+  /// Takes this device's flag down.
+  ///
+  /// Called from everywhere a member stops being one: an idle pause, a send
+  /// (the composer is cleared, which comes back through the listener), the
+  /// screen closing, the app going to the background. Cheap to call when the
+  /// flag is already down, which is why none of those places check first.
+  void stopTyping() {
+    _typingIdleTimer?.cancel();
+    _typingIdleTimer = null;
+    if (!_typingSent) return;
+    _typingSent = false;
+    _typingSentAt = null;
+    _writeTyping(false);
+  }
+
+  void _writeTyping(bool typing) {
+    if (userPhone.isEmpty) return;
+    repository.setTyping(
+      userPhone: userPhone,
+      userName: userName,
+      typing: typing,
+      conversationId: conversationId,
+    );
   }
 
   void _initPinnedStream() {
@@ -774,6 +1040,9 @@ class ChatController extends GetxController implements GetxService {
     return pool
         .where((m) =>
             !m.deleted &&
+            // The history a search reads goes deeper than the thread does,
+            // so a cleared conversation would otherwise still be findable.
+            isVisibleToMe(m) &&
             (m.text.toLowerCase().contains(needle) ||
                 m.senderName.toLowerCase().contains(needle)))
         .toList();
