@@ -37,6 +37,19 @@ Future<void> _showNotificationIfAppropriate(
     return;
   }
 
+  // Android hands a message that carries a `notification` block straight to
+  // the tray itself while the app is away — and the plugin wakes this isolate
+  // for it all the same, because its receiver sits on the raw FCM broadcast
+  // rather than on the messaging service the SDK skips. Raising one here too
+  // is how a single message ends up in the shade twice. The foreground is the
+  // other way round: nothing is shown for us there, so that path carries on
+  // below and is the one that does the showing.
+  //
+  // The two data-only notices — the reminder settings above and a new build
+  // below — carry no `notification` block and so still run here, which is the
+  // whole point of sending them that way.
+  if (fromBackgroundIsolate && message.notification != null) return;
+
   // Which conversation this is about, if it is about one at all. The tag
   // every chat notification carries, and what a thread takes its own back
   // out of the tray by — see [NotificationTray].
@@ -123,9 +136,10 @@ Future<void> _showNotificationIfAppropriate(
   );
 
   await localNotificationsPlugin.show(
-    // A chat entry keeps the id its thread is known by, so the one posted
-    // here and the one FCM posts while the app is away are one entry.
-    threadKey == null ? message.hashCode : NotificationTray.idFor(threadKey),
+    // A tagged entry keeps the id every tagged entry has, so the one posted
+    // here and the one FCM posts while the app is away are one entry rather
+    // than two — see [NotificationTray.taggedId].
+    threadKey == null ? message.hashCode : NotificationTray.taggedId,
     displayTitle,
     body,
     NotificationDetails(
@@ -408,6 +422,12 @@ class PushNotificationService {
     /// showing it on arrival. What the new-version notice needs: only a
     /// device that is actually behind should see one.
     bool dataOnly = false,
+
+    /// Filled, when a list is handed in, with the phones whose topic did not
+    /// take the message. A caller that retries needs this: without it, one
+    /// topic failing out of six puts all six back in the queue and the five
+    /// people who already had the notification get it a second time.
+    List<String>? unreached,
   }) async {
     try {
       // The house's master switch, checked at the one door every push in the
@@ -447,20 +467,27 @@ class PushNotificationService {
       // tag and an id with the one already there.
       final String? threadTag = NotificationTray.keyFor(data ?? const {});
 
-      final List<String> topics = [];
+      // The topic, and the phone it stands for — a caller that retries needs
+      // to know which people were not reached, not which topics.
+      final List<(String topic, String? phone)> targets = [];
       if (targetPhones != null && targetPhones.isNotEmpty) {
         for (final phone in targetPhones) {
           String safePhone = phone.replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '');
-          topics.add('user_$safePhone');
+          final String topic = 'user_$safePhone';
+          // One send per topic, however many times a phone was handed in.
+          // The same topic twice is the same notification twice, and the
+          // callers upstream have more than one way of naming somebody.
+          if (targets.any((t) => t.$1 == topic)) continue;
+          targets.add((topic, phone));
         }
       } else {
-        topics.add('group_chat');
+        targets.add(('group_chat', null));
       }
 
-      print("topics : ----> ${topics.toString()}");
+      print("topics : ----> ${targets.map((t) => t.$1).toList()}");
 
       bool allSent = true;
-      for (final topic in topics) {
+      for (final (String topic, String? phone) in targets) {
         final payload = {
           'message': {
             'topic': topic,
@@ -502,15 +529,26 @@ class PushNotificationService {
           }
         };
 
-        // Bounded: a link that is up but not answering must not hold a save.
-        final response = await http
-            .post(url, headers: headers, body: jsonEncode(payload))
-            .timeout(const Duration(seconds: 20));
-        if (response.statusCode != 200) {
-          print('FCM Send Error [Topic: $topic]: ${response.body}');
+        // Caught per topic rather than around the loop: one topic that
+        // times out must not take the people after it in the list with it,
+        // and [unreached] has to name every one that did not arrive.
+        try {
+          // Bounded: a link that is up but not answering must not hold a
+          // save.
+          final response = await http
+              .post(url, headers: headers, body: jsonEncode(payload))
+              .timeout(const Duration(seconds: 20));
+          if (response.statusCode != 200) {
+            print('FCM Send Error [Topic: $topic]: ${response.body}');
+            allSent = false;
+            if (phone != null) unreached?.add(phone);
+          } else {
+            print('FCM Send Success [Topic: $topic]');
+          }
+        } catch (e) {
+          print('FCM Send Error [Topic: $topic]: $e');
           allSent = false;
-        } else {
-          print('FCM Send Success [Topic: $topic]');
+          if (phone != null) unreached?.add(phone);
         }
       }
       return allSent;

@@ -1354,8 +1354,11 @@ class ChatController extends GetxController implements GetxService {
       for (final mention in mentionList) {
         final user = allUsers.firstWhereOrNull((u) =>
             (u['name'] ?? '').toString().replaceAll(' ', '') == mention);
-        if (user != null && user['phone'] != null) {
-          targets.add(user['phone']);
+        final String phone = (user?['phone'] ?? '').toString();
+        // Somebody named twice in the same message is still one person to
+        // tell, and two identical targets are two notifications.
+        if (phone.isNotEmpty && !targets.contains(phone)) {
+          targets.add(phone);
         }
       }
       if (replyTo != null && !targets.contains(replyTo.senderPhone)) {

@@ -14,7 +14,10 @@ import 'push_notification_service.dart';
 class PendingPush {
   final String title;
   final String body;
-  final List<String>? targetPhones;
+
+  /// Who still has to be told. Narrowed on a partial failure to only the
+  /// people the send did not reach — see `PushOutboxService._trySend`.
+  List<String>? targetPhones;
   final Map<String, String> data;
   final String? imageUrl;
 
@@ -164,6 +167,8 @@ class PushOutboxService extends GetxController implements GetxService {
   }
 
   Future<bool> _trySend(PendingPush push) async {
+    final List<String> unreached = <String>[];
+
     try {
       final bool sent = await PushNotificationService().sendPushNotification(
         title: push.title,
@@ -172,9 +177,18 @@ class PushOutboxService extends GetxController implements GetxService {
         data: push.data,
         imageUrl: push.imageUrl,
         dataOnly: push.dataOnly,
+        unreached: unreached,
       );
-      if (!sent) push.attempts++;
-      return sent;
+      if (sent) return true;
+
+      // What is left waiting is what did not arrive. Without this the whole
+      // batch goes back in the queue, and everybody the send did reach is
+      // notified again on the next attempt — the same notification twice.
+      // Empty means the send failed before any topic was tried at all, and
+      // the list it started with still stands.
+      if (unreached.isNotEmpty) push.targetPhones = unreached;
+      push.attempts++;
+      return false;
     } catch (e) {
       debugPrint('PushOutbox: send failed — $e');
       push.attempts++;

@@ -56,10 +56,15 @@ class NotificationTray {
     }
   }
 
-  /// The notification id that goes with [key]. Stable, so the entry the
-  /// foreground handler posts and the entry FCM posts for the same thread are
-  /// one entry rather than two.
-  static int idFor(String key) => key.hashCode & 0x7fffffff;
+  /// The id a tagged notification is filed under.
+  ///
+  /// Zero, and not a choice: Android identifies a notification by its tag
+  /// *and* its id together, and FCM's own display path posts with
+  /// `notify(tag, 0)`. Anything this app posts for the same thread has to
+  /// use the same zero, or the entry raised while the app was away and the
+  /// one raised while it was open sit side by side in the shade instead of
+  /// replacing each other.
+  static const int taggedId = 0;
 
   /// Takes every tray entry belonging to [key] down.
   ///
@@ -72,7 +77,7 @@ class NotificationTray {
           await _plugin.getActiveNotifications();
       for (final ActiveNotification entry in active) {
         if (entry.tag != key && entry.groupKey != key) continue;
-        await _plugin.cancel(entry.id ?? idFor(key), tag: entry.tag);
+        await _plugin.cancel(entry.id ?? taggedId, tag: entry.tag);
       }
     } catch (e) {
       debugPrint('NotificationTray: could not clear $key — $e');
