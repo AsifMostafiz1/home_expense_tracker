@@ -171,7 +171,7 @@ class ExpenseBottomSheet extends GetView<ExpenseController> {
                 ),
                 // Whose ledger this lands in — the one thing that is not
                 // obvious when an admin fills the form in for someone else.
-                if (item == null && controller.isMemberEntry) ...[
+                if (item == null && controller.isOtherMemberEntry) ...[
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.symmetric(

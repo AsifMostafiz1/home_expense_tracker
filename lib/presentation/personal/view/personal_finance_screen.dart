@@ -234,6 +234,10 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
         if (spending.isNotEmpty) ...[
           const SizedBox(height: 14),
           CategoryBreakdown(
+            // Keyed on the reset token for the same reason the trend chart
+            // is: the card folds its own tail, and a refresh means the visit
+            // starts over.
+            key: ValueKey<String>('spending-$_resetToken'),
             totals: spending,
             total: month.expense,
             title: 'where_money_went'.tr,
@@ -248,6 +252,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
         if (earning.isNotEmpty) ...[
           const SizedBox(height: 14),
           CategoryBreakdown(
+            key: ValueKey<String>('earning-$_resetToken'),
             totals: earning,
             total: month.income,
             title: 'where_money_came_from'.tr,
@@ -845,18 +850,32 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
   /// Drawn on a gradient like the house expense summary, so a member's two
   /// ledgers open with the same kind of card. Value contrast does the work on
   /// top of it: accent hues would fight the ground, as they do over there.
+  /// The way to the report.
+  ///
+  /// A chevron rides with the icon: on its own the sheet of paper says "a
+  /// report is here", which reads as a picture on a card rather than as a way
+  /// off it — the arrow is what says a tap goes somewhere. No label beside
+  /// it, though; the row it sits at the end of already carries the privacy
+  /// note, and either "Money report" or its longer Bengali would push that
+  /// note into an ellipsis.
   Widget _reportButton(BuildContext context) {
     return Tooltip(
       message: 'personal_report'.tr,
       child: Material(
-        color: Colors.white.withOpacity(0.18),
-        shape: const CircleBorder(),
+        color: Colors.white.withOpacity(0.22),
+        borderRadius: BorderRadius.circular(999),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => Get.to(() => const PersonalReportScreen()),
           child: const Padding(
-            padding: EdgeInsets.all(7),
-            child: Icon(Icons.summarize_rounded, size: 17, color: Colors.white),
+            padding: EdgeInsets.fromLTRB(8, 6, 4, 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.summarize_rounded, size: 18, color: Colors.white),
+                Icon(Icons.chevron_right_rounded, size: 18, color: Colors.white),
+              ],
+            ),
           ),
         ),
       ),
@@ -869,8 +888,13 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     final WalletBalance wallet = c.wallet;
 
     final DateTime now = DateTime.now();
-    final bool isThisMonth =
-        c.selectedMonth.year == now.year && c.selectedMonth.month == now.month;
+    final DateTime thisMonth = DateTime(now.year, now.month);
+    final bool isThisMonth = c.selectedMonth == thisMonth;
+
+    // A month that has not happened yet holds what is already planned into
+    // it, so the caption has to look forward rather than back — "stood" is
+    // wrong about December in September.
+    final bool isAhead = c.selectedMonth.isAfter(thisMonth);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
@@ -936,45 +960,59 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           Row(
             children: [
               Expanded(
-                // The button hugs the figure rather than sitting at the far
+                // The figure and the way into its working are one target.
+                // The number is what somebody is pointing at when they ask
+                // how it adds up, so the number is what opens the statement —
+                // an 18px mark beside it was the whole target before, and a
+                // mark that small is easy to miss and easier to mis-tap.
+                //
+                // An arrow rather than an ⓘ: information is what the
+                // statement holds, but going there is what the tap does, and
+                // only one of those is worth drawing.
+                //
+                // Hugged to the figure rather than run out to the card's
                 // edge: it is about this number, not about the card.
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        walletFigure(wallet.balance),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 34,
-                          height: 1.1,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                    Material(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Tooltip(
+                    message: 'how_it_adds_up'.tr,
+                    child: Material(
                       // Transparent, and above the gradient — an ink splash
                       // paints on the nearest Material, which without this is
                       // the page underneath and therefore invisible.
                       color: Colors.transparent,
-                      child: IconButton(
-                        onPressed: () =>
+                      borderRadius: BorderRadius.circular(14),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () =>
                             Get.to(() => const WalletBreakdownScreen()),
-                        icon: const Icon(Icons.info_outline_rounded),
-                        iconSize: 18,
-                        color: Colors.white70,
-                        padding: EdgeInsets.zero,
-                        visualDensity: VisualDensity.compact,
-                        constraints:
-                            const BoxConstraints(minWidth: 34, minHeight: 34),
-                        splashRadius: 18,
-                        tooltip: 'how_it_adds_up'.tr,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(2, 4, 2, 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  walletFigure(wallet.balance),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 34,
+                                    height: 1.1,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right_rounded,
+                                  size: 28, color: Colors.white),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
               // Nothing recorded this month moved nothing — a "+৳0" pill
@@ -988,7 +1026,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
           const SizedBox(height: 4),
           Text(
             !isThisMonth
-                ? 'wallet_as_of'
+                ? (isAhead ? 'wallet_ahead_of' : 'wallet_as_of')
                     .trParams({'month': AppUi.monthLabel(c.selectedMonth)})
                 : wallet.isShort
                     ? 'wallet_short'.tr

@@ -10,7 +10,7 @@ import '../model/personal_summary.dart';
 /// A list rather than a pie: five rows with their share written out answer
 /// "what am I spending on" faster than a circle anyone has to decode, and it
 /// reads the same at any width.
-class CategoryBreakdown extends StatelessWidget {
+class CategoryBreakdown extends StatefulWidget {
   final List<CategoryTotal> totals;
   final double total;
   final String title;
@@ -20,7 +20,9 @@ class CategoryBreakdown extends StatelessWidget {
   /// before either is read.
   final MaterialColor? tone;
 
-  /// Longer lists are cut here — the tail of a spending month is noise.
+  /// How many rows the card opens with. The rest are a tap away rather than
+  /// gone: the head of the list is the answer to "what am I spending on",
+  /// and the tail is still somebody's money.
   final int max;
 
   /// Opens the rows behind a bar. Without it the list is inert, which is what
@@ -38,10 +40,32 @@ class CategoryBreakdown extends StatelessWidget {
   });
 
   @override
+  State<CategoryBreakdown> createState() => _CategoryBreakdownState();
+}
+
+class _CategoryBreakdownState extends State<CategoryBreakdown> {
+  /// Whether the tail below [CategoryBreakdown.max] is showing.
+  ///
+  /// Folded to begin with, and it stays however it was left for the rest of
+  /// the visit — walking to another month is not a reason to fold a list
+  /// somebody opened. A pull-to-refresh is: the screen keys these cards on
+  /// its reset token, which throws this away with everything else that visit
+  /// had set.
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final List<CategoryTotal> totals = widget.totals;
+    final double total = widget.total;
+    final String title = widget.title;
+    final MaterialColor? tone = widget.tone;
+
     if (totals.isEmpty) return const SizedBox.shrink();
 
-    final List<CategoryTotal> shown = totals.take(max).toList();
+    final bool overflows = totals.length > widget.max;
+    final List<CategoryTotal> shown = overflows && !_expanded
+        ? totals.take(widget.max).toList()
+        : totals;
     final int hidden = totals.length - shown.length;
 
     return Container(
@@ -85,20 +109,20 @@ class CategoryBreakdown extends StatelessWidget {
                   letterSpacing: -0.3,
                   color: tone == null
                       ? AppUi.body(context)
-                      : AppUi.accent(context, tone!),
+                      : AppUi.accent(context, tone),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
           for (final CategoryTotal entry in shown) ...[
-            if (onTap == null)
+            if (widget.onTap == null)
               _buildRow(context, entry)
             else
               Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () => onTap!(entry),
+                  onTap: () => widget.onTap!(entry),
                   borderRadius: BorderRadius.circular(12),
                   // The row is inset rather than padded so the ripple reaches
                   // past the text without the bar moving in from the edge.
@@ -110,12 +134,43 @@ class CategoryBreakdown extends StatelessWidget {
               ),
             const SizedBox(height: 12),
           ],
-          if (hidden > 0)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'and_more_categories'.trParams({'count': '$hidden'}),
-                style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
+          // The tail, and the way to it. It was a grey line of text before,
+          // which said the rows existed without saying they could be had —
+          // the colour and the chevron are what make it an offer, and the
+          // same control folds them back.
+          if (overflows)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() => _expanded = !_expanded),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 6, 8, 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _expanded
+                            ? 'show_fewer'.tr
+                            : 'and_more_categories'
+                                .trParams({'count': '$hidden'}),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        _expanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        size: 17,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
         ],
@@ -125,7 +180,7 @@ class CategoryBreakdown extends StatelessWidget {
 
   Widget _buildRow(BuildContext context, CategoryTotal entry) {
     final PersonalCategory category = PersonalCategory.of(entry.category);
-    final double share = entry.share(total);
+    final double share = entry.share(widget.total);
     final Color accent = AppUi.accent(context, category.color);
 
     return Row(
@@ -177,7 +232,7 @@ class CategoryBreakdown extends StatelessWidget {
                       style: TextStyle(fontSize: 11, color: AppUi.muted(context)),
                     ),
                   ),
-                  if (onTap != null)
+                  if (widget.onTap != null)
                     Icon(Icons.chevron_right_rounded,
                         size: 16, color: AppUi.muted(context)),
                 ],

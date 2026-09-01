@@ -150,10 +150,10 @@ class _PersonalReportScreenState extends State<PersonalReportScreen> {
   Future<void> _pickCustomRange() async {
     final DateTime now = DateTime.now();
     final DateTime first = DateTime(now.year - 3);
-    // Up to the end of next month: the house screen can date an entry
-    // there, and a range that could not reach it would hide money that
-    // counts.
-    final DateTime last = DateTime(now.year, now.month + 2, 0);
+    // Up to the end of the furthest month the ledger opens onto: entries
+    // can be dated that far ahead, and a range that could not reach them
+    // would hide money that counts.
+    final DateTime last = PersonalController.horizonDay;
 
     DateTimeRange? initial =
         _customRange ?? ReportPeriod.thisMonth.rangeOn(now);

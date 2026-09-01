@@ -42,16 +42,14 @@ Future<void> showTransactionSheet(
 /// The day a new entry starts on, given the month being looked at.
 ///
 /// Today while that is this month — somebody adding as they go means now. Any
-/// other month and today is not even in it, so the entry would file itself
-/// into a month the screen is not showing: the 1st of the month on screen is
-/// what was meant. A month not yet reached has no day that has happened, so
-/// it falls back to today, which is also the furthest the picker will go.
+/// other month, behind or ahead, and today is not even in it, so the entry
+/// would file itself into a month the screen is not showing: the 1st of the
+/// month on screen is what was meant.
 DateTime _defaultDayIn(DateTime month) {
   final DateTime now = DateTime.now();
   if (month.year == now.year && month.month == now.month) return now;
 
-  final DateTime first = DateTime(month.year, month.month, 1);
-  return first.isAfter(now) ? now : first;
+  return DateTime(month.year, month.month, 1);
 }
 
 class _TransactionSheet extends StatefulWidget {
@@ -123,19 +121,24 @@ class _TransactionSheetState extends State<_TransactionSheet> {
     final DateTime now = DateTime.now();
     final DateTime first = DateTime(now.year - 3);
 
-    // The picker asserts on a start it would not let you choose, and the day
-    // on the form can sit outside the window — an entry copied from the house
-    // screen can be dated into next month.
+    // Ahead as far as the ledger opens: money paid before the month it is
+    // for — rent, a bill, an instalment — is recorded on the day it belongs
+    // to, not on the day somebody happened to think of it.
+    DateTime last = PersonalController.horizonDay;
+
+    // The picker asserts on a day it would not let you choose, and the one on
+    // the form can sit outside the window — an entry copied from the house
+    // screen, or one saved back when the window sat elsewhere.
+    if (_date.isAfter(last)) last = _date;
+
     DateTime start = _date;
     if (start.isBefore(first)) start = first;
-    if (start.isAfter(now)) start = now;
 
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: start,
       firstDate: first,
-      // Money is recorded after it moves, so tomorrow is not on offer.
-      lastDate: now,
+      lastDate: last,
     );
     if (picked != null) setState(() => _date = picked);
   }

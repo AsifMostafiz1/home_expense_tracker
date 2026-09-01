@@ -85,6 +85,15 @@ class ExpenseController extends GetxController implements GetxService {
 
   bool get isMemberEntry => memberPhone != null && memberPhone!.isNotEmpty;
 
+  /// The signed-in user's phone, cached for the one question the form asks of
+  /// it: whether the target is somebody else. An admin correcting their own
+  /// entry comes through the member path too — for the wider date window —
+  /// and should not be told the entry is being filed under someone.
+  String currentUserPhone = '';
+
+  bool get isOtherMemberEntry =>
+      isMemberEntry && memberPhone != currentUserPhone;
+
   /// Points the form at [name]/[phone]. Called after [clearForm] or
   /// [loadForEdit], both of which drop any earlier target.
   void setMemberTarget({required String name, required String phone}) {
@@ -138,6 +147,7 @@ class ExpenseController extends GetxController implements GetxService {
   @override
   void onInit() {
     super.onInit();
+    _loadCurrentUser();
     fetchExpenses();
 
     // Back online: Firestore is already delivering its queue on its own, so a
@@ -160,6 +170,12 @@ class ExpenseController extends GetxController implements GetxService {
   }
 
   void _onConnectivityChanged() => update();
+
+  Future<void> _loadCurrentUser() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    currentUserPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
+    update();
+  }
 
   void clearForm() {
     amountController.clear();

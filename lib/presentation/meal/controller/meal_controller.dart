@@ -47,6 +47,14 @@ class MealController extends GetxController implements GetxService {
   /// [isFetchingMeals].
   Future<void> get mealsReady => _mealsFetch ?? Future.value();
   bool isAdminUser = false;
+
+  /// The signed-in user's own name and phone. The member sheet points the
+  /// admin edit path at whoever it was opened for, and the viewer's own card
+  /// is labelled "You" rather than named — so the pair a write needs comes
+  /// from here instead of from that card.
+  String currentUserName = '';
+  String currentUserPhone = '';
+
   Map<String, int> dailyMeals = {};
   Map<String, int> totalDailyMeals = {};
   Map<String, List<Map<String, dynamic>>> userDailyMeals = {};
@@ -153,6 +161,8 @@ class MealController extends GetxController implements GetxService {
   Future<void> _loadAdminStatus() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     isAdminUser = prefs.getString(AppConstant.keyIsAdmin) == '1';
+    currentUserName = prefs.getString(AppConstant.keyUserName) ?? '';
+    currentUserPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
     update();
   }
 
@@ -550,7 +560,12 @@ class MealController extends GetxController implements GetxService {
     );
   }
 
+  /// The admin edit sheet for one day of one member's meals — the viewer's
+  /// own row included, which reaches here with their own name and phone.
   void showAdminUpdateMealBottomSheet(DateTime date, String otherUserName, String otherUserPhone) {
+    // Correcting one's own day is the same write; only the wording changes,
+    // since "Update Mostafiz's meal" reads oddly to Mostafiz.
+    final bool isSelf = otherUserPhone == currentUserPhone;
     String dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
     // The member's own map first — it covers every month, where
@@ -583,7 +598,10 @@ class MealController extends GetxController implements GetxService {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('update_user_meal'.trParams({'name': otherUserName}),
+            Text(
+                isSelf
+                    ? 'update_meal_count'.tr
+                    : 'update_user_meal'.trParams({'name': otherUserName}),
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
             const SizedBox(height: 8),
             Text(formattedDate,
@@ -632,12 +650,18 @@ class MealController extends GetxController implements GetxService {
                   closeOverlayRoute(); // close bottom sheet
                   showConfirmDialog(
                     title: 'confirm_edit'.tr,
-                    message: 'confirm_edit_meal'.trParams({
-                      'name': otherUserName,
-                      'old': oldCount.toString(),
-                      'new': newCount.toString(),
-                      'date': formattedDate,
-                    }),
+                    message: isSelf
+                        ? 'confirm_edit_my_meal'.trParams({
+                            'old': oldCount.toString(),
+                            'new': newCount.toString(),
+                            'date': formattedDate,
+                          })
+                        : 'confirm_edit_meal'.trParams({
+                            'name': otherUserName,
+                            'old': oldCount.toString(),
+                            'new': newCount.toString(),
+                            'date': formattedDate,
+                          }),
                     confirmText: 'confirm'.tr,
                     confirmColor: Colors.blue.shade600,
                     onConfirm: () => _updateOtherUserMeal(date, newCount,
@@ -669,6 +693,11 @@ class MealController extends GetxController implements GetxService {
       
       if (adminName == null || adminPhone == null) return;
 
+      // Their own day goes through the same write, but none of what follows
+      // it: an edit log and a push exist to tell somebody else what an admin
+      // did to their ledger.
+      final bool isSelf = otherUserPhone == adminPhone;
+
       await repository.updateMeal(otherUserName, otherUserPhone, date, newCount);
 
       // The member's own map is what the sheet's calendar and the next edit
@@ -681,40 +710,46 @@ class MealController extends GetxController implements GetxService {
       // Log the edit
       List<String> months = ['jan'.tr, 'feb'.tr, 'mar'.tr, 'apr'.tr, 'may'.tr, 'jun'.tr, 'jul'.tr, 'aug'.tr, 'sep'.tr, 'oct'.tr, 'nov'.tr, 'dec'.tr];
       String formattedDate = '${date.day} ${months[date.month - 1]}, ${date.year}';
-      
-      // Queued like any other write offline; not awaited for the server,
-      // since it would never resolve there.
-      unawaited(FirebaseFirestore.instance
-          .collection(AppConstant.collectionEditLogs)
-          .add({
-            'adminName': adminName,
-            'adminPhone': adminPhone,
-            'targetUserName': otherUserName,
-            'targetUserPhone': otherUserPhone,
-            'type': 'meal',
-            'description': 'Meal count changed from $oldCount to $newCount on $formattedDate',
-            'createdAt': FieldValue.serverTimestamp(),
-          })
-          .then<void>((_) {},
-              onError: (Object e) => debugPrint('Edit log write failed: $e')));
 
-      // Sent now, or filed for the next connection.
-      unawaited(_pushOutbox.send(
-        title: 'Admin Updated Your Meal',
-        body: '$adminName has changed your meal count from $oldCount to $newCount on $formattedDate.',
-        targetPhones: [otherUserPhone],
-        // The tap lands on the meal screen, where the corrected count is —
-        // see NotificationRouter.
-        data: {
-          'senderName': adminName,
-          'senderPhone': adminPhone,
-          'type': 'meal',
-        },
-      ));
+      if (!isSelf) {
+        // Queued like any other write offline; not awaited for the server,
+        // since it would never resolve there.
+        unawaited(FirebaseFirestore.instance
+            .collection(AppConstant.collectionEditLogs)
+            .add({
+              'adminName': adminName,
+              'adminPhone': adminPhone,
+              'targetUserName': otherUserName,
+              'targetUserPhone': otherUserPhone,
+              'type': 'meal',
+              'description': 'Meal count changed from $oldCount to $newCount on $formattedDate',
+              'createdAt': FieldValue.serverTimestamp(),
+            })
+            .then<void>((_) {},
+                onError: (Object e) => debugPrint('Edit log write failed: $e')));
+
+        // Sent now, or filed for the next connection.
+        unawaited(_pushOutbox.send(
+          title: 'Admin Updated Your Meal',
+          body: '$adminName has changed your meal count from $oldCount to $newCount on $formattedDate.',
+          targetPhones: [otherUserPhone],
+          // The tap lands on the meal screen, where the corrected count is —
+          // see NotificationRouter.
+          data: {
+            'senderName': adminName,
+            'senderPhone': adminPhone,
+            'type': 'meal',
+          },
+        ));
+      }
 
       await fetchMeals();
       await fetchMonthlyStats();
-      CustomSnackbar.show(type: SnackbarType.success, message: 'Meal updated for $otherUserName');
+      CustomSnackbar.show(
+          type: SnackbarType.success,
+          message: isSelf
+              ? 'meal_updated'.tr
+              : 'Meal updated for $otherUserName');
     } catch (e) {
       CustomSnackbar.show(type: SnackbarType.error, message: 'Failed to update user meal');
     } finally {

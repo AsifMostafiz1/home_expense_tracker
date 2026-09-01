@@ -193,6 +193,79 @@ void main() {
     expect(find.text(DateFormat('dd MMM, yyyy').format(now)), findsNothing);
   });
 
+  testWidgets('the balance and the report both show where a tap goes',
+      (tester) async {
+    await pumpLedger(tester);
+
+    // An arrow, not an ⓘ: the statement holds information, but going
+    // there is what the tap does. Bigger than the 18px mark it replaced.
+    final Icon arrow = tester.widget<Icon>(find.descendant(
+      of: find.byTooltip('How it adds up'),
+      matching: find.byIcon(Icons.chevron_right_rounded),
+    ));
+    expect(arrow.size, 28);
+
+    // The report is a page too, and the chevron beside the sheet of paper is
+    // what says so.
+    expect(
+      find.descendant(
+        of: find.byTooltip('Money report'),
+        matching: find.byIcon(Icons.chevron_right_rounded),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('the switcher walks three months ahead, and stops there',
+      (tester) async {
+    await pumpLedger(tester);
+
+    final DateTime now = DateTime.now();
+    for (int ahead = 1; ahead <= PersonalController.monthsAhead; ahead++) {
+      await tester.tap(find.byTooltip('Next Month'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppUi.monthLabel(DateTime(now.year, now.month + ahead))),
+        findsOneWidget,
+      );
+    }
+
+    // As far as anybody plans. Nothing is recorded past it either, so the
+    // arrow has nothing to walk into.
+    final IconButton forward = tester.widget<IconButton>(find.ancestor(
+      of: find.byTooltip('Next Month'),
+      matching: find.byType(IconButton),
+    ));
+    expect(forward.onPressed, isNull);
+  });
+
+  testWidgets('a month ahead says what the wallet will come to', (tester) async {
+    await pumpLedger(tester);
+
+    await tester.tap(find.byTooltip('Next Month'));
+    await tester.pumpAndSettle();
+
+    final DateTime now = DateTime.now();
+    final String month = AppUi.monthLabel(DateTime(now.year, now.month + 1));
+    expect(find.text('Where it lands at the end of $month'), findsOneWidget);
+  });
+
+  testWidgets('a new entry starts on the 1st of a month still ahead',
+      (tester) async {
+    await pumpLedger(tester);
+
+    await tester.tap(find.byTooltip('Next Month'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+
+    final DateTime now = DateTime.now();
+    final DateTime nextMonth = DateTime(now.year, now.month + 1, 1);
+    expect(find.text(DateFormat('dd MMM, yyyy').format(nextMonth)),
+        findsOneWidget);
+  });
+
   testWidgets('the six-month chart starts folded and opens on a tap',
       (tester) async {
     await pumpLedger(tester);
@@ -262,8 +335,9 @@ void main() {
     expect(find.text('Total to get'), findsNothing);
     expect(find.text('Total to pay'), findsNothing);
 
-    // The button beside the balance opens the statement behind it.
-    await tester.tap(find.byIcon(Icons.info_outline_rounded));
+    // The balance itself opens the statement behind it — the figure is the
+    // target, not just the arrow at the end of it.
+    await tester.tap(find.text('৳250'));
     await tester.pumpAndSettle();
 
     expect(find.text('MONTH BY MONTH'), findsOneWidget);
@@ -391,6 +465,54 @@ void main() {
     // The figure is in the sheet's header and its day heading, on top of the
     // screen it was opened from — the count above is the unique assertion.
     expect(find.text('−৳88,888.5'), findsWidgets);
+  });
+
+  testWidgets('the breakdown opens on five, and the tail is a tap away',
+      (tester) async {
+    // Seven categories this month, so two are held back.
+    await pumpLedger(tester, rows: [
+      for (final (int i, String category) in <String>[
+        'food',
+        'transport',
+        'shopping',
+        'rent',
+        'health',
+        'education',
+        'family',
+      ].indexed)
+        PersonalTransaction(
+          id: 'c$i',
+          amount: 700 - i * 100,
+          date: _dayIn(0, 3),
+          category: category,
+        ),
+    ]);
+
+    Finder inCard(String label) => find.descendant(
+          of: find.byType(CategoryBreakdown),
+          matching: find.text(label),
+        );
+
+    // The head of the list, and nothing under it — the category labels also
+    // head the month's own entry rows, so the finders stay inside the card.
+    expect(inCard('Food'), findsOneWidget);
+    expect(inCard('Health'), findsOneWidget);
+    expect(inCard('Education'), findsNothing);
+    expect(inCard('Family'), findsNothing);
+
+    await tester.tap(find.text('and 2 more'));
+    await tester.pumpAndSettle();
+
+    expect(inCard('Education'), findsOneWidget);
+    expect(inCard('Family'), findsOneWidget);
+    expect(find.text('and 2 more'), findsNothing);
+
+    // And the same control folds them back.
+    await tester.tap(find.text('Show fewer'));
+    await tester.pumpAndSettle();
+
+    expect(inCard('Education'), findsNothing);
+    expect(find.text('and 2 more'), findsOneWidget);
   });
 
   testWidgets('the category sheet opens on All and narrows by tag',

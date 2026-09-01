@@ -63,6 +63,27 @@ class PersonalController extends GetxController implements GetxService {
   /// The month the money tab is showing. Always the first of the month.
   DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
+  /// How many months past the running one the ledger opens onto.
+  ///
+  /// Money is usually recorded after it moves, but not always: rent paid
+  /// early, a bill dated to the month it covers, and the house expense
+  /// screen's own copies all land ahead of today. Three months is as far as
+  /// anybody plans, so it is as far as the month switcher walks and as far
+  /// as an entry may be dated.
+  static const int monthsAhead = 3;
+
+  /// The furthest month the switcher reaches, as its 1st.
+  static DateTime get horizonMonth {
+    final DateTime now = DateTime.now();
+    return DateTime(now.year, now.month + monthsAhead);
+  }
+
+  /// The last day an entry may be dated to — the end of [horizonMonth].
+  static DateTime get horizonDay {
+    final DateTime now = DateTime.now();
+    return DateTime(now.year, now.month + monthsAhead + 1, 0);
+  }
+
   StreamSubscription<List<PersonalTransaction>>? _transactionsSub;
   StreamSubscription<List<DebtEntry>>? _debtsSub;
   StreamSubscription<List<LedgerPerson>>? _peopleSub;
@@ -297,16 +318,17 @@ class PersonalController extends GetxController implements GetxService {
   void nextMonth() =>
       goToMonth(DateTime(selectedMonth.year, selectedMonth.month + 1));
 
-  /// The current month is as far forward as the ledger goes — money is
-  /// recorded after it moves, not before.
+  /// [monthsAhead] months past the running one is as far forward as the
+  /// ledger goes — far enough to put next quarter's rent in, not so far that
+  /// the switcher walks into empty years.
   ///
-  /// One exception: the house expense screen records into next month as well
-  /// as this one, and the copy of such an entry lands here. A month that has
-  /// something in it has to be reachable, or the entry counts towards the
-  /// totals while being impossible to look at.
+  /// One exception past that: an entry can be dated further out than the
+  /// window reaches — the house expense screen's copies, or one saved back
+  /// when the window sat elsewhere. A month that has something in it has to
+  /// be reachable, or the entry counts towards the totals while being
+  /// impossible to look at.
   bool get canGoForward {
-    final DateTime now = DateTime.now();
-    if (selectedMonth.isBefore(DateTime(now.year, now.month))) return true;
+    if (selectedMonth.isBefore(horizonMonth)) return true;
 
     final String next = PersonalTransaction.monthKeyOf(
         DateTime(selectedMonth.year, selectedMonth.month + 1));
