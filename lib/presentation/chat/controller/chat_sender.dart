@@ -66,6 +66,11 @@ class ChatSender {
             ? {
                 'senderName': myName,
                 'senderPhone': myPhone,
+                // The face the notification is drawn with on the other end —
+                // see `_showNotificationIfAppropriate`. No group name here:
+                // this sends from screens that never load it, and the
+                // notification falls back to the sender's own line.
+                'senderImage': myImage ?? '',
                 'replyToSenderName': '',
                 'mentions': '',
                 'isEveryone': 'false',

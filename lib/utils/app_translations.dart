@@ -995,6 +995,14 @@ class AppTranslations extends Translations {
           'view_photo': 'View photo',
           'jump_to_message': 'Go to message',
 
+          // Keeping a picture out of a conversation.
+          'save_image': 'Save picture',
+          'image_saved': 'Picture saved to your gallery',
+          'image_downloaded': 'Picture downloaded',
+          'image_save_failed': 'Could not save that picture',
+          'gallery_permission_denied':
+              'Photo access is off, so there is nowhere to save it. Turn it on in Settings.',
+
           // Sharing a month's figures into the chat.
           'share_as_message': 'Share as a message',
           'send_summary_to': 'Send this summary to',
@@ -1986,6 +1994,14 @@ class AppTranslations extends Translations {
           'failed_load_media': 'ছবিগুলো লোড করা যায়নি',
           'view_photo': 'ছবিটি দেখুন',
           'jump_to_message': 'বার্তায় যান',
+
+          // Keeping a picture out of a conversation.
+          'save_image': 'ছবি সেভ করুন',
+          'image_saved': 'ছবিটি গ্যালারিতে সেভ হয়েছে',
+          'image_downloaded': 'ছবিটি ডাউনলোড হয়েছে',
+          'image_save_failed': 'ছবিটি সেভ করা যায়নি',
+          'gallery_permission_denied':
+              'ফটো অ্যাক্সেস বন্ধ, তাই ছবিটি রাখার জায়গা নেই। সেটিংস থেকে অনুমতি দিন।',
 
           // Sharing a month's figures into the chat.
           'share_as_message': 'মেসেজ হিসেবে পাঠান',

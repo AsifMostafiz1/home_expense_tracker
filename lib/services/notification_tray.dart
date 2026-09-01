@@ -66,6 +66,38 @@ class NotificationTray {
   /// replacing each other.
   static const int taggedId = 0;
 
+  /// Waits until [key]'s entry is actually in the tray, or gives up.
+  ///
+  /// Only one caller needs this, and it needs it badly: when a chat push
+  /// carries a `notification` block, FCM posts its own entry *and* wakes this
+  /// app's background isolate, which then posts the same entry again with the
+  /// sender's face on it. The second post replaces the first only if it lands
+  /// second. Fetching the picture almost always takes long enough for that to
+  /// be true — but a face already in the cache comes back instantly, and then
+  /// it is a race the app can lose, leaving FCM's plain entry on top.
+  ///
+  /// So the poll: it returns the moment the entry shows up, and after
+  /// [timeout] it returns anyway. Failing to see it is not a reason to hold a
+  /// notification back — posting into an empty tray is exactly as correct.
+  static Future<void> awaitEntry(
+    String key, {
+    Duration timeout = const Duration(milliseconds: 1200),
+  }) async {
+    if (kIsWeb) return;
+    final DateTime deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      try {
+        final List<ActiveNotification> active =
+            await _plugin.getActiveNotifications();
+        if (active.any((e) => e.tag == key || e.groupKey == key)) return;
+      } catch (e) {
+        // Android 5, or a tray that would not be read. Nothing to wait for.
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
+  }
+
   /// Takes every tray entry belonging to [key] down.
   ///
   /// Best effort by design: `getActiveNotifications` needs Android 6, and a

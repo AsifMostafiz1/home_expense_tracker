@@ -1,10 +1,14 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../../common/widgets/custom_snackbar.dart';
 import '../../../common/widgets/profile_avatar.dart';
+import '../../../services/image_download_service.dart';
+import '../../../utils/app_enums.dart';
 import '../model/chat_message_model.dart';
 
 /// Ties a picture in the grid to the same picture full screen, so one flies
@@ -77,6 +81,10 @@ class _ChatMediaViewerState extends State<ChatMediaViewer> {
   bool _zoomed = false;
 
   bool _precached = false;
+
+  /// Whether a picture is on its way down. One at a time — the button is the
+  /// spinner while it runs, so there is nothing to tap twice.
+  bool _saving = false;
 
   /// Which pointers may drag a page along, or the strip under it.
   ///
@@ -157,6 +165,44 @@ class _ChatMediaViewerState extends State<ChatMediaViewer> {
   }
 
   void _toggleChrome() => setState(() => _chrome = !_chrome);
+
+  /// Keeps the picture on screen: onto the phone's gallery, into the desktop's
+  /// Downloads folder, or through the browser's own download.
+  ///
+  /// The URL is read before the wait rather than after, so swiping on to the
+  /// next photograph mid-download still saves the one that was asked for.
+  Future<void> _saveCurrent() async {
+    if (_saving) return;
+
+    final String? url = _current.imageUrl;
+    if (url == null || url.isEmpty) return;
+
+    setState(() => _saving = true);
+    final ImageSaveOutcome outcome =
+        await ImageDownloadService.saveFromUrl(url);
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    switch (outcome) {
+      case ImageSaveOutcome.saved:
+        HapticFeedback.lightImpact();
+        CustomSnackbar.show(
+          message: kIsWeb ? 'image_downloaded'.tr : 'image_saved'.tr,
+          type: SnackbarType.success,
+        );
+      case ImageSaveOutcome.permissionDenied:
+        CustomSnackbar.show(
+          message: 'gallery_permission_denied'.tr,
+          type: SnackbarType.warning,
+          duration: const Duration(seconds: 4),
+        );
+      case ImageSaveOutcome.failed:
+        CustomSnackbar.show(
+          message: 'image_save_failed'.tr,
+          type: SnackbarType.error,
+        );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -291,6 +337,7 @@ class _ChatMediaViewerState extends State<ChatMediaViewer> {
               ),
               const SizedBox(width: 2),
             ],
+            _buildSaveButton(),
             IconButton(
               tooltip: 'jump_to_message'.tr,
               icon: const Icon(Icons.forum_outlined, color: Colors.white),
@@ -299,6 +346,34 @@ class _ChatMediaViewerState extends State<ChatMediaViewer> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Keeping the picture. Turns into its own spinner while the bytes come
+  /// down, in the space the icon already occupies, so the bar does not shuffle
+  /// under a thumb that is about to tap something else.
+  Widget _buildSaveButton() {
+    if (_saving) {
+      return const SizedBox(
+        width: 48,
+        height: 48,
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return IconButton(
+      tooltip: 'save_image'.tr,
+      icon: const Icon(Icons.file_download_outlined, color: Colors.white),
+      onPressed: _saveCurrent,
     );
   }
 

@@ -1388,6 +1388,12 @@ class ChatController extends GetxController implements GetxService {
       data: {
         'senderName': userName,
         'senderPhone': userPhone,
+        // What the notification is drawn with on the other end: the sender's
+        // face, and the name of the thread it belongs to — see
+        // `_showNotificationIfAppropriate`. The receiving device has neither
+        // to hand in a background isolate, so both travel with the message.
+        'senderImage': userProfileImage ?? '',
+        'groupName': groupInfo.displayName,
         'replyToSenderName': replyTo?.senderName ?? '',
         'mentions': mentionList.join(','),
         'isEveryone': hasEveryone.toString(),
@@ -1405,6 +1411,8 @@ class ChatController extends GetxController implements GetxService {
           ? {
               'senderName': userName,
               'senderPhone': userPhone,
+              'senderImage': userProfileImage ?? '',
+              'groupName': groupInfo.displayName,
               'replyToSenderName': '',
               'mentions': '',
               'isEveryone': 'false',

@@ -7,9 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_constant.dart';
 
 import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:http/http.dart' as http;
 import 'daily_reminder_service.dart';
 import 'fcm_v1_service.dart';
+import 'notification_avatar.dart';
 import 'notification_router.dart';
 import 'notification_tray.dart';
 
@@ -37,6 +40,15 @@ Future<void> _showNotificationIfAppropriate(
     return;
   }
 
+  // Which conversation this is about, if it is about one at all. The tag
+  // every chat notification carries, and what a thread takes its own back
+  // out of the tray by — see [NotificationTray].
+  final String? threadKey = NotificationTray.keyFor(data);
+
+  // The sender's picture, when they have set one. Whether it is there decides
+  // more than how the notification looks — see the guard below.
+  final String senderImage = (data['senderImage'] ?? '').toString().trim();
+
   // Android hands a message that carries a `notification` block straight to
   // the tray itself while the app is away — and the plugin wakes this isolate
   // for it all the same, because its receiver sits on the raw FCM broadcast
@@ -45,15 +57,24 @@ Future<void> _showNotificationIfAppropriate(
   // other way round: nothing is shown for us there, so that path carries on
   // below and is the one that does the showing.
   //
+  // One exception, and it is the whole point of the avatar work: a chat
+  // message from somebody with a profile picture. FCM's own entry can only
+  // ever be the app icon — the v1 payload has no field for a sender's face —
+  // so that case deliberately carries on and posts again under the same tag
+  // and the same id, which Android takes as an update to the entry already
+  // there rather than a second one. What the reader is left with is the
+  // notification Messenger gives them: the sender's face, and their message
+  // next to it.
+  //
+  // A chat message from somebody with no picture still returns: there would
+  // be nothing to replace FCM's entry with but the same icon it already has.
+  //
   // The two data-only notices — the reminder settings above and a new build
   // below — carry no `notification` block and so still run here, which is the
   // whole point of sending them that way.
-  if (fromBackgroundIsolate && message.notification != null) return;
-
-  // Which conversation this is about, if it is about one at all. The tag
-  // every chat notification carries, and what a thread takes its own back
-  // out of the tray by — see [NotificationTray].
-  final String? threadKey = NotificationTray.keyFor(data);
+  final bool replacingTrayEntry =
+      fromBackgroundIsolate && message.notification != null;
+  if (replacingTrayEntry && (threadKey == null || senderImage.isEmpty)) return;
 
   // That thread is open in front of the reader, so the message was read as
   // it landed: nothing new belongs in the tray, and whatever was left there
@@ -82,7 +103,15 @@ Future<void> _showNotificationIfAppropriate(
       prefs.getString(AppConstant.keyUserName)?.trim() ?? '';
 
   if (senderPhone == currentUserPhone) {
-    // Do not show notification to the user who sent the message
+    // Do not show notification to the user who sent the message. On the group
+    // topic that now takes an extra step: the sender is subscribed to it like
+    // everybody else, so FCM has already put their own message into their own
+    // shade before this isolate ran, and the only way it leaves again is if
+    // this takes it out.
+    if (replacingTrayEntry) {
+      await _initialiseForBackground(FlutterLocalNotificationsPlugin());
+      await NotificationTray.clearThread(threadKey);
+    }
     return;
   }
 
@@ -114,18 +143,18 @@ Future<void> _showNotificationIfAppropriate(
     }
   }
 
+  // Whether the lines above found something worth saying that the message
+  // itself does not say — a mention, a reply. A chat notification drawn in
+  // the messaging style has no title of its own to put it in, so this is what
+  // decides whether the conversation gets titled with it instead of with its
+  // own name.
+  final bool titleIsSpecial = displayTitle != title;
+
   final FlutterLocalNotificationsPlugin localNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   if (fromBackgroundIsolate) {
-    const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const DarwinInitializationSettings iosSettings =
-        DarwinInitializationSettings();
-    const InitializationSettings initSettings =
-        InitializationSettings(android: androidSettings, iOS: iosSettings);
-
-    await localNotificationsPlugin.initialize(initSettings);
+    await _initialiseForBackground(localNotificationsPlugin);
   }
 
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
@@ -134,6 +163,22 @@ Future<void> _showNotificationIfAppropriate(
     description: 'This channel is used for important notifications.',
     importance: Importance.high,
   );
+
+  // The pictures, fetched before anything is posted: a notification carries
+  // bitmaps, not links, so whatever is going to be on it has to be in hand
+  // first. Only a chat message has a face to fetch, and only a message that
+  // came with a face is worth fetching a photo for — without one the
+  // notification is the plain one it has always been.
+  final Uint8List? avatar =
+      threadKey == null ? null : await NotificationAvatar.bytesFor(senderImage);
+  final String photoUrl = (data['imageUrl'] ?? '').toString().trim();
+  final Uint8List? photo = avatar == null || photoUrl.isEmpty
+      ? null
+      : await NotificationAvatar.bytesFor(photoUrl, large: true);
+
+  // FCM's own entry has to be in the tray before this one can replace it —
+  // see [NotificationTray.awaitEntry].
+  if (replacingTrayEntry) await NotificationTray.awaitEntry(threadKey!);
 
   await localNotificationsPlugin.show(
     // A tagged entry keeps the id every tagged entry has, so the one posted
@@ -151,9 +196,109 @@ Future<void> _showNotificationIfAppropriate(
         importance: Importance.high,
         priority: Priority.high,
         tag: threadKey,
+        // Replacing FCM's entry is an update to a notification the reader has
+        // already been buzzed for. Alerting again for the same message would
+        // be a second buzz for one arrival.
+        onlyAlertOnce: replacingTrayEntry,
+        styleInformation: _chatStyle(
+          avatar: avatar,
+          photo: photo,
+          body: body,
+          senderName: senderName,
+          senderPhone: senderPhone?.toString(),
+          currentUserName: currentUserName,
+          currentUserPhone: currentUserPhone,
+          isGroup: data['type'] == 'chat_message',
+          groupName: (data['groupName'] ?? '').toString().trim(),
+          specialTitle: titleIsSpecial ? displayTitle : null,
+        ),
       ),
     ),
     payload: jsonEncode(message.data),
+  );
+}
+
+/// Sets the local notifications plugin up on an isolate that has never seen
+/// it — every background message runs on one.
+///
+/// Deliberately without a tap callback: this is the same plugin singleton the
+/// main isolate's [PushNotificationService.init] configures, and handing
+/// `initialize` no callback there would leave every tap going nowhere. In a
+/// background isolate there is nothing to navigate anyway — a tap on what is
+/// posted here reaches the app through
+/// `getNotificationAppLaunchDetails` at the next launch.
+Future<void> _initialiseForBackground(
+    FlutterLocalNotificationsPlugin plugin) async {
+  const AndroidInitializationSettings androidSettings =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const DarwinInitializationSettings iosSettings =
+      DarwinInitializationSettings();
+  const InitializationSettings initSettings =
+      InitializationSettings(android: androidSettings, iOS: iosSettings);
+
+  await plugin.initialize(initSettings);
+}
+
+/// How a chat notification is drawn once the sender's face is in hand.
+///
+/// Null for everything else — an expense, an announcement, a new build, or a
+/// sender who has never set a picture — and those keep the plain notification
+/// they have always had.
+///
+/// Two shapes, and the difference is what arrived:
+///
+///   • A photo becomes the big picture, with the face as the large icon. The
+///     messaging style has no room for a sent picture, and losing the preview
+///     to gain a smaller avatar would be a poor trade.
+///
+///   • Anything else becomes the messaging style, which is the one Android
+///     draws the way a chat app is expected to look: the sender's face in a
+///     circle, their name, and their words beside it. It ignores the
+///     notification's own title, so what the title had to say — a mention, a
+///     reply — is carried by [specialTitle] into the conversation title
+///     instead, and the group falls back to its own name.
+StyleInformation? _chatStyle({
+  required Uint8List? avatar,
+  required Uint8List? photo,
+  required String body,
+  required String senderName,
+  required String? senderPhone,
+  required String currentUserName,
+  required String currentUserPhone,
+  required bool isGroup,
+  required String groupName,
+  required String? specialTitle,
+}) {
+  if (avatar == null) return null;
+
+  if (photo != null) {
+    return BigPictureStyleInformation(
+      ByteArrayAndroidBitmap(photo),
+      largeIcon: ByteArrayAndroidBitmap(avatar),
+      contentTitle: specialTitle ?? senderName,
+      summaryText: body,
+    );
+  }
+
+  final Person sender = Person(
+    key: senderPhone,
+    name: senderName,
+    icon: ByteArrayAndroidIcon(avatar),
+    important: true,
+  );
+
+  return MessagingStyleInformation(
+    // The reader themselves. Nothing of theirs is shown on a notification
+    // about somebody else's message, but the style is built around knowing
+    // which side of the conversation it is on.
+    Person(
+      key: currentUserPhone,
+      name: currentUserName.isEmpty ? 'You' : currentUserName,
+    ),
+    conversationTitle:
+        specialTitle ?? (isGroup ? (groupName.isEmpty ? null : groupName) : null),
+    groupConversation: isGroup,
+    messages: <Message>[Message(body, DateTime.now(), sender)],
   );
 }
 
