@@ -4,7 +4,7 @@ class AppTranslations extends Translations {
   @override
   Map<String, Map<String, String>> get keys => {
         'en_US': {
-          'app_name': 'Meal Tracker',
+          'app_name': 'MessBook',
           'meal': 'Meal',
           'expense': 'Expense',
           'chat': 'Chat',
@@ -72,7 +72,7 @@ class AppTranslations extends Translations {
           'cancel': 'Cancel',
           'exit_app': 'Close the app?',
           'exit_app_message':
-              'You are on the home screen. Pressing back again closes Meal Tracker.',
+              'You are on the home screen. Pressing back again closes MessBook.',
           'exit': 'Close',
           'delete_expense': 'Delete Expense',
           'confirm_delete': 'Are you sure you want to delete this item?',
@@ -1014,7 +1014,7 @@ class AppTranslations extends Translations {
           'tap_to_see_details': 'Tap to see details',
         },
         'bn_BD': {
-          'app_name': 'মিল ট্র্যাকার',
+          'app_name': 'মেসবুক',
           'meal': 'মিল',
           'expense': 'খরচ',
           'chat': 'চ্যাট',
@@ -1082,7 +1082,7 @@ class AppTranslations extends Translations {
           'cancel': 'বাতিল',
           'exit_app': 'অ্যাপ বন্ধ করবেন?',
           'exit_app_message':
-              'আপনি হোম স্ক্রিনে আছেন। আবার ব্যাক চাপলে মিল ট্র্যাকার বন্ধ হয়ে যাবে।',
+              'আপনি হোম স্ক্রিনে আছেন। আবার ব্যাক চাপলে মেসবুক বন্ধ হয়ে যাবে।',
           'exit': 'বন্ধ করুন',
           'delete_expense': 'খরচ মুছে ফেলুন',
           'confirm_delete': 'আপনি কি নিশ্চিত যে আপনি এই আইটেমটি মুছে ফেলতে চান?',

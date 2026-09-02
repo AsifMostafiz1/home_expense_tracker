@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Color;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -387,7 +388,7 @@ class DailyReminderService {
       // taps, and the launch details the next start reads carry the payload
       // instead.
       await plugin.initialize(const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/ic_notification'),
         iOS: DarwinInitializationSettings(),
       ));
     }
@@ -408,7 +409,8 @@ class DailyReminderService {
           _channel.id,
           _channel.name,
           channelDescription: _channel.description,
-          icon: '@mipmap/ic_launcher',
+          icon: '@drawable/ic_notification',
+          color: const Color(AppConstant.notificationAccent),
           importance: Importance.high,
           priority: Priority.high,
           // The names are the message, and a shade line is not long enough to

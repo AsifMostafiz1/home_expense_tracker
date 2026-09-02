@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Status-bar tint for notifications; the launcher gradient's start colour. -->
+    <color name="notification_accent">#5B4BF0</color>
+</resources>

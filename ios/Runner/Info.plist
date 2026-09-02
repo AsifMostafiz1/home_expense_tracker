@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Demo Project</string>
+	<string>MessBook</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>demo_project</string>
+	<string>MessBook</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -46,11 +46,11 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Meal Tracker needs access to your photos so you can set a profile picture and send photos in the group chat.</string>
+	<string>MessBook needs access to your photos so you can set a profile picture and send photos in the group chat.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Meal Tracker needs to add to your photos so you can save a picture shared in the group chat.</string>
+	<string>MessBook needs to add to your photos so you can save a picture shared in the group chat.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Meal Tracker needs access to your camera so you can take a profile picture or send a photo to the group chat.</string>
+	<string>MessBook needs access to your camera so you can take a profile picture or send a photo to the group chat.</string>
 	<!-- Background sync of what was saved offline, when the app is not reopened.
 	     The identifier must match BackgroundSyncService.uniqueName. -->
 	<key>UIBackgroundModes</key>

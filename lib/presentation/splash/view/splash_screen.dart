@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
+import '../../../common/widgets/messbook_mark.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_theme.dart';
 import '../controller/splash_controller.dart';
 
 /// The splash keeps the background quiet — near-white lavender in light mode,
-/// deep calm violet in dark mode — and lets one element carry the brand: a
-/// vivid gradient tile that glows softly while the copy eases in beneath it.
+/// deep calm violet in dark mode — and lets one element carry the brand: the
+/// launcher icon itself, glowing softly while the copy eases in beneath it.
+/// The mark is [MessBookGlyph] on the icon's own gradient, so what fades in
+/// here is the tile the reader just tapped.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -72,11 +75,10 @@ class _SplashScreenState extends State<SplashScreen>
         curve: Interval(begin, end, curve: Curves.easeOutCubic),
       );
 
-  /// The brand gradient every accent on this screen is cut from.
-  static final List<Color> _brand = [
-    Color.lerp(AppTheme.primaryLight, AppTheme.primaryColor, 0.25)!,
-    AppTheme.primaryColor,
-  ];
+  /// The brand gradient every accent on this screen is cut from — the same
+  /// one the launcher icon uses, so the tile below is the icon the reader
+  /// just tapped rather than a second, nearly-matching purple.
+  static const List<Color> _brand = MessBookBrand.gradient;
 
   @override
   Widget build(BuildContext context) {
@@ -190,7 +192,7 @@ class _SplashScreenState extends State<SplashScreen>
                                   ]
                                 : [
                                     _brand.first.withOpacity(0.25),
-                                    AppTheme.primaryColor,
+                                    _brand.last,
                                     _brand.first.withOpacity(0.25),
                                   ],
                           ),
@@ -245,8 +247,9 @@ class _SplashScreenState extends State<SplashScreen>
                 width: 108,
                 height: 108,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(34),
-                  gradient: LinearGradient(
+                  borderRadius:
+                      BorderRadius.circular(108 * MessBookBrand.cornerRatio),
+                  gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: _brand,
@@ -257,7 +260,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryColor
+                      color: MessBookBrand.gradientStart
                           .withOpacity(dark ? glow : glow * 0.65),
                       blurRadius: 48,
                       spreadRadius: 4,
@@ -265,11 +268,9 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  size: 50,
-                  color: Colors.white,
-                ),
+                // The mark fills the tile: it carries its own margins on the
+                // design canvas, which is what keeps it identical to the icon.
+                child: const MessBookGlyph(),
               ),
             ),
           ),
