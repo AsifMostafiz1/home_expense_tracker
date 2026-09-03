@@ -61,6 +61,12 @@ abstract class ChatRepository {
     /// see `ChatMessageModel.albumId`.
     String? albumId,
     int? albumCount,
+
+    /// A voice message: where it is, how long it runs, and the shape of it —
+    /// see `ChatMessageModel.audioUrl`.
+    String? audioUrl,
+    int? audioMs,
+    List<int>? audioWave,
     String? conversationId,
     String? peerPhone,
 

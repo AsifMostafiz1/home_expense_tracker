@@ -27,6 +27,12 @@ class PinnedMessage {
   /// The picture the message carried, if any.
   final String? imageUrl;
 
+  /// The voice message it was, if it was one. Kept as a flag rather than the
+  /// clip's URL: a pin is a line of text under the app bar, and there is
+  /// nothing there to play it with — all the banner needs is to know it must
+  /// not show a blank line.
+  final bool hasAudio;
+
   /// When the message itself was sent — not when it was pinned.
   final DateTime? sentAt;
 
@@ -45,6 +51,7 @@ class PinnedMessage {
     this.senderPhone = '',
     this.senderImage,
     this.imageUrl,
+    this.hasAudio = false,
     this.sentAt,
     this.pinnedBy = '',
     this.pinnedByName = '',
@@ -59,6 +66,7 @@ class PinnedMessage {
   String get preview {
     final String trimmed = text.trim();
     if (trimmed.isNotEmpty) return trimmed;
+    if (hasAudio) return '🎤 ${'voice_message'.tr}';
     if (hasImage) return '📷 ${'photo'.tr}';
     return 'message'.tr;
   }
@@ -76,6 +84,7 @@ class PinnedMessage {
       senderPhone: message.senderPhone,
       senderImage: message.senderImage,
       imageUrl: message.imageUrl,
+      hasAudio: message.hasAudio,
       sentAt: message.createdAt,
       pinnedBy: pinnedBy,
       pinnedByName: pinnedByName,
@@ -91,6 +100,7 @@ class PinnedMessage {
       senderPhone: senderPhone,
       senderImage: senderImage,
       imageUrl: imageUrl,
+      hasAudio: hasAudio,
       sentAt: sentAt,
       pinnedBy: pinnedBy,
       pinnedByName: pinnedByName,
@@ -111,6 +121,7 @@ class PinnedMessage {
       imageUrl: (map['image_url'] ?? '').toString().isEmpty
           ? null
           : map['image_url'].toString(),
+      hasAudio: map['has_audio'] == true,
       sentAt: (map['sent_at'] as Timestamp?)?.toDate(),
       pinnedBy: (map['pinned_by'] ?? '').toString(),
       pinnedByName: (map['pinned_by_name'] ?? '').toString(),
@@ -126,6 +137,7 @@ class PinnedMessage {
         'sender_phone': senderPhone,
         if (senderImage != null) 'sender_image': senderImage,
         if (imageUrl != null) 'image_url': imageUrl,
+        if (hasAudio) 'has_audio': true,
         if (sentAt != null) 'sent_at': Timestamp.fromDate(sentAt!),
         'pinned_by': pinnedBy,
         'pinned_by_name': pinnedByName,

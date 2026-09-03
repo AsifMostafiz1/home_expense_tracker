@@ -113,6 +113,9 @@ class ChatRepositoryImpl implements ChatRepository {
     double? imageHeight,
     String? albumId,
     int? albumCount,
+    String? audioUrl,
+    int? audioMs,
+    List<int>? audioWave,
     String? conversationId,
     String? peerPhone,
     String? action,
@@ -136,6 +139,9 @@ class ChatRepositoryImpl implements ChatRepository {
       imageHeight: imageHeight,
       albumId: albumId,
       albumCount: albumCount,
+      audioUrl: audioUrl,
+      audioMs: audioMs,
+      audioWave: audioWave,
       action: action,
     );
 
@@ -163,6 +169,7 @@ class ChatRepositoryImpl implements ChatRepository {
         'last_sender_phone': senderPhone,
         'last_at': FieldValue.serverTimestamp(),
         'last_has_image': imageUrl != null,
+        'last_has_audio': audioUrl != null,
         'updated_at': FieldValue.serverTimestamp(),
         // Merged into the map rather than written as a dotted key: `set`
         // treats a dot in a key as part of the name, `update` would fail on a
@@ -211,6 +218,9 @@ class ChatRepositoryImpl implements ChatRepository {
       'image_url': FieldValue.delete(),
       'image_width': FieldValue.delete(),
       'image_height': FieldValue.delete(),
+      'audio_url': FieldValue.delete(),
+      'audio_ms': FieldValue.delete(),
+      'audio_wave': FieldValue.delete(),
       'reactions': FieldValue.delete(),
     }));
   }

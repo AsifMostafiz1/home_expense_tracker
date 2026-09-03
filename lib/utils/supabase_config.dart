@@ -26,6 +26,12 @@ class SupabaseConfig {
   /// Folders inside the bucket, so objects stay grouped by what they belong to.
   static const String folderProfile = 'profile';
   static const String folderChat = 'chat';
+
+  /// The chat's voice messages. Their own folder rather than `chat/`: they
+  /// are the only objects in the bucket nothing renders as a picture, and a
+  /// bucket rule or a cleanup that ever needs to tell them apart should not
+  /// have to read the extension to do it.
+  static const String folderVoice = 'voice';
   static const String folderExpense = 'expense';
 
   static bool get isConfigured =>

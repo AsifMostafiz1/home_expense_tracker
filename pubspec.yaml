@@ -89,6 +89,12 @@ dependencies:
   # web is. Pulled in transitively already; named here because the app now
   # imports it directly.
   web: ^1.1.1
+  # Voice messages in the chat: `record` opens the microphone and reports the
+  # loudness as it goes (which is what the waveform is drawn from), `just_audio`
+  # plays the clips back. Both carry a web implementation, so the browser build
+  # keeps working — see the toolchain notes above.
+  record: ^6.2.1
+  just_audio: ^0.10.6
 
 dev_dependencies:
   flutter_test:

@@ -16,6 +16,7 @@ import '../../../utils/app_enums.dart';
 import '../model/chat_message_model.dart';
 import '../model/chat_thread_model.dart';
 import '../model/outgoing_image_model.dart';
+import '../model/voice_note_model.dart';
 import '../model/pinned_message_model.dart';
 import '../model/typing_status_model.dart';
 import '../repository/chat_repository.dart';
@@ -1359,6 +1360,22 @@ class ChatController extends GetxController implements GetxService {
     }
   }
 
+  /// Sends what the microphone just recorded.
+  ///
+  /// Its own path rather than a branch of [sendMessage]: a voice message
+  /// carries no words and takes no caption — it is the message — and it is
+  /// sent by letting go of a button, not by tapping send. Whatever is half
+  /// typed in the composer is left exactly where it is.
+  Future<void> sendVoice(RecordedVoice clip) async {
+    final ChatMessageModel? replyTo = replyingToMessage;
+    cancelReply();
+
+    await _loadUserConfig();
+    _scrollToLatest();
+
+    await _enqueue(text: '', replyTo: replyTo, voice: clip);
+  }
+
   /// Hands one message to the outbox, with its notification already worked
   /// out — the job that finally sends it may be running in the background,
   /// with no mention list to consult.
@@ -1369,6 +1386,7 @@ class ChatController extends GetxController implements GetxService {
     PickedImage? image,
     String? albumId,
     int? albumCount,
+    RecordedVoice? voice,
     bool notify = true,
   }) async {
     final _PushPlan push = _planPush(
@@ -1376,6 +1394,7 @@ class ChatController extends GetxController implements GetxService {
       replyTo: replyTo,
       hasImage: image != null,
       albumCount: albumCount,
+      hasVoice: voice != null,
     );
     try {
       await _outbox.enqueue(
@@ -1388,6 +1407,7 @@ class ChatController extends GetxController implements GetxService {
         imageHeight: image?.height,
         albumId: albumId,
         albumCount: albumCount,
+        voice: voice,
         notify: notify,
         replyToId: replyTo?.id,
         replyToText: replyTo?.preview,
@@ -1498,19 +1518,28 @@ class ChatController extends GetxController implements GetxService {
   /// as data rather than sent, so the outbox can fire it once the message is
   /// really in — from the app or from the background job.
   _PushPlan _planPush(String text,
-      {ChatMessageModel? replyTo, bool hasImage = false, int? albumCount}) {
-    // What a picture with no caption says instead of arriving empty — and,
-    // for a batch, how many of them turned up, since only the first of an
-    // album notifies at all.
-    final String pictureLine = (albumCount ?? 1) > 1
-        ? '📷 ${'photo_count'.trParams({'count': '$albumCount'})}'
-        : '📷 ${'photo'.tr}';
+      {ChatMessageModel? replyTo,
+      bool hasImage = false,
+      int? albumCount,
+      bool hasVoice = false}) {
+    // What a message with no words says instead of arriving empty — a voice
+    // note never has any, and a picture only sometimes does. For a batch,
+    // how many turned up, since only the first of an album notifies at all.
+    final String wordlessLine = hasVoice
+        ? '🎤 ${'voice_message'.tr}'
+        : (albumCount ?? 1) > 1
+            ? '📷 ${'photo_count'.trParams({'count': '$albumCount'})}'
+            : '📷 ${'photo'.tr}';
 
     // A direct message has exactly one recipient and nothing to work out.
     if (!isGroupChat) {
       return _PushPlan(
-        title: hasImage ? '📷 $userName' : userName,
-        body: text.isEmpty ? pictureLine : text,
+        title: hasVoice
+            ? '🎤 $userName'
+            : hasImage
+                ? '📷 $userName'
+                : userName,
+        body: text.isEmpty ? wordlessLine : text,
         targets: [thread.peerPhone!],
         data: _directPushData(),
       );
@@ -1546,7 +1575,9 @@ class ChatController extends GetxController implements GetxService {
     }
 
     String title = 'New message from $userName';
-    if (hasImage && mentionList.isEmpty && replyTo == null) {
+    if (hasVoice && replyTo == null) {
+      title = '🎤 $userName sent a voice message';
+    } else if (hasImage && mentionList.isEmpty && replyTo == null) {
       title = (albumCount ?? 1) > 1
           ? '📷 $userName sent $albumCount photos'
           : '📷 $userName sent a photo';
@@ -1560,9 +1591,9 @@ class ChatController extends GetxController implements GetxService {
 
     return _PushPlan(
       title: title,
-      // A bare picture has no words to push, so the notification says what
-      // arrived instead of arriving empty.
-      body: text.isEmpty ? pictureLine : text,
+      // A picture or a voice note has no words to push, so the notification
+      // says what arrived instead of arriving empty.
+      body: text.isEmpty ? wordlessLine : text,
       targets: targets,
       data: {
         'senderName': userName,

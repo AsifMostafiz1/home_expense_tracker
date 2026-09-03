@@ -113,7 +113,8 @@ service cloud.firestore {
       function isSoftDelete() {
         return touchesOnly([
                  'deleted', 'deleted_by_admin', 'deleted_by', 'text',
-                 'image_url', 'image_width', 'image_height', 'reactions'
+                 'image_url', 'image_width', 'image_height',
+                 'audio_url', 'audio_ms', 'audio_wave', 'reactions'
                ])
             && resource.data.get('deleted', false) != true
             && request.resource.data.deleted == true
@@ -205,7 +206,8 @@ service cloud.firestore {
         function isSoftDelete() {
           return touchesOnly([
                    'deleted', 'deleted_by_admin', 'deleted_by', 'text',
-                   'image_url', 'image_width', 'image_height', 'reactions'
+                   'image_url', 'image_width', 'image_height',
+                   'audio_url', 'audio_ms', 'audio_wave', 'reactions'
                  ])
               && resource.data.get('deleted', false) != true
               && request.resource.data.deleted == true

@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show StorageException;
 
 import '../presentation/chat/model/outgoing_image_model.dart';
+import '../presentation/chat/model/voice_note_model.dart';
 import '../presentation/chat/repository/chat_repository.dart';
 import '../utils/app_constant.dart';
 import '../utils/supabase_config.dart';
@@ -133,6 +134,11 @@ class ChatOutboxService extends GetxController implements GetxService {
     double? imageHeight,
     String? albumId,
     int? albumCount,
+
+    /// A voice message, as the composer finished recording it. Copied into
+    /// the outbox's folder the same way a picture is, and for the same
+    /// reason — the recorder's own file is temporary.
+    RecordedVoice? voice,
     bool notify = true,
     String? replyToId,
     String? replyToText,
@@ -164,6 +170,26 @@ class ChatOutboxService extends GetxController implements GetxService {
       }
     }
 
+    String? voicePath;
+    if (voice != null) {
+      if (kIsWeb) {
+        voicePath = voice.path;
+      } else {
+        final Directory dir = Directory(
+          '${(await getApplicationSupportDirectory()).path}/pending_chat',
+        );
+        if (!await dir.exists()) await dir.create(recursive: true);
+        voicePath = '${dir.path}/${localId}_voice${voice.extension}';
+        await File(voice.path).copy(voicePath);
+        // The recorder's own copy has done its job. Best effort: a clip left
+        // in the cache is the OS's to sweep, and losing the send over it
+        // would be absurd.
+        try {
+          await File(voice.path).delete();
+        } catch (_) {}
+      }
+    }
+
     final OutgoingMessage item = OutgoingMessage(
       localId: localId,
       text: text,
@@ -175,6 +201,10 @@ class ChatOutboxService extends GetxController implements GetxService {
       imageHeight: imageHeight,
       albumId: albumId,
       albumCount: albumCount,
+      audioPath: voicePath,
+      audioExtension: voice?.extension,
+      audioMs: voice?.duration.inMilliseconds,
+      audioWave: voice?.waveform,
       notify: notify,
       replyToId: replyToId,
       replyToText: replyToText,
@@ -218,6 +248,7 @@ class ChatOutboxService extends GetxController implements GetxService {
   Future<void> discard(OutgoingMessage item) async {
     _items.remove(item);
     await _deleteFile(item.imagePath);
+    await _deleteFile(item.audioPath);
     await _save();
     update();
   }
@@ -285,6 +316,24 @@ class ChatOutboxService extends GetxController implements GetxService {
           .timeout(const Duration(seconds: 60));
     }
 
+    String? audioUrl;
+    if (item.hasAudio) {
+      final String path = item.audioPath!;
+      if (!kIsWeb && !await File(path).exists()) {
+        throw const FileSystemException('voice message is gone from the outbox');
+      }
+      // Bytes rather than the file, so the extension is the one the recorder
+      // chose: a browser hands out a blob URL with no name on it, and an
+      // object stored under the wrong extension is served as the wrong type.
+      audioUrl = await _storage
+          .uploadBytes(
+            await XFile(path).readAsBytes(),
+            folder: SupabaseConfig.folderVoice,
+            extension: item.audioExtension ?? '.m4a',
+          )
+          .timeout(const Duration(seconds: 60));
+    }
+
     // Dropped before the write: from here on Firestore's own local echo puts
     // the message on screen, and two copies of it would show otherwise.
     _items.remove(item);
@@ -303,6 +352,9 @@ class ChatOutboxService extends GetxController implements GetxService {
         imageHeight: item.imageHeight,
         albumId: item.albumId,
         albumCount: item.albumCount,
+        audioUrl: audioUrl,
+        audioMs: item.audioMs,
+        audioWave: item.audioWave,
         conversationId: item.conversationId,
         peerPhone: item.peerPhone,
         action: item.action,
@@ -313,12 +365,14 @@ class ChatOutboxService extends GetxController implements GetxService {
       _items.insert(0, item);
       await _save();
       update();
-      // The picture is up but nothing points at it.
+      // The upload is up but nothing points at it.
       if (imageUrl != null) await _storage.deleteByPublicUrl(imageUrl);
+      if (audioUrl != null) await _storage.deleteByPublicUrl(audioUrl);
       rethrow;
     }
 
     await _deleteFile(item.imagePath);
+    await _deleteFile(item.audioPath);
 
     // Every picture of an album but the first stays quiet — one send is one
     // thing to be told about. See `OutgoingMessage.notify`.

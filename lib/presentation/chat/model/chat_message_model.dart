@@ -38,6 +38,25 @@ class ChatMessageModel {
   /// the ones a preview cannot show.
   final int? albumCount;
 
+  /// Public URL of the voice message this one carries, when it is one. A
+  /// voice note has no words: it is the whole message.
+  final String? audioUrl;
+
+  /// How long it runs, in milliseconds, stamped at send time. The bubble
+  /// shows a length before a byte is fetched, and the player only learns the
+  /// real one once it has loaded the file.
+  final int? audioMs;
+
+  /// The bars the bubble draws, 0–100, sampled off the microphone while it
+  /// was being spoken.
+  ///
+  /// Stored rather than worked out on the receiving side: reading the shape
+  /// of a sound means decoding the whole file, which is the thing a bubble
+  /// must not do to show something the size of a sentence. Empty for anything
+  /// sent before the waveform was recorded — the bubble then draws a flat
+  /// bar, which is honest about knowing nothing.
+  final List<int>? audioWave;
+
   /// Deleted messages are emptied, not removed: replies quote by id, and a
   /// hole in the thread reads worse than a line saying the message went away.
   final bool deleted;
@@ -87,6 +106,9 @@ class ChatMessageModel {
     this.imageHeight,
     this.albumId,
     this.albumCount,
+    this.audioUrl,
+    this.audioMs,
+    this.audioWave,
     this.deleted = false,
     this.deletedByAdmin = false,
     this.editedAt,
@@ -103,6 +125,11 @@ class ChatMessageModel {
   /// Whether this picture was one of several sent together.
   bool get isInAlbum =>
       albumId != null && albumId!.isNotEmpty && (albumCount ?? 1) > 1;
+
+  bool get hasAudio => audioUrl != null && audioUrl!.isNotEmpty;
+
+  /// How long the voice message runs, or zero for anything that is not one.
+  Duration get audioDuration => Duration(milliseconds: audioMs ?? 0);
 
   bool get isEdited => editedAt != null;
 
@@ -124,6 +151,7 @@ class ChatMessageModel {
   /// quoted bubble show. A bare picture has no text to quote, so it says so.
   String get preview {
     if (deleted) return 'message_deleted'.tr;
+    if (hasAudio) return '🎤 ${'voice_message'.tr}';
     if (text.trim().isNotEmpty) return text.trim();
     if (isInAlbum) {
       return '📷 ${'photo_count'.trParams({'count': '$albumCount'})}';
@@ -154,6 +182,11 @@ class ChatMessageModel {
           ? null
           : map['album_id'].toString(),
       albumCount: (map['album_count'] as num?)?.toInt(),
+      audioUrl: map['audio_url'],
+      audioMs: (map['audio_ms'] as num?)?.toInt(),
+      audioWave: (map['audio_wave'] as List?)
+          ?.map((dynamic level) => (level as num).toInt())
+          .toList(),
       deleted: map['deleted'] == true,
       deletedByAdmin: map['deleted_by_admin'] == true,
       editedAt: (map['edited_at'] as Timestamp?)?.toDate(),
@@ -182,6 +215,9 @@ class ChatMessageModel {
       if (imageHeight != null) 'image_height': imageHeight,
       if (albumId != null) 'album_id': albumId,
       if (albumCount != null) 'album_count': albumCount,
+      if (audioUrl != null) 'audio_url': audioUrl,
+      if (audioMs != null) 'audio_ms': audioMs,
+      if (audioWave != null) 'audio_wave': audioWave,
       if (action != null) 'action': action,
       if (reactions != null) 'reactions': reactions,
     };

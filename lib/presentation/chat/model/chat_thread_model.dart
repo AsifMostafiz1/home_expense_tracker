@@ -82,6 +82,11 @@ class DirectThread {
   final DateTime? lastAt;
   final bool lastHasImage;
 
+  /// Whether the last thing said was a voice message. Kept alongside
+  /// [lastHasImage] and for the same reason: a voice note carries no words,
+  /// so without this the row under the name would be blank.
+  final bool lastHasAudio;
+
   /// Unread count per phone number. Bumped for the recipient on every send,
   /// zeroed when they open the thread.
   final Map<String, int> unread;
@@ -99,6 +104,7 @@ class DirectThread {
     this.lastSenderPhone = '',
     this.lastAt,
     this.lastHasImage = false,
+    this.lastHasAudio = false,
     this.unread = const {},
     this.cleared = const {},
   });
@@ -135,6 +141,7 @@ class DirectThread {
   /// something to say for itself.
   String get preview {
     if (lastText.trim().isNotEmpty) return lastText.trim();
+    if (lastHasAudio) return '🎤 ${'voice_message'.tr}';
     if (lastHasImage) return '📷 ${'photo'.tr}';
     return '';
   }
@@ -149,6 +156,7 @@ class DirectThread {
       lastSenderPhone: (map['last_sender_phone'] ?? '').toString(),
       lastAt: (map['last_at'] as Timestamp?)?.toDate(),
       lastHasImage: map['last_has_image'] == true,
+      lastHasAudio: map['last_has_audio'] == true,
       unread: raw.map((key, value) =>
           MapEntry(key, (value as num?)?.toInt() ?? 0)),
       cleared: <String, DateTime>{

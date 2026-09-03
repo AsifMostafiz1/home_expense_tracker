@@ -5,6 +5,7 @@ import '../../services/member_avatar_service.dart';
 import '../../services/presence_service.dart';
 import '../../services/push_outbox_service.dart';
 import '../../services/receipt_outbox_service.dart';
+import '../../services/voice_player_service.dart';
 import '../../presentation/auth/binding/auth_binding.dart';
 import '../../presentation/meal/binding/meal_binding.dart';
 import '../../presentation/expense/binding/expense_binding.dart';
@@ -40,6 +41,11 @@ class InitialBinding extends Bindings {
     // stamped while the app is in front. The chat list reads it back through
     // the member stream it already holds.
     Get.put(PresenceService(), permanent: true).init();
+
+    // One player for every voice message in the app, so starting one stops
+    // whichever was going. Nothing is opened by registering it — the player
+    // itself is built the first time somebody presses play.
+    Get.put(VoicePlayerService(), permanent: true);
 
     AuthBinding().dependencies();
     MealBinding().dependencies();

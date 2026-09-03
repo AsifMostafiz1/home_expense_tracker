@@ -141,6 +141,23 @@ class SupabaseStorageService {
 
   String _contentTypeOf(String extension) {
     switch (extension) {
+      // Voice messages. Named explicitly because the fallback below is an
+      // image type: an audio object served as `image/jpeg` is one a browser —
+      // and the player on the other end — refuses to open.
+      case '.m4a':
+      case '.mp4':
+        return 'audio/mp4';
+      case '.aac':
+        return 'audio/aac';
+      case '.webm':
+        return 'audio/webm';
+      case '.ogg':
+      case '.opus':
+        return 'audio/ogg';
+      case '.wav':
+        return 'audio/wav';
+      case '.mp3':
+        return 'audio/mpeg';
       case '.png':
         return 'image/png';
       case '.webp':

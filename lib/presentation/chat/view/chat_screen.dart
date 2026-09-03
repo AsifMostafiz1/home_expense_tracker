@@ -12,9 +12,11 @@ import '../../../utils/app_enums.dart';
 import '../../../utils/app_ui.dart';
 import '../controller/chat_controller.dart';
 import '../controller/chat_list_controller.dart';
+import '../controller/voice_recorder_controller.dart';
 import '../model/chat_message_model.dart';
 import '../model/chat_thread_model.dart';
 import '../model/outgoing_image_model.dart';
+import '../model/voice_note_model.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/view/monthly_stats_screen.dart';
 import '../widgets/chat_presence.dart';
@@ -23,6 +25,9 @@ import '../widgets/group_avatar.dart';
 import '../widgets/group_settings_sheet.dart';
 import '../widgets/pinned_banner.dart';
 import '../widgets/typing_bubble.dart';
+import '../widgets/voice_bubble.dart';
+import '../widgets/voice_recorder_bar.dart';
+import '../../../services/voice_player_service.dart';
 import 'chat_media_screen.dart';
 import 'chat_media_viewer.dart';
 import 'pinned_messages_screen.dart';
@@ -77,12 +82,33 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   ChatController get controller => Get.find<ChatController>(tag: widget.tag);
 
+  /// The composer's microphone. One per screen, because a recording belongs
+  /// to the conversation it was started in — see [VoiceRecorderController].
+  VoiceRecorderController get _recorder =>
+      Get.find<VoiceRecorderController>(tag: widget.tag);
+
+  /// True between the finger coming off the microphone and the recorder
+  /// having actually started, which is not instant the first time — the
+  /// permission sheet is in the way. Without it, a quick tap while that is
+  /// resolving would leave the microphone open with nobody holding it.
+  bool _micReleased = false;
+
   bool get _isDirect => widget.tag != null;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // One screen, one microphone. A thread opened twice — from the dashboard
+    // and again from a notification — must not leave the first one's recorder
+    // registered with nobody to close it.
+    if (Get.isRegistered<VoiceRecorderController>(tag: widget.tag)) {
+      Get.delete<VoiceRecorderController>(tag: widget.tag, force: true);
+    }
+    // A recording that hits the ceiling is sent as it stands, rather than
+    // waiting on a finger that may never come up.
+    Get.put(VoiceRecorderController(), tag: widget.tag).onMaximumReached =
+        _finishRecording;
     // Being on screen is what marks a thread read — for the group that is the
     // in-memory badge, for a direct chat the count in Firestore.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -104,6 +130,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } else {
       // Away from the app is not typing, whatever is left in the composer.
       controller.stopTyping();
+      // Nor is it recording. The microphone must not be left open behind a
+      // screen the reader has walked away from, and half a sentence cut off
+      // by a phone call is not a message anybody wants sent.
+      if (Get.isRegistered<VoiceRecorderController>(tag: widget.tag)) {
+        _recorder.cancel();
+      }
     }
   }
 
@@ -120,6 +152,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // Safe here: Flutter unmounts a subtree's children before the parent's
     // `dispose`, so every builder listening to this controller is already
     // gone.
+    // Leaving the thread stops whatever was talking in it: a voice message
+    // playing on over another screen is nobody's idea of what a back button
+    // does.
+    if (Get.isRegistered<VoicePlayerService>()) {
+      Get.find<VoicePlayerService>().stop();
+    }
+    Get.delete<VoiceRecorderController>(tag: widget.tag, force: true);
+
     final String? tag = widget.tag;
     if (tag != null) Get.delete<ChatController>(tag: tag, force: true);
     super.dispose();
@@ -642,105 +682,216 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Theme.of(context).dividerColor),
-                      ),
-                      child: Row(
-                        children: [
-                          // Camera or gallery — the same menu the profile
-                          // screen uses, minus the "remove" entry. Hidden
-                          // while editing: a picture cannot join a message
-                          // that has already been sent.
-                          GetBuilder<ChatController>(
-                            tag: widget.tag,
-                            builder: (controller) =>
-                                controller.editingMessage != null
-                                    ? const SizedBox(width: 16)
-                                    : IconButton(
-                                        tooltip: 'send_photo'.tr,
-                                        icon: Icon(
-                                          Icons.add_photo_alternate_outlined,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .primary,
-                                        ),
-                                        onPressed: () => showPhotoSourceSheet(
-                                          context,
-                                          onPick: controller.pickChatImages,
-                                        ),
-                                      ),
-                          ),
-                          Expanded(
-                            child: GetBuilder<ChatController>(
-                              tag: widget.tag,
-                              builder: (controller) => TextField(
-                                controller: controller.messageController,
-                                focusNode: controller.messageFocusNode,
-                                textCapitalization: TextCapitalization.sentences,
-                                minLines: 1,
-                                maxLines: 4,
-                                decoration: InputDecoration(
-                                  // Once a picture is attached, whatever is
-                                  // typed becomes its caption.
-                                  hintText: controller.pendingAttachments.isEmpty
-                                      ? 'type_message'.tr
-                                      : 'add_caption'.tr,
-                                  hintStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
-                                  border: InputBorder.none,
-                                  filled: false,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                        ],
-                      ),
+              child: GetBuilder<VoiceRecorderController>(
+                tag: widget.tag,
+                builder: (recorder) => Row(
+                  children: [
+                    Expanded(
+                      child: recorder.isRecording
+                          ? VoiceRecorderBar(
+                              recorder: recorder,
+                              onCancel: recorder.cancel,
+                            )
+                          : _buildComposerField(context),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: controller.sendMessage,
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      // A tick rather than a paper plane while editing —
-                      // nothing is being sent, something is being corrected.
-                      child: GetBuilder<ChatController>(
-                        tag: widget.tag,
-                        builder: (controller) => Icon(
-                          controller.editingMessage != null
-                              ? Icons.check_rounded
-                              : Icons.send_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    _buildComposerAction(context, recorder),
+                  ],
+                ),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// The rounded pill the composer types into: the picture button, the text
+  /// field, and nothing else. Lifted out because while a voice message is
+  /// being recorded it is not there at all — the recording bar stands in its
+  /// place, and the two read better side by side than nested.
+  Widget _buildComposerField(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: Row(
+        children: [
+          // Camera or gallery — the same menu the profile
+          // screen uses, minus the "remove" entry. Hidden
+          // while editing: a picture cannot join a message
+          // that has already been sent.
+          GetBuilder<ChatController>(
+            tag: widget.tag,
+            builder: (controller) =>
+                controller.editingMessage != null
+                    ? const SizedBox(width: 16)
+                    : IconButton(
+                        tooltip: 'send_photo'.tr,
+                        icon: Icon(
+                          Icons.add_photo_alternate_outlined,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary,
+                        ),
+                        onPressed: () => showPhotoSourceSheet(
+                          context,
+                          onPick: controller.pickChatImages,
+                        ),
+                      ),
+          ),
+          Expanded(
+            child: GetBuilder<ChatController>(
+              tag: widget.tag,
+              builder: (controller) => TextField(
+                controller: controller.messageController,
+                focusNode: controller.messageFocusNode,
+                textCapitalization: TextCapitalization.sentences,
+                minLines: 1,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  // Once a picture is attached, whatever is
+                  // typed becomes its caption.
+                  hintText: controller.pendingAttachments.isEmpty
+                      ? 'type_message'.tr
+                      : 'add_caption'.tr,
+                  hintStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
+                  border: InputBorder.none,
+                  filled: false,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
+
+  /// The one round button at the end of the composer, which is three buttons
+  /// depending on what there is to do with it.
+  ///
+  /// A microphone when the composer is empty, held down to record — the
+  /// gesture every chat app has settled on, and the reason there is no
+  /// separate voice screen. A paper plane once there is something to send. A
+  /// tick while an already-sent message is being corrected. Once a recording
+  /// is locked it becomes the send for that, since there is no longer a
+  /// finger on it to let go of.
+  Widget _buildComposerAction(
+      BuildContext context, VoiceRecorderController recorder) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+
+    return GetBuilder<ChatController>(
+      tag: widget.tag,
+      builder: (chat) => ValueListenableBuilder<TextEditingValue>(
+        // The swap between microphone and paper plane happens on a keystroke,
+        // which is not something the chat controller redraws for.
+        valueListenable: chat.messageController,
+        builder: (context, typed, _) {
+          final bool hasSomethingToSend = typed.text.trim().isNotEmpty ||
+              chat.pendingAttachments.isNotEmpty ||
+              chat.editingMessage != null;
+          // A locked recording is sent by tapping; a held one by letting go.
+          final bool sends = recorder.isLocked || hasSomethingToSend;
+          final bool recording = recorder.isRecording;
+
+          final IconData icon = recorder.isLocked
+              ? Icons.send_rounded
+              : hasSomethingToSend
+                  ? (chat.editingMessage != null
+                      ? Icons.check_rounded
+                      : Icons.send_rounded)
+                  : Icons.mic_rounded;
+
+          return GestureDetector(
+            onTap: () {
+              if (recorder.isLocked) {
+                _finishRecording();
+              } else if (hasSomethingToSend) {
+                chat.sendMessage();
+              } else if (!recording) {
+                // A tap is not a recording. Say what would have been.
+                CustomSnackbar.show(
+                  type: SnackbarType.info,
+                  message: 'hold_to_record'.tr,
+                );
+              }
+            },
+            onLongPressStart: sends ? null : (_) => _startRecording(),
+            onLongPressMoveUpdate: sends
+                ? null
+                : (details) =>
+                    recorder.trackDrag(details.localOffsetFromOrigin),
+            onLongPressEnd: sends ? null : (_) => _releaseRecording(),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: EdgeInsets.all(recording && !recorder.isLocked ? 18 : 12),
+              decoration: BoxDecoration(
+                color: recorder.willCancel
+                    ? Theme.of(context).colorScheme.error
+                    : primary,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(
+                recorder.willCancel ? Icons.delete_outline_rounded : icon,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Opens the microphone. If the finger came up while the permission sheet
+  /// was still on screen, the recording is closed the moment it opens — which
+  /// is what a tap means.
+  Future<void> _startRecording() async {
+    _micReleased = false;
+    // Recording over a voice message that is still playing would record it
+    // as well as the sender.
+    if (Get.isRegistered<VoicePlayerService>()) {
+      await Get.find<VoicePlayerService>().stop();
+    }
+    final bool started = await _recorder.start();
+    if (!mounted || !started) return;
+    if (_micReleased) await _finishRecording();
+  }
+
+  /// The finger has come up. Locked recordings ignore it — they are the ones
+  /// that carry on without it.
+  Future<void> _releaseRecording() async {
+    _micReleased = true;
+    if (!_recorder.isRecording || _recorder.isLocked) return;
+    await _finishRecording();
+  }
+
+  /// Ends a recording the way the gesture asked for: dropped if the finger
+  /// slid far enough left, sent otherwise. Anything under a second is neither
+  /// — see `VoiceRecorderController.minimum`.
+  Future<void> _finishRecording() async {
+    final VoiceRecorderController recorder = _recorder;
+    if (!recorder.isRecording) return;
+
+    if (recorder.willCancel) {
+      await recorder.cancel();
+      return;
+    }
+
+    final RecordedVoice? clip = await recorder.stop();
+    if (clip == null) return;
+    await controller.sendVoice(clip);
   }
 
   /// Sits where the reply preview sits, for the same reason: the composer has
@@ -1148,6 +1299,10 @@ class _MessageBubble extends StatelessWidget {
                                 child: Container(
                                   // A picture sits tight against the bubble
                                   // edge; only text needs the roomy padding.
+                                  // A picture sits tight against the bubble
+                                  // edge and a voice message nearly so — its
+                                  // play button is already round. Only text
+                                  // needs the roomy padding.
                                   padding: message.hasImage
                                       ? EdgeInsets.only(
                                           left: 4,
@@ -1155,7 +1310,14 @@ class _MessageBubble extends StatelessWidget {
                                           top: 4,
                                           bottom: (message.reactions != null && message.reactions!.isNotEmpty) ? 16 : 4,
                                         )
-                                      : EdgeInsets.only(
+                                      : message.hasAudio
+                                          ? EdgeInsets.only(
+                                              left: 8,
+                                              right: 12,
+                                              top: 8,
+                                              bottom: (message.reactions != null && message.reactions!.isNotEmpty) ? 20 : 8,
+                                            )
+                                          : EdgeInsets.only(
                                           left: 16,
                                           right: 16,
                                           top: 12,
@@ -1189,6 +1351,15 @@ class _MessageBubble extends StatelessWidget {
                                         _isAlbum
                                             ? _buildAlbum(context)
                                             : _buildImage(context),
+                                      if (message.hasAudio)
+                                        VoiceBubble(
+                                          id: message.id,
+                                          url: message.audioUrl!,
+                                          stamped: message.audioDuration,
+                                          waveform: message.audioWave ??
+                                              const <int>[],
+                                          isMe: isMe,
+                                        ),
                                       if (message.text.trim().isNotEmpty)
                                         Padding(
                                           padding: message.hasImage
@@ -2235,6 +2406,7 @@ class _OutgoingBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color primary = Theme.of(context).colorScheme.primary;
     final bool hasImage = item.hasImage;
+    final bool hasAudio = item.hasAudio;
     final String? imagePath = item.imagePath;
 
     return Padding(
@@ -2246,7 +2418,9 @@ class _OutgoingBubble extends StatelessWidget {
             child: Container(
               padding: hasImage
                   ? const EdgeInsets.all(4)
-                  : const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                  : hasAudio
+                      ? const EdgeInsets.fromLTRB(8, 8, 12, 6)
+                      : const EdgeInsets.fromLTRB(16, 10, 16, 8),
               decoration: BoxDecoration(
                 color: primary.withOpacity(_failed ? 0.5 : 1),
                 borderRadius: BorderRadius.circular(20),
@@ -2261,7 +2435,14 @@ class _OutgoingBubble extends StatelessWidget {
                           hasImage ? 4 : 0, hasImage ? 4 : 0, hasImage ? 4 : 0, 6),
                       child: _quote(context),
                     ),
-                  if (hasImage && _isAlbum)
+                  if (hasAudio)
+                    PendingVoiceBubble(
+                      duration: item.audioDuration,
+                      waveform: item.audioWave ?? const <int>[],
+                      failed: _failed,
+                      sending: controller.isSendingOut,
+                    )
+                  else if (hasImage && _isAlbum)
                     _pendingAlbum(context)
                   else if (hasImage && imagePath != null)
                     ConstrainedBox(

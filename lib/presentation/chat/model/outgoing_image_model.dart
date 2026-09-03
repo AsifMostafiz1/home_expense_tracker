@@ -71,6 +71,18 @@ class OutgoingMessage {
   final String? albumId;
   final int? albumCount;
 
+  /// The outbox's own copy of the voice message, when this is one, with what
+  /// the microphone recorded about it — see `RecordedVoice`. Null for
+  /// anything else.
+  final String? audioPath;
+
+  /// What to call the object once it is uploaded. Kept rather than read off
+  /// [audioPath]: a browser's blob URL has no name, and a clip stored under
+  /// the wrong extension is served as the wrong type and will not play.
+  final String? audioExtension;
+  final int? audioMs;
+  final List<int>? audioWave;
+
   /// Whether this message sends a push of its own.
   ///
   /// False for every picture of an album but the first: ten photos are one
@@ -117,6 +129,10 @@ class OutgoingMessage {
     this.imageHeight,
     this.albumId,
     this.albumCount,
+    this.audioPath,
+    this.audioExtension,
+    this.audioMs,
+    this.audioWave,
     this.notify = true,
     this.replyToId,
     this.replyToText,
@@ -141,6 +157,10 @@ class OutgoingMessage {
   /// Whether this picture was one of several sent together.
   bool get isInAlbum =>
       albumId != null && albumId!.isNotEmpty && (albumCount ?? 1) > 1;
+
+  bool get hasAudio => audioPath != null && audioPath!.isNotEmpty;
+
+  Duration get audioDuration => Duration(milliseconds: audioMs ?? 0);
 
   /// Width over height; a square for anything that could not be measured.
   double get aspectRatio {
@@ -177,6 +197,10 @@ class OutgoingMessage {
         'imageHeight': imageHeight,
         'albumId': albumId,
         'albumCount': albumCount,
+        'audioPath': audioPath,
+        'audioExtension': audioExtension,
+        'audioMs': audioMs,
+        'audioWave': audioWave,
         'notify': notify,
         'replyToId': replyToId,
         'replyToText': replyToText,
@@ -206,6 +230,12 @@ class OutgoingMessage {
       imageHeight: (json['imageHeight'] as num?)?.toDouble(),
       albumId: json['albumId'] as String?,
       albumCount: (json['albumCount'] as num?)?.toInt(),
+      audioPath: json['audioPath'] as String?,
+      audioExtension: json['audioExtension'] as String?,
+      audioMs: (json['audioMs'] as num?)?.toInt(),
+      audioWave: (json['audioWave'] as List?)
+          ?.map((dynamic level) => (level as num).toInt())
+          .toList(),
       // Anything queued by a build that predates albums notified, so a
       // missing flag means yes.
       notify: json['notify'] != false,
