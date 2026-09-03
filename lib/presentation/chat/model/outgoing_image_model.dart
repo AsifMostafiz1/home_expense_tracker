@@ -64,6 +64,20 @@ class OutgoingMessage {
   final double? imageWidth;
   final double? imageHeight;
 
+  /// The send this picture belongs to, when several were picked at once, and
+  /// how many went with it — see `ChatMessageModel.albumId`. Carried through
+  /// the queue so the grid is already drawn while the batch is still
+  /// uploading, and stamped on each message so the other end draws it too.
+  final String? albumId;
+  final int? albumCount;
+
+  /// Whether this message sends a push of its own.
+  ///
+  /// False for every picture of an album but the first: ten photos are one
+  /// thing arriving, and ten notifications for them is a phone going off in
+  /// somebody's pocket ten times.
+  final bool notify;
+
   // Snapshot of the message being replied to, denormalised the same way the
   // real message will store it.
   final String? replyToId;
@@ -101,6 +115,9 @@ class OutgoingMessage {
     this.imagePath,
     this.imageWidth,
     this.imageHeight,
+    this.albumId,
+    this.albumCount,
+    this.notify = true,
     this.replyToId,
     this.replyToText,
     this.replyToSenderName,
@@ -120,6 +137,10 @@ class OutgoingMessage {
   bool get isGroup => conversationId == null;
 
   bool get hasImage => imagePath != null && imagePath!.isNotEmpty;
+
+  /// Whether this picture was one of several sent together.
+  bool get isInAlbum =>
+      albumId != null && albumId!.isNotEmpty && (albumCount ?? 1) > 1;
 
   /// Width over height; a square for anything that could not be measured.
   double get aspectRatio {
@@ -154,6 +175,9 @@ class OutgoingMessage {
         'imagePath': imagePath,
         'imageWidth': imageWidth,
         'imageHeight': imageHeight,
+        'albumId': albumId,
+        'albumCount': albumCount,
+        'notify': notify,
         'replyToId': replyToId,
         'replyToText': replyToText,
         'replyToSenderName': replyToSenderName,
@@ -180,6 +204,11 @@ class OutgoingMessage {
       imagePath: json['imagePath'] as String?,
       imageWidth: (json['imageWidth'] as num?)?.toDouble(),
       imageHeight: (json['imageHeight'] as num?)?.toDouble(),
+      albumId: json['albumId'] as String?,
+      albumCount: (json['albumCount'] as num?)?.toInt(),
+      // Anything queued by a build that predates albums notified, so a
+      // missing flag means yes.
+      notify: json['notify'] != false,
       replyToId: json['replyToId'] as String?,
       replyToText: json['replyToText'] as String?,
       replyToSenderName: json['replyToSenderName'] as String?,

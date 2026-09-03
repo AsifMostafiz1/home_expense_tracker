@@ -25,6 +25,19 @@ class ChatMessageModel {
   final double? imageWidth;
   final double? imageHeight;
 
+  /// The send this picture arrived in, when several were picked at once.
+  ///
+  /// Every picture stays its own message — the gallery, the viewer, a reply
+  /// and a delete all work on one picture at a time — but the thread draws a
+  /// run of them as one grid, the way every chat app does. Null for anything
+  /// sent on its own.
+  final String? albumId;
+
+  /// How many pictures that send carried. Read only to decide whether a grid
+  /// is worth drawing at all before the siblings have loaded, and to count
+  /// the ones a preview cannot show.
+  final int? albumCount;
+
   /// Deleted messages are emptied, not removed: replies quote by id, and a
   /// hole in the thread reads worse than a line saying the message went away.
   final bool deleted;
@@ -72,6 +85,8 @@ class ChatMessageModel {
     this.imageUrl,
     this.imageWidth,
     this.imageHeight,
+    this.albumId,
+    this.albumCount,
     this.deleted = false,
     this.deletedByAdmin = false,
     this.editedAt,
@@ -84,6 +99,10 @@ class ChatMessageModel {
   bool get hasAction => action != null && action!.isNotEmpty;
 
   bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
+
+  /// Whether this picture was one of several sent together.
+  bool get isInAlbum =>
+      albumId != null && albumId!.isNotEmpty && (albumCount ?? 1) > 1;
 
   bool get isEdited => editedAt != null;
 
@@ -105,7 +124,11 @@ class ChatMessageModel {
   /// quoted bubble show. A bare picture has no text to quote, so it says so.
   String get preview {
     if (deleted) return 'message_deleted'.tr;
-    return text.trim().isNotEmpty ? text.trim() : '📷 ${'photo'.tr}';
+    if (text.trim().isNotEmpty) return text.trim();
+    if (isInAlbum) {
+      return '📷 ${'photo_count'.trParams({'count': '$albumCount'})}';
+    }
+    return '📷 ${'photo'.tr}';
   }
 
   factory ChatMessageModel.fromMap(
@@ -127,6 +150,10 @@ class ChatMessageModel {
       imageUrl: map['image_url'],
       imageWidth: (map['image_width'] as num?)?.toDouble(),
       imageHeight: (map['image_height'] as num?)?.toDouble(),
+      albumId: (map['album_id'] ?? '').toString().isEmpty
+          ? null
+          : map['album_id'].toString(),
+      albumCount: (map['album_count'] as num?)?.toInt(),
       deleted: map['deleted'] == true,
       deletedByAdmin: map['deleted_by_admin'] == true,
       editedAt: (map['edited_at'] as Timestamp?)?.toDate(),
@@ -153,6 +180,8 @@ class ChatMessageModel {
       if (imageUrl != null) 'image_url': imageUrl,
       if (imageWidth != null) 'image_width': imageWidth,
       if (imageHeight != null) 'image_height': imageHeight,
+      if (albumId != null) 'album_id': albumId,
+      if (albumCount != null) 'album_count': albumCount,
       if (action != null) 'action': action,
       if (reactions != null) 'reactions': reactions,
     };

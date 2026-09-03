@@ -854,6 +854,7 @@ class AppTranslations extends Translations {
           'bulk_meal_point_locked':
               'Single-day edits and your month totals only work once this is done',
           'photo': 'Photo',
+          'photo_count': '@count photos',
           'send_photo': 'Send a photo',
           'add_caption': 'Add a caption…',
           'sending': 'Sending…',
@@ -1854,6 +1855,7 @@ class AppTranslations extends Translations {
           'bulk_meal_point_locked':
               'এটি না করা পর্যন্ত আলাদা দিনের সম্পাদনা ও মাসের হিসাব কাজ করবে না',
           'photo': 'ছবি',
+          'photo_count': '@count টি ছবি',
           'send_photo': 'ছবি পাঠান',
           'add_caption': 'ক্যাপশন লিখুন…',
           'sending': 'পাঠানো হচ্ছে…',

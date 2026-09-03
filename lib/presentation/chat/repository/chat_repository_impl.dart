@@ -73,10 +73,13 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Stream<List<ChatMessageModel>> getMessagesStream({String? conversationId}) {
+  Stream<List<ChatMessageModel>> getMessagesStream({
+    String? conversationId,
+    int limit = 100,
+  }) {
     return _messages(conversationId)
         .orderBy('createdAt', descending: true)
-        .limit(100)
+        .limit(limit)
         // Metadata too: a message going from "on this device" to "on the
         // server" changes nothing in its data, and the clock on its bubble
         // has to clear all the same.
@@ -108,6 +111,8 @@ class ChatRepositoryImpl implements ChatRepository {
     String? imageUrl,
     double? imageWidth,
     double? imageHeight,
+    String? albumId,
+    int? albumCount,
     String? conversationId,
     String? peerPhone,
     String? action,
@@ -129,6 +134,8 @@ class ChatRepositoryImpl implements ChatRepository {
       imageUrl: imageUrl,
       imageWidth: imageWidth,
       imageHeight: imageHeight,
+      albumId: albumId,
+      albumCount: albumCount,
       action: action,
     );
 

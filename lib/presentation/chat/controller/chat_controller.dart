@@ -62,6 +62,27 @@ class ChatController extends GetxController implements GetxService {
   /// again when that line moves, without re-reading the thread.
   List<ChatMessageModel> _rawMessages = const [];
 
+  /// The thread as it is drawn: the same messages, newest first, with the
+  /// pictures of one send collapsed into a single row. A row is one bubble —
+  /// usually one message, and for an album every picture of it.
+  List<List<ChatMessageModel>> rows = const [];
+
+  /// How many more messages each trip back through the history asks for.
+  static const int historyPage = 100;
+
+  /// How many the thread is listening to right now. Grows a page at a time as
+  /// the reader scrolls past the top of what is loaded — see
+  /// [loadOlderMessages].
+  int _historyWindow = historyPage;
+
+  /// Whether there is anything above what is loaded. False once a window came
+  /// back short, which is Firestore saying the thread has no more.
+  bool hasMoreHistory = true;
+
+  /// True while a wider window is being read — what the spinner at the top of
+  /// the thread is drawn from.
+  bool isLoadingHistory = false;
+
   /// Where that line sits, or null if this member has never drawn one.
   DateTime? clearedAt;
   StreamSubscription? _clearedSubscription;
@@ -203,12 +224,26 @@ class ChatController extends GetxController implements GetxService {
     if (isGroupChat) _subscribeToTopic();
 
     messageController.addListener(_onTextChanged);
+    // Reaching the top of what is loaded asks for the page above it.
+    scrollController.addListener(_onScroll);
     // The outgoing bubbles are drawn from the outbox; redraw as it moves.
     _outbox.addListener(_onOutboxChanged);
     _connectivity.addListener(_onOutboxChanged);
   }
 
   void _onOutboxChanged() => update();
+
+  /// The thread is reversed, so its far end — the oldest message loaded — is
+  /// the *maximum* scroll extent. Fired a screenful early, so the next page is
+  /// usually there before the reader arrives at the end of this one.
+  void _onScroll() {
+    if (!scrollController.hasClients) return;
+    final ScrollPosition position = scrollController.position;
+    if (!position.hasContentDimensions) return;
+    if (position.pixels >= position.maxScrollExtent - 600) {
+      loadOlderMessages();
+    }
+  }
 
   void _subscribeToTopic() async {
     // Always ensure subscribed to group chat
@@ -237,6 +272,7 @@ class ChatController extends GetxController implements GetxService {
     _outbox.removeListener(_onOutboxChanged);
     _connectivity.removeListener(_onOutboxChanged);
     messageController.removeListener(_onTextChanged);
+    scrollController.removeListener(_onScroll);
     messageController.dispose();
     messageFocusNode.dispose();
     searchController.dispose();
@@ -365,11 +401,22 @@ class ChatController extends GetxController implements GetxService {
   }
 
   void _initChatStream() {
+    _messagesSubscription?.cancel();
     _messagesSubscription = repository
-        .getMessagesStream(conversationId: conversationId)
+        .getMessagesStream(
+      conversationId: conversationId,
+      limit: _historyWindow,
+    )
         .listen((newMessages) {
       final List<ChatMessageModel> visible =
           newMessages.where(isVisibleToMe).toList();
+
+      isLoadingHistory = false;
+      // A window that came back short has reached the start of the thread.
+      // So has one that came back with messages this member has drawn a line
+      // under — there is nothing above the line for them either.
+      hasMoreHistory = newMessages.length >= _historyWindow &&
+          visible.length == newMessages.length;
 
       if (!isChatScreenVisible && messages.isNotEmpty) {
         final existingIds = messages.map((m) => m.id).toSet();
@@ -381,6 +428,7 @@ class ChatController extends GetxController implements GetxService {
       }
       _rawMessages = newMessages;
       messages = visible;
+      _rebuildRows();
       if (isChatScreenVisible && messages.isNotEmpty) {
         _updateMySeenStatus();
         // A message that arrives while the thread is open was read as it
@@ -389,8 +437,89 @@ class ChatController extends GetxController implements GetxService {
       }
       update();
     }, onError: (error) {
+      isLoadingHistory = false;
+      update();
       print('Error listening to chat stream: $error');
     });
+  }
+
+  /// Widens the thread by another page and listens again.
+  ///
+  /// Called as the reader reaches the top of what is loaded, so scrolling
+  /// back simply keeps working — the whole conversation is reachable, not
+  /// just its last hundred messages.
+  ///
+  /// A wider window rather than a separate page of history stitched on the
+  /// end: everything on screen stays live, so an edit, a reaction or a delete
+  /// on a message from months ago still lands under the reader's eyes. What
+  /// is already loaded is served from Firestore's own cache, so the trip
+  /// costs the page that is new and nothing else.
+  void loadOlderMessages() {
+    if (isLoadingHistory || !hasMoreHistory) return;
+    // Nothing has arrived yet; the first window is still on its way.
+    if (_rawMessages.isEmpty) return;
+
+    isLoadingHistory = true;
+    _historyWindow += historyPage;
+    update();
+    _initChatStream();
+  }
+
+  void _rebuildRows() => rows = groupRows(messages);
+
+  /// Groups a thread into the rows it is drawn as: a run of pictures from one
+  /// send becomes one row, everything else stands alone. Newest first, in and
+  /// out, the order the thread is built in.
+  ///
+  /// Only messages that are still next to each other are merged — a message
+  /// that landed in the middle of a batch splits it, which is the honest way
+  /// to draw what actually happened. A deleted picture leaves the album and
+  /// becomes its own tombstone, the same as any other deleted message.
+  static List<List<ChatMessageModel>> groupRows(
+      List<ChatMessageModel> messages) {
+    final List<List<ChatMessageModel>> built = <List<ChatMessageModel>>[];
+    for (final ChatMessageModel message in messages) {
+      final bool joinable =
+          !message.deleted && message.hasImage && message.isInAlbum;
+      if (joinable && built.isNotEmpty) {
+        final List<ChatMessageModel> open = built.last;
+        final ChatMessageModel head = open.first;
+        if (!head.deleted &&
+            head.albumId == message.albumId &&
+            head.senderPhone == message.senderPhone) {
+          open.add(message);
+          continue;
+        }
+      }
+      built.add(<ChatMessageModel>[message]);
+    }
+    return built;
+  }
+
+  /// The message a row's bubble is hung on — its caption, its reply, its
+  /// reactions and its key all belong to this one.
+  ///
+  /// The oldest of an album: the first picture of a send is the one that
+  /// carries the caption and the reply, the way every chat app does it. The
+  /// list is newest first, so that is the last entry.
+  static ChatMessageModel anchorOf(List<ChatMessageModel> row) => row.last;
+
+  /// Messages sent but not yet in the thread, grouped the way [rows] groups
+  /// delivered ones — so a batch of pictures is a grid from the moment the
+  /// send button is tapped, not only once it lands.
+  List<List<OutgoingMessage>> get outgoingRows {
+    final List<List<OutgoingMessage>> built = <List<OutgoingMessage>>[];
+    for (final OutgoingMessage item in outgoing) {
+      if (item.isInAlbum && built.isNotEmpty) {
+        final List<OutgoingMessage> open = built.last;
+        if (open.first.albumId == item.albumId) {
+          open.add(item);
+          continue;
+        }
+      }
+      built.add(<OutgoingMessage>[item]);
+    }
+    return built;
   }
 
   void setChatScreenVisible(bool visible) {
@@ -458,6 +587,7 @@ class ChatController extends GetxController implements GetxService {
       if (cut == clearedAt) return;
       clearedAt = cut;
       messages = _rawMessages.where(isVisibleToMe).toList();
+      _rebuildRows();
       if (messages.isEmpty) unseenCount = 0;
       update();
     }, onError: (Object e) => debugPrint('Chat: cleared-at stream failed — $e'));
@@ -488,6 +618,7 @@ class ChatController extends GetxController implements GetxService {
     clearedAt = DateTime.now();
     _searchPool = [];
     messages = const [];
+    rows = const [];
     unseenCount = 0;
     update();
 
@@ -904,6 +1035,17 @@ class ChatController extends GetxController implements GetxService {
 
   final Map<String, GlobalKey> messageKeys = {};
 
+  /// The id of the bubble a message is drawn in — itself, unless it is one of
+  /// the pictures of an album, in which case the album's.
+  String _anchorIdFor(String messageId) {
+    for (final List<ChatMessageModel> row in rows) {
+      if (row.length > 1 && row.any((m) => m.id == messageId)) {
+        return anchorOf(row).id;
+      }
+    }
+    return messageId;
+  }
+
   GlobalKey getKeyForMessage(String id) {
     if (!messageKeys.containsKey(id)) {
       messageKeys[id] = GlobalKey();
@@ -913,14 +1055,17 @@ class ChatController extends GetxController implements GetxService {
 
   /// Brings a message into view and flashes it.
   ///
-  /// Returns false when it is not in the thread at all: only the most recent
-  /// hundred are loaded, and a pin can outlive that window. The caller says so
-  /// rather than letting the tap do nothing.
+  /// Returns false when it is not in the thread at all: the history is loaded
+  /// a page at a time and a pin can point above what has been read back so
+  /// far. The caller says so rather than letting the tap do nothing.
   bool scrollToMessage(String messageId) {
     int index = messages.indexWhere((m) => m.id == messageId);
     if (index == -1) return false;
 
-    final key = messageKeys[messageId];
+    // A picture inside an album has no bubble of its own — the album's does,
+    // and it is hung on the first picture of the send.
+    final String targetId = _anchorIdFor(messageId);
+    final key = messageKeys[targetId];
     if (key != null && key.currentContext != null) {
       Scrollable.ensureVisible(
         key.currentContext!,
@@ -928,12 +1073,17 @@ class ChatController extends GetxController implements GetxService {
         curve: Curves.easeInOut,
         alignment: 0.5,
       );
-      _highlightMessage(messageId);
+      _highlightMessage(targetId);
       return true;
     } else {
+      // Rows, not messages: an album is many messages and one bubble. Only a
+      // rough guess either way — it puts the target on screen so the key
+      // below can do the real work.
+      final int rowIndex =
+          rows.indexWhere((row) => anchorOf(row).id == targetId);
       scrollController
           .animateTo(
-        index * 80.0,
+        (rowIndex < 0 ? index : rowIndex) * 80.0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       )
@@ -946,7 +1096,7 @@ class ChatController extends GetxController implements GetxService {
               curve: Curves.easeInOut,
               alignment: 0.5,
             );
-            _highlightMessage(messageId);
+            _highlightMessage(targetId);
           }
         });
       });
@@ -1189,13 +1339,22 @@ class ChatController extends GetxController implements GetxService {
 
     // The caption and the reply ride on the first picture, the way every chat
     // app does it; the rest go out as bare images.
+    //
+    // Each picture stays its own message — one can be deleted, replied to or
+    // opened without the others — but they all carry the batch's id, and a
+    // thread draws a run of them as one grid. Only the first is worth a
+    // notification: one send is one thing arriving.
     final String batch = DateTime.now().microsecondsSinceEpoch.toString();
-    for (int i = 0; i < attachments.length; i++) {
+    final int count = attachments.length;
+    for (int i = 0; i < count; i++) {
       await _enqueue(
         localId: '${batch}_$i',
         text: i == 0 ? text : '',
         replyTo: i == 0 ? replyTo : null,
         image: attachments[i],
+        albumId: count > 1 ? batch : null,
+        albumCount: count > 1 ? count : null,
+        notify: i == 0,
       );
     }
   }
@@ -1208,8 +1367,16 @@ class ChatController extends GetxController implements GetxService {
     required String text,
     ChatMessageModel? replyTo,
     PickedImage? image,
+    String? albumId,
+    int? albumCount,
+    bool notify = true,
   }) async {
-    final _PushPlan push = _planPush(text, replyTo: replyTo, hasImage: image != null);
+    final _PushPlan push = _planPush(
+      text,
+      replyTo: replyTo,
+      hasImage: image != null,
+      albumCount: albumCount,
+    );
     try {
       await _outbox.enqueue(
         localId: localId ?? DateTime.now().microsecondsSinceEpoch.toString(),
@@ -1219,6 +1386,9 @@ class ChatController extends GetxController implements GetxService {
         image: image?.file,
         imageWidth: image?.width,
         imageHeight: image?.height,
+        albumId: albumId,
+        albumCount: albumCount,
+        notify: notify,
         replyToId: replyTo?.id,
         replyToText: replyTo?.preview,
         replyToSenderName: replyTo?.senderName,
@@ -1328,12 +1498,19 @@ class ChatController extends GetxController implements GetxService {
   /// as data rather than sent, so the outbox can fire it once the message is
   /// really in — from the app or from the background job.
   _PushPlan _planPush(String text,
-      {ChatMessageModel? replyTo, bool hasImage = false}) {
+      {ChatMessageModel? replyTo, bool hasImage = false, int? albumCount}) {
+    // What a picture with no caption says instead of arriving empty — and,
+    // for a batch, how many of them turned up, since only the first of an
+    // album notifies at all.
+    final String pictureLine = (albumCount ?? 1) > 1
+        ? '📷 ${'photo_count'.trParams({'count': '$albumCount'})}'
+        : '📷 ${'photo'.tr}';
+
     // A direct message has exactly one recipient and nothing to work out.
     if (!isGroupChat) {
       return _PushPlan(
         title: hasImage ? '📷 $userName' : userName,
-        body: text.isEmpty ? '📷 ${'photo'.tr}' : text,
+        body: text.isEmpty ? pictureLine : text,
         targets: [thread.peerPhone!],
         data: _directPushData(),
       );
@@ -1370,7 +1547,9 @@ class ChatController extends GetxController implements GetxService {
 
     String title = 'New message from $userName';
     if (hasImage && mentionList.isEmpty && replyTo == null) {
-      title = '📷 $userName sent a photo';
+      title = (albumCount ?? 1) > 1
+          ? '📷 $userName sent $albumCount photos'
+          : '📷 $userName sent a photo';
     } else if (hasEveryone) {
       title = '📢 @everyone: New message from $userName';
     } else if (mentionList.isNotEmpty) {
@@ -1383,7 +1562,7 @@ class ChatController extends GetxController implements GetxService {
       title: title,
       // A bare picture has no words to push, so the notification says what
       // arrived instead of arriving empty.
-      body: text.isEmpty ? '📷 ${'photo'.tr}' : text,
+      body: text.isEmpty ? pictureLine : text,
       targets: targets,
       data: {
         'senderName': userName,

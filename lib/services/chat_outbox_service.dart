@@ -131,6 +131,9 @@ class ChatOutboxService extends GetxController implements GetxService {
     XFile? image,
     double? imageWidth,
     double? imageHeight,
+    String? albumId,
+    int? albumCount,
+    bool notify = true,
     String? replyToId,
     String? replyToText,
     String? replyToSenderName,
@@ -170,6 +173,9 @@ class ChatOutboxService extends GetxController implements GetxService {
       imagePath: storedPath,
       imageWidth: imageWidth,
       imageHeight: imageHeight,
+      albumId: albumId,
+      albumCount: albumCount,
+      notify: notify,
       replyToId: replyToId,
       replyToText: replyToText,
       replyToSenderName: replyToSenderName,
@@ -295,6 +301,8 @@ class ChatOutboxService extends GetxController implements GetxService {
         imageUrl: imageUrl,
         imageWidth: item.imageWidth,
         imageHeight: item.imageHeight,
+        albumId: item.albumId,
+        albumCount: item.albumCount,
         conversationId: item.conversationId,
         peerPhone: item.peerPhone,
         action: item.action,
@@ -311,6 +319,10 @@ class ChatOutboxService extends GetxController implements GetxService {
     }
 
     await _deleteFile(item.imagePath);
+
+    // Every picture of an album but the first stays quiet — one send is one
+    // thing to be told about. See `OutgoingMessage.notify`.
+    if (!item.notify) return;
 
     // Best effort, bounded, and never a reason to keep the message: it is in
     // the thread already, notification or not.

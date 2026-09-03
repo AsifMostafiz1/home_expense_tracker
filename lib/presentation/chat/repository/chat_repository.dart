@@ -9,7 +9,17 @@ import '../model/typing_status_model.dart';
 /// repository serves both because a direct message is the same message in a
 /// different place — see `ChatThread`.
 abstract class ChatRepository {
-  Stream<List<ChatMessageModel>> getMessagesStream({String? conversationId});
+  /// The tail of a thread, live — newest [limit] messages.
+  ///
+  /// The window is a parameter rather than a constant because a reader who
+  /// scrolls past the end of it asks for a bigger one: the thread widens what
+  /// it listens to instead of stitching a separate, dead page of history onto
+  /// the end, so an edit, a reaction or a delete on a message from months ago
+  /// still arrives while it is on screen.
+  Stream<List<ChatMessageModel>> getMessagesStream({
+    String? conversationId,
+    int limit,
+  });
 
   /// The window a search reads, which is deeper than the thread keeps in
   /// memory — somebody looking for what was said about the gas bill is
@@ -46,6 +56,11 @@ abstract class ChatRepository {
     String? imageUrl,
     double? imageWidth,
     double? imageHeight,
+
+    /// The send this picture belongs to, when several went out together —
+    /// see `ChatMessageModel.albumId`.
+    String? albumId,
+    int? albumCount,
     String? conversationId,
     String? peerPhone,
 

@@ -174,8 +174,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             builder: (controller) {
               // Messages still on their way out — uploading, or waiting
               // for a connection — sit past the newest message, at the
-              // bottom of a reversed list.
-              final int pending = controller.outgoing.length;
+              // bottom of a reversed list. Grouped the way the thread
+              // itself is, so a batch of pictures is a grid straight away.
+              final List<List<OutgoingMessage>> outgoingRows =
+                  controller.outgoingRows;
+              final int pending = outgoingRows.length;
               final bool typing = controller.typingUsers.isNotEmpty;
 
               if (controller.messages.isEmpty && pending == 0 && !typing) {
@@ -203,13 +206,27 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 );
               }
 
+              // One row is one bubble: a message on its own, or every
+              // picture of a single send.
+              final List<List<ChatMessageModel>> rows = controller.rows;
+              final bool loadingMore = controller.isLoadingHistory;
+              final int total = rows.length +
+                  pending +
+                  (typing ? 1 : 0) +
+                  (loadingMore ? 1 : 0);
+
               return ListView.builder(
                 controller: controller.scrollController,
                 reverse: true,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                itemCount:
-                    controller.messages.length + pending + (typing ? 1 : 0),
+                itemCount: total,
                 itemBuilder: (context, slot) {
+                  // The far end of a reversed list is the top of the thread,
+                  // which is where the page still being read back belongs.
+                  if (loadingMore && slot == total - 1) {
+                    return const _HistoryLoader();
+                  }
+
                   // Slot zero is the bottom of a reversed list — where the
                   // next message will land, and so where the dots promising
                   // one belong.
@@ -220,21 +237,25 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   if (position < pending) {
                     // Newest first, like everything else in a reversed list.
                     return _OutgoingBubble(
-                      item: controller.outgoing[pending - 1 - position],
+                      items: outgoingRows[pending - 1 - position],
                       controller: controller,
                     );
                   }
 
                   final int index = position - pending;
-                  final message = controller.messages[index];
+                  final List<ChatMessageModel> row = rows[index];
+                  // The bubble hangs on the first picture of a send — the one
+                  // carrying the caption and the reply.
+                  final message = ChatController.anchorOf(row);
                   final isMe = message.senderPhone == controller.userPhone;
 
                   bool isFirstInGroup = true;
                   bool isLastInGroup = true;
                   bool showDateHeader = false;
 
-                  if (index < controller.messages.length - 1) {
-                    final nextMessage = controller.messages[index + 1];
+                  if (index < rows.length - 1) {
+                    final nextMessage =
+                        ChatController.anchorOf(rows[index + 1]);
                     if (nextMessage.senderPhone == message.senderPhone) {
                       isFirstInGroup = false;
                     }
@@ -249,7 +270,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   }
 
                   if (index > 0) {
-                    final nextMessage = controller.messages[index - 1];
+                    final nextMessage =
+                        ChatController.anchorOf(rows[index - 1]);
                     if (nextMessage.senderPhone == message.senderPhone) {
                       isLastInGroup = false;
                     }
@@ -258,6 +280,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   return _MessageBubble(
                     key: controller.getKeyForMessage(message.id),
                     message: message,
+                    album: row,
                     isMe: isMe,
                     isFirstInGroup: isFirstInGroup,
                     isLastInGroup: isLastInGroup,
@@ -964,8 +987,38 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 }
 
+/// The mark at the top of the thread while the page above it is being read
+/// back — see `ChatController.loadOlderMessages`. Small and quiet: it is not
+/// an empty screen waiting to be filled, it is a conversation that already
+/// has plenty on it.
+class _HistoryLoader extends StatelessWidget {
+  const _HistoryLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MessageBubble extends StatelessWidget {
   final ChatMessageModel message;
+
+  /// Every message this bubble stands for, newest first. One entry for
+  /// anything sent on its own; for a batch of pictures, all of them — and
+  /// [message] is then the first of the send, the one carrying the caption.
+  final List<ChatMessageModel> album;
   final bool isMe;
   final bool isFirstInGroup;
   final bool isLastInGroup;
@@ -981,7 +1034,11 @@ class _MessageBubble extends StatelessWidget {
     required this.isLastInGroup,
     required this.showDateHeader,
     required this.controller,
-  });
+    List<ChatMessageModel>? album,
+  }) : album = album ?? <ChatMessageModel>[message];
+
+  /// Whether this bubble is drawing several pictures rather than one.
+  bool get _isAlbum => album.length > 1;
 
   @override
   Widget build(BuildContext context) {
@@ -1128,7 +1185,10 @@ class _MessageBubble extends StatelessWidget {
                                               horizontal: message.hasImage ? 4 : 0),
                                           child: _buildReplyContent(context),
                                         ),
-                                      if (message.hasImage) _buildImage(context),
+                                      if (message.hasImage)
+                                        _isAlbum
+                                            ? _buildAlbum(context)
+                                            : _buildImage(context),
                                       if (message.text.trim().isNotEmpty)
                                         Padding(
                                           padding: message.hasImage
@@ -1359,13 +1419,14 @@ class _MessageBubble extends StatelessWidget {
   /// bottom and the way back to the message all come with it — only the list
   /// differs, and this one is the thread's own, oldest first, the order it is
   /// read in.
-  void _openImage(BuildContext context) {
+  void _openImage(BuildContext context, [ChatMessageModel? tapped]) {
+    final ChatMessageModel target = tapped ?? message;
     final List<ChatMessageModel> photos = <ChatMessageModel>[
       for (final ChatMessageModel item in controller.messages.reversed)
         if (!item.deleted && (item.imageUrl?.isNotEmpty ?? false)) item,
     ];
 
-    final int index = photos.indexWhere((item) => item.id == message.id);
+    final int index = photos.indexWhere((item) => item.id == target.id);
     // Only reachable if the thread moved under the tap. Nothing to open, and
     // a viewer on a picture that is no longer there is worse than nothing.
     if (index < 0) return;
@@ -1462,13 +1523,166 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
+  /// The pictures of one send, drawn as a grid.
+  ///
+  /// Every picture is still its own message underneath — a tap opens that one
+  /// in the viewer, and the gallery lists them separately — but a batch reads
+  /// as one thing arriving, so it is drawn as one thing. Two side by side,
+  /// three as a wide one over a pair, four as a square; past four the fourth
+  /// tile counts what is behind it, the way every chat app does.
+  ///
+  /// The bubble is the same width a single picture is capped at, so a thread
+  /// of mixed sends keeps one edge.
+  Widget _buildAlbum(BuildContext context) {
+    // Oldest first: the order they were picked, and the order they were sent.
+    final List<ChatMessageModel> shots = album.reversed.toList();
+    const double gap = 2;
+
+    // Laid out in fractions rather than pixels — the bubble is capped at the
+    // width a single picture is capped at, and gives way on a narrow screen
+    // the same as one does.
+    Widget half(int i, {int extra = 0}) => Expanded(
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: _albumTile(context, shots[i], 120, extra: extra),
+          ),
+        );
+
+    Widget wide(int i) => AspectRatio(
+          aspectRatio: 8 / 5,
+          child: _albumTile(context, shots[i], 240),
+        );
+
+    Widget pair(int a, int b, {int extra = 0}) => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            half(a),
+            const SizedBox(width: gap),
+            half(b, extra: extra),
+          ],
+        );
+
+    late final Widget grid;
+    if (shots.length == 2) {
+      grid = pair(0, 1);
+    } else if (shots.length == 3) {
+      grid = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [wide(0), const SizedBox(height: gap), pair(1, 2)],
+      );
+    } else {
+      // Four tiles whatever the count; anything past them is a number on the
+      // last one, and the viewer has the rest a swipe away.
+      grid = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          pair(0, 1),
+          const SizedBox(height: gap),
+          pair(2, 3, extra: shots.length - 4),
+        ],
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 240),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: grid,
+      ),
+    );
+  }
+
+  /// One picture of a grid. [extra], when there is one, is how many more the
+  /// send carried than the grid has room for.
+  Widget _albumTile(
+    BuildContext context,
+    ChatMessageModel shot,
+    double approxWidth, {
+    int extra = 0,
+  }) {
+    // A tile is a fraction of the bubble, so the full-width decode a single
+    // picture needs would be several times the pixels that ever reach the
+    // screen — and a batch of ten of them is what runs a phone out of memory.
+    // A hint, not a measurement: the tile takes its real size from the grid.
+    final int cacheWidth =
+        (approxWidth * MediaQuery.of(context).devicePixelRatio).round();
+
+    return GestureDetector(
+      onTap: () => _openImage(context, shot),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Hero(
+            tag: 'chat_image_${shot.id}',
+            child: Image.network(
+              shot.imageUrl!,
+              fit: BoxFit.cover,
+              cacheWidth: cacheWidth,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return Container(
+                  color: Colors.black.withOpacity(0.06),
+                  alignment: Alignment.center,
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: isMe
+                          ? Colors.white
+                          : Theme.of(context).colorScheme.primary,
+                      value: progress.expectedTotalBytes == null
+                          ? null
+                          : progress.cumulativeBytesLoaded /
+                              progress.expectedTotalBytes!,
+                    ),
+                  ),
+                );
+              },
+              errorBuilder: (_, __, ___) => Container(
+                color: Colors.black.withOpacity(0.06),
+                alignment: Alignment.center,
+                child: Icon(Icons.broken_image_outlined,
+                    color: isMe ? Colors.white70 : Colors.grey, size: 22),
+              ),
+            ),
+          ),
+          if (extra > 0)
+            Container(
+              color: Colors.black.withOpacity(0.45),
+              alignment: Alignment.center,
+              child: Text(
+                '+$extra',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSeenAvatars(BuildContext context) {
     // The writer of a message is never one of the people who "saw" it — their
     // own send marks it read on their device, which would otherwise put their
     // face in the row under their own bubble.
-    final seenBy = (controller.messageSeenBy[message.id] ?? [])
-        .where((status) => status['userPhone']?.toString() != message.senderPhone)
-        .toList();
+    //
+    // Across the whole row, not just the bubble's anchor: a read receipt
+    // points at the newest message somebody has seen, which for an album is
+    // the last picture of it rather than the first — the one this bubble is
+    // hung on. One face per person however many of them they landed on.
+    final Map<String, Map<String, dynamic>> byPhone = {};
+    for (final ChatMessageModel item in album) {
+      for (final status in controller.messageSeenBy[item.id] ?? const []) {
+        final String phone = status['userPhone']?.toString() ?? '';
+        if (phone.isEmpty || phone == message.senderPhone) continue;
+        byPhone[phone] = status;
+      }
+    }
+    final seenBy = byPhone.values.toList();
     if (seenBy.isEmpty) return const SizedBox.shrink();
 
     return Padding(
@@ -2001,10 +2215,21 @@ class _MessageBubble extends StatelessWidget {
 /// A failed one stays put with a way back — dropping a message on a flaky
 /// connection would be the worst possible answer.
 class _OutgoingBubble extends StatelessWidget {
-  final OutgoingMessage item;
+  /// Everything this bubble stands for, oldest first — one message, or every
+  /// picture of a batch still on its way out.
+  final List<OutgoingMessage> items;
   final ChatController controller;
 
-  const _OutgoingBubble({required this.item, required this.controller});
+  const _OutgoingBubble({required this.items, required this.controller});
+
+  /// The one the bubble is hung on: the first of a batch is what carries the
+  /// caption and the reply, the same as in a delivered album.
+  OutgoingMessage get item => items.first;
+
+  bool get _isAlbum => items.length > 1;
+
+  /// A batch is only as delivered as its worst picture.
+  bool get _failed => items.any((OutgoingMessage each) => each.failed);
 
   @override
   Widget build(BuildContext context) {
@@ -2023,7 +2248,7 @@ class _OutgoingBubble extends StatelessWidget {
                   ? const EdgeInsets.all(4)
                   : const EdgeInsets.fromLTRB(16, 10, 16, 8),
               decoration: BoxDecoration(
-                color: primary.withOpacity(item.failed ? 0.5 : 1),
+                color: primary.withOpacity(_failed ? 0.5 : 1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
@@ -2036,7 +2261,9 @@ class _OutgoingBubble extends StatelessWidget {
                           hasImage ? 4 : 0, hasImage ? 4 : 0, hasImage ? 4 : 0, 6),
                       child: _quote(context),
                     ),
-                  if (hasImage && imagePath != null)
+                  if (hasImage && _isAlbum)
+                    _pendingAlbum(context)
+                  else if (hasImage && imagePath != null)
                     ConstrainedBox(
                       constraints:
                           const BoxConstraints(maxWidth: 240, maxHeight: 320),
@@ -2047,30 +2274,7 @@ class _OutgoingBubble extends StatelessWidget {
                         // takes this one's place.
                         child: AspectRatio(
                           aspectRatio: item.aspectRatio,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              LocalImage(imagePath, fit: BoxFit.cover),
-                              Container(
-                                color: Colors.black.withOpacity(0.35),
-                                alignment: Alignment.center,
-                                child: item.failed
-                                    ? const Icon(Icons.error_outline_rounded,
-                                        color: Colors.white, size: 30)
-                                    : controller.isDelivering
-                                        ? const SizedBox(
-                                            width: 30,
-                                            height: 30,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2.5,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(Icons.schedule_rounded,
-                                            color: Colors.white, size: 30),
-                              ),
-                            ],
-                          ),
+                          child: _pendingTile(context, item),
                         ),
                       ),
                     ),
@@ -2089,7 +2293,7 @@ class _OutgoingBubble extends StatelessWidget {
                     padding: hasImage
                         ? const EdgeInsets.fromLTRB(8, 4, 8, 4)
                         : const EdgeInsets.only(top: 4),
-                    child: item.failed ? _failedRow(context) : _statusRow(context),
+                    child: _failed ? _failedRow(context) : _statusRow(context),
                   ),
                 ],
               ),
@@ -2097,6 +2301,103 @@ class _OutgoingBubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// A batch of pictures on its way out, laid out exactly the way the thread
+  /// will lay it out once it lands — so nothing jumps when the uploads finish
+  /// and the real album takes this bubble's place.
+  Widget _pendingAlbum(BuildContext context) {
+    const double gap = 2;
+
+    Widget half(int i, {int extra = 0}) => Expanded(
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: _pendingTile(context, items[i], extra: extra),
+          ),
+        );
+
+    Widget pair(int a, int b, {int extra = 0}) => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            half(a),
+            const SizedBox(width: gap),
+            half(b, extra: extra),
+          ],
+        );
+
+    late final Widget grid;
+    if (items.length == 2) {
+      grid = pair(0, 1);
+    } else if (items.length == 3) {
+      grid = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 8 / 5,
+            child: _pendingTile(context, items[0]),
+          ),
+          const SizedBox(height: gap),
+          pair(1, 2),
+        ],
+      );
+    } else {
+      grid = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          pair(0, 1),
+          const SizedBox(height: gap),
+          pair(2, 3, extra: items.length - 4),
+        ],
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 240),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: grid,
+      ),
+    );
+  }
+
+  /// One picture waiting to go, under the mark that says what is happening to
+  /// it — uploading, waiting for a connection, or refused.
+  Widget _pendingTile(BuildContext context, OutgoingMessage each,
+      {int extra = 0}) {
+    final String? path = each.imagePath;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (path != null) LocalImage(path, fit: BoxFit.cover),
+        Container(
+          color: Colors.black.withOpacity(0.35),
+          alignment: Alignment.center,
+          child: extra > 0
+              ? Text(
+                  '+$extra',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              : each.failed
+                  ? const Icon(Icons.error_outline_rounded,
+                      color: Colors.white, size: 26)
+                  : controller.isDelivering
+                      ? const SizedBox(
+                          width: 26,
+                          height: 26,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.schedule_rounded,
+                          color: Colors.white, size: 26),
+        ),
+      ],
     );
   }
 
@@ -2138,11 +2439,19 @@ class _OutgoingBubble extends StatelessWidget {
           style: const TextStyle(color: Colors.white, fontSize: 11),
         ),
         const SizedBox(width: 10),
-        _action(context, Icons.refresh_rounded, 'retry'.tr,
-            () => controller.retryOutgoing(item)),
+        // A batch is retried or dropped as a batch: the sender picked those
+        // pictures as one send and does not want half of them.
+        _action(context, Icons.refresh_rounded, 'retry'.tr, () {
+          for (final OutgoingMessage each in items) {
+            if (each.failed) controller.retryOutgoing(each);
+          }
+        }),
         const SizedBox(width: 6),
-        _action(context, Icons.close_rounded, 'cancel'.tr,
-            () => controller.discardOutgoing(item)),
+        _action(context, Icons.close_rounded, 'cancel'.tr, () {
+          for (final OutgoingMessage each in List<OutgoingMessage>.from(items)) {
+            controller.discardOutgoing(each);
+          }
+        }),
       ],
     );
   }
