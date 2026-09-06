@@ -20,6 +20,7 @@ import '../../presentation/monthly_stats/binding/monthly_stats_binding.dart';
 import '../../presentation/settings/binding/settings_binding.dart';
 import '../../presentation/house_rules/binding/house_rules_binding.dart';
 import '../../presentation/personal/binding/personal_binding.dart';
+import '../../presentation/task/binding/task_binding.dart';
 
 class InitialBinding extends Bindings {
   @override
@@ -61,6 +62,7 @@ class InitialBinding extends Bindings {
     SettingsBinding().dependencies();
     HouseRulesBinding().dependencies();
     PersonalBinding().dependencies();
+    TaskBinding().dependencies();
 
     // After the chat binding, because a finished call writes its line into a
     // thread through the chat repository registered there.

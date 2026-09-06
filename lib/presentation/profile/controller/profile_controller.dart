@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/connectivity_service.dart';
 import '../../../services/daily_reminder_service.dart';
+import '../../../services/task_reminder_service.dart';
+import '../../task/controller/task_controller.dart';
 import '../../../services/member_avatar_service.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/supabase_config.dart';
@@ -121,6 +123,14 @@ class ProfileController extends GetxController implements GetxService {
 
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString(AppConstant.keyLanguage, langCode);
+
+    // The task reminders were worded in the old language when they were
+    // armed, and nothing runs when one fires to reword it — so they are
+    // re-armed now. Only if the controller is already up: resolving it here
+    // would start its listener for a language change alone.
+    if (Get.isRegistered<TaskController>() && !Get.isPrepared<TaskController>()) {
+      Get.find<TaskController>().rescheduleReminders();
+    }
   }
 
   /// The account and the lifetime figures, read again.
@@ -539,6 +549,12 @@ class ProfileController extends GetxController implements GetxService {
     // the evening reminder names the whole house's meals, which is nothing to
     // raise on a phone nobody is signed in on.
     await DailyReminderService.cancel();
+    // And the task reminders, for the same reason: they are this account's
+    // alarms, and the next account on this phone must not be woken by them.
+    // The list's listener goes first, or a snapshot landing a moment after
+    // the cancel would arm them all over again.
+    await TaskController.shutDown();
+    await TaskReminderService.cancelAll();
 
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove(AppConstant.keyIsLoggedIn);

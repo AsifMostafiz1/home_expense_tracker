@@ -22,6 +22,11 @@ class CustomTextField extends StatelessWidget {
   /// whose only job is this one field.
   final bool autofocus;
 
+  /// What the keyboard's action key does, and what happens when it is
+  /// pressed — a form whose one required field is this can save from it.
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+
   const CustomTextField({
     super.key,
     required this.controller,
@@ -40,6 +45,8 @@ class CustomTextField extends StatelessWidget {
     this.onTap,
     this.textCapitalization = TextCapitalization.none,
     this.autofocus = false,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -70,6 +77,8 @@ class CustomTextField extends StatelessWidget {
           readOnly: readOnly,
           onTap: onTap,
           textCapitalization: textCapitalization,
+          textInputAction: textInputAction,
+          onFieldSubmitted: onSubmitted,
           style: TextStyle(
             fontSize: 15,
             color: readOnly ? Colors.grey : null,

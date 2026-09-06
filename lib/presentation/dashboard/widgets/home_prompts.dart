@@ -4,6 +4,7 @@ import '../../../utils/user_session.dart';
 import '../../house_rules/widgets/house_rules_gate.dart';
 import '../../meal/widgets/bulk_meal_prompt_sheet.dart';
 import '../../profile/widgets/profile_photo_prompt_sheet.dart';
+import '../../task/widgets/today_tasks_sheet.dart';
 
 /// The asks the home screen makes on the way in, run as a queue.
 ///
@@ -12,14 +13,18 @@ import '../../profile/widgets/profile_photo_prompt_sheet.dart';
 ///
 ///   1. the month's meals — until that month exists nothing on the meal
 ///      screen works, so it comes first;
-///   2. the house rules — mandatory, and the only one of the three that is
+///   2. the house rules — mandatory, and the only one of the four that is
 ///      not the user's to postpone;
-///   3. the profile picture — a nicety, and the first thing to give way.
+///   3. today's tasks — the member's own list, whenever something on it is
+///      still open;
+///   4. the profile picture — a nicety, and the first thing to give way.
 ///
 /// A refused meal prompt ends the queue for the picture, and so does a rules
 /// screen that had to be shown: somebody who has just worked through one
 /// thing is not in the mood for a second. Both are still pending, so the next
-/// launch offers them again.
+/// launch offers them again. The day's tasks are the member's own agenda
+/// rather than a nicety, so a waved-away meal sheet does not silence them —
+/// but a tasks sheet that was shown does end the queue for the picture.
 class HomePrompts {
   const HomePrompts._();
 
@@ -65,6 +70,14 @@ class HomePrompts {
       }
 
       if (!onHome) return;
+
+      // The day's own list, for either kind of user. Not held back by a
+      // waved-away meal sheet — that was the house's ask, this is the
+      // member's own — but a shown list is enough for one launch, and the
+      // photo nicety waits for the next.
+      final TodayTasksPromptResult tasks = await TodayTasksPrompt.maybeShow();
+      if (tasks == TodayTasksPromptResult.shown) return;
+
       if (meals == BulkMealPromptResult.dismissed) return;
 
       await ProfilePhotoPrompt.maybeShow();
@@ -73,22 +86,43 @@ class HomePrompts {
     }
   }
 
-  /// The rules check on its own — for coming back to an app that was left
-  /// open, where the queue above has already run for this launch but an admin
-  /// may have published something in the meantime.
-  static Future<void> runRulesGate() async {
+  /// The checks for coming back to an app that was left open, where the queue
+  /// above has already run for this launch. Two of them, in order, under one
+  /// hold — fired separately, the second would find the first still running
+  /// and give up:
+  ///
+  ///   • the rules, every time — an admin may have published something while
+  ///     the app sat in the background;
+  ///   • the day's tasks, when [offerTasks] says the app was away long enough
+  ///     for this to be a fresh visit, or midnight passed in between. The
+  ///     sheet itself still holds off while its last showing is recent.
+  static Future<void> runOnResume({
+    required bool offerTasks,
+    bool Function()? isHomeOnTop,
+  }) async {
     if (_running) return;
     _running = true;
 
     try {
       if (Get.context == null) return;
       if (_overlayBusy) return;
-      if (UserSession.isGeneral) return;
-      await HouseRulesGate.maybeShow();
+
+      if (!UserSession.isGeneral) {
+        final HouseRulesGateResult rules = await HouseRulesGate.maybeShow();
+        if (rules == HouseRulesGateResult.shown) return;
+      }
+
+      if (!offerTasks) return;
+      if (!(isHomeOnTop?.call() ?? true)) return;
+      await TodayTasksPrompt.maybeShow(onResume: true);
     } finally {
       _running = false;
     }
   }
+
+  /// The rules check on its own — see [runOnResume], which is what the home
+  /// screen calls; kept for anything that only has the rules to ask about.
+  static Future<void> runRulesGate() => runOnResume(offerTasks: false);
 
   static bool get _overlayBusy =>
       (Get.isDialogOpen ?? false) || (Get.isBottomSheetOpen ?? false);

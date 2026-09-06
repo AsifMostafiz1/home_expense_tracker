@@ -8,6 +8,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../view/sign_in_screen.dart';
 import '../../dashboard/view/dashboard_screen.dart';
 import '../../../services/push_notification_service.dart';
+import '../../../services/task_reminder_service.dart';
+import '../../task/controller/task_controller.dart';
 import '../../../services/supabase_storage_service.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/supabase_config.dart';
@@ -187,6 +189,12 @@ class AuthController extends GetxController implements GetxService {
       }
       pickedProfileImage = null;
 
+      // Whatever the last account on this phone left armed is not this
+      // account's to be woken by; its own list re-arms from the home screen.
+      // Not awaited: the service runs its work in order, so this finishes
+      // before the new list's first pass, and the form need not wait on it.
+      unawaited(TaskReminderService.cancelAll());
+
       isLoading = false;
       update();
       CustomSnackbar.show(
@@ -259,6 +267,11 @@ class AuthController extends GetxController implements GetxService {
             await prefs.remove(AppConstant.keySavedPassword);
           }
 
+          // A shared phone may still hold the previous account's task
+          // reminders; this account's are re-armed from the home screen. Not
+          // awaited, for the reason given at sign-up.
+          unawaited(TaskReminderService.cancelAll());
+
           isLoading = false;
           update();
           CustomSnackbar.show(
@@ -285,6 +298,10 @@ class AuthController extends GetxController implements GetxService {
   }
 
   Future<void> signOut() async {
+    // The list's listener down before its alarms, or a snapshot landing in
+    // between would arm them again — see TaskController.shutDown.
+    await TaskController.shutDown();
+    await TaskReminderService.cancelAll();
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove(AppConstant.keyIsLoggedIn);
     await prefs.remove(AppConstant.keyUserPhone);

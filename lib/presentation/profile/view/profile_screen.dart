@@ -7,6 +7,10 @@ import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/view/monthly_stats_screen.dart';
 import '../../house_rules/view/house_rules_screen.dart';
 import '../../settings/view/settings_screen.dart';
+import '../../task/controller/task_controller.dart';
+import '../../task/model/task_digest.dart';
+import '../../task/view/task_screen.dart';
+import '../../../utils/app_ui.dart';
 import '../widgets/profile_header.dart';
 import '../widgets/profile_skeleton.dart';
 import 'edit_profile_screen.dart';
@@ -214,6 +218,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               const SizedBox(height: 24),
                             ],
+
+                            // Personal Section — the member's own list of things
+                            // to do. Theirs whichever kind of user they are, so
+                            // it sits above the account card for both, with the
+                            // day's count on it: the number a person wants
+                            // before they tap.
+                            _buildSectionLabel(context, 'PERSONAL'.tr),
+                            const SizedBox(height: 12),
+                            Material(
+                              color: Theme.of(context).cardColor,
+                              clipBehavior: Clip.antiAlias,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(
+                                    color: Theme.of(context).dividerColor),
+                              ),
+                              child: _buildListTile(
+                                context,
+                                icon: Icons.task_alt_rounded,
+                                title: 'my_tasks'.tr,
+                                subtitle: 'my_tasks_subtitle'.tr,
+                                trailingBadge: _buildTasksPill(context),
+                                onTap: () => Get.to(() => const TaskScreen()),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
 
                             // Account Section — everything else this member might
                             // want to open, in one list: who else is here, what has
@@ -525,6 +555,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// What is on today's list, as a small pill — open tasks in the app's own
+  /// colour, or what is overdue in red when anything is. Nothing while the
+  /// list is empty or has not been read: a zero would only be noise.
+  Widget? _buildTasksPill(BuildContext context) {
+    if (!Get.isRegistered<TaskController>()) return null;
+    return GetBuilder<TaskController>(
+      builder: (c) {
+        if (!c.hasLoaded) return const SizedBox.shrink();
+        final TaskDigest digest = c.digest;
+        final int overdue = digest.overdueBeforeToday;
+        final int open = digest.todayOpen;
+        if (overdue == 0 && open == 0) return const SizedBox.shrink();
+
+        final MaterialColor tone = overdue > 0 ? Colors.red : Colors.deepPurple;
+        final String text = overdue > 0
+            ? 'tasks_overdue_pill'.trParams({'count': '$overdue'})
+            : 'tasks_today_pill'.trParams({'count': '$open'});
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppUi.tint(context, tone),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppUi.accent(context, tone),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildListTile(
     BuildContext context, {
     required IconData icon,
@@ -533,6 +600,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String? subtitle,
     Color? textColor,
     Color? iconColor,
+    Widget? trailingBadge,
   }) {
     return ListTile(
       onTap: onTap,
@@ -560,8 +628,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-      trailing:
-          Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20),
+      trailing: trailingBadge == null
+          ? Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20)
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                trailingBadge,
+                const SizedBox(width: 6),
+                Icon(Icons.chevron_right,
+                    color: Colors.grey.shade400, size: 20),
+              ],
+            ),
     );
   }
 

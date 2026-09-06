@@ -26,6 +26,8 @@ const Map<String, NotificationDestination> _senders = {
   'role': NotificationDestination.profile,
   // member_controller.removeMember
   'account_removed': NotificationDestination.signedOut,
+  // task_reminder_service — an alarm the member set on their own task
+  'task_reminder': NotificationDestination.tasks,
 };
 
 void main() {
@@ -49,6 +51,7 @@ void main() {
     expect(NotificationDestination.houseRules.tab, 4);
     expect(NotificationDestination.monthlyBill.tab, 4);
     expect(NotificationDestination.profile.tab, 4);
+    expect(NotificationDestination.tasks.tab, 4);
 
     // Not a tab at all — the session is over.
     expect(NotificationDestination.signedOut.tab, -1);

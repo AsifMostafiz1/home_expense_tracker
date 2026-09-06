@@ -16,6 +16,7 @@ import '../presentation/house_rules/widgets/house_rules_gate.dart';
 import '../presentation/monthly_stats/controller/monthly_stats_controller.dart';
 import '../presentation/monthly_stats/view/monthly_stats_screen.dart';
 import '../presentation/splash/view/splash_screen.dart';
+import '../presentation/task/view/task_screen.dart';
 import '../utils/app_constant.dart';
 import '../utils/user_session.dart';
 import 'home_refresh.dart';
@@ -45,6 +46,10 @@ enum NotificationDestination {
 
   /// A role change — the badge and the menu that goes with it.
   profile(tab: 4),
+
+  /// A task reminder: the member's own list, reached from the profile the
+  /// way it is in the menu.
+  tasks(tab: 4),
 
   /// The account is gone. Nothing to open: back through the splash, which
   /// re-reads the record and ends the session with a reason.
@@ -119,6 +124,10 @@ class NotificationRouter {
         return NotificationDestination.monthlyBill;
       case 'role':
         return NotificationDestination.profile;
+      // `TaskReminderService.payloadType` — an alarm the member set for
+      // themselves.
+      case 'task_reminder':
+        return NotificationDestination.tasks;
       case 'account_removed':
         return NotificationDestination.signedOut;
       case 'app_update':
@@ -242,6 +251,18 @@ class NotificationRouter {
         await _push(() => const HouseRulesScreen());
         break;
 
+      case NotificationDestination.tasks:
+        // The list is live, and the controller behind it is the one the
+        // reminder was armed from; opening the screen resolves it if the
+        // launch has not already.
+        // The id is what the list scrolls to and lights up; the test
+        // reminder carries none, and lands on the list as it stands.
+        final String taskId = (data['taskId'] ?? '').toString();
+        await _push(() => TaskScreen(
+              highlightTaskId: taskId.isEmpty ? null : taskId,
+            ));
+        break;
+
       case NotificationDestination.monthlyBill:
         // Read here rather than in [_refreshFor], because the per-month
         // figures have to be switched on before the read rather than after it
@@ -290,6 +311,7 @@ class NotificationRouter {
       case NotificationDestination.directThread:
       case NotificationDestination.houseRules:
       case NotificationDestination.monthlyBill:
+      case NotificationDestination.tasks:
       case NotificationDestination.signedOut:
       case NotificationDestination.appUpdate:
         break;

@@ -63,6 +63,15 @@ class AppConstant {
   /// Push notifications that could not go out yet — see `PushOutboxService`.
   static const String keyPushOutbox = 'pushOutbox';
 
+  /// The reminder offset, in minutes, this account last picked for a timed
+  /// task — what the editor pre-selects the next time an hour is set, so a
+  /// habitual "1 hour before" never has to be chosen twice.
+  static String keyTaskLastReminder(String phone) => 'taskLastReminder_$phone';
+
+  /// Set once the "allow exact alarms" strip on the task list has been
+  /// closed. Asked once; the switch is still in the system settings.
+  static const String keyExactAlarmHintDismissed = 'exactAlarmHintDismissed';
+
 
   // Firestore Collection Names
   static const String collectionUsers = 'users';
@@ -141,6 +150,11 @@ class AppConstant {
   /// `Subcategory`.
   static const String collectionPersonalSubcategories =
       'personal_subcategories';
+
+  /// A member's own to-do list, one document per task — or per occurrence of
+  /// a repeating one. Every document carries `owner_phone` and is only ever
+  /// read back filtered by it — see `TaskModel`.
+  static const String collectionTasks = 'tasks';
 
   /// Where each device records the build it is running, on the member's own
   /// record — what tells an admin who a new-version notice is for.

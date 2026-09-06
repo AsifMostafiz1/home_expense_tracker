@@ -16,6 +16,8 @@ import '../../chat/controller/chat_controller.dart';
 import '../../chat/controller/chat_list_controller.dart';
 import '../../monthly_stats/controller/monthly_stats_controller.dart';
 import '../../monthly_stats/widgets/due_banner.dart';
+import '../../task/controller/task_controller.dart';
+import '../../task/widgets/today_tasks_sheet.dart';
 import '../../../services/home_refresh.dart';
 import '../widgets/home_prompts.dart';
 
@@ -73,6 +75,11 @@ class _DashboardScreenState extends State<DashboardScreen>
       Get.find<ChatController>();
     }
     Get.find<ChatListController>();
+    // Both kinds of user: the list's listener is what re-arms the task
+    // reminders on this phone and what the morning's sheet reads, so it has
+    // to be running from launch rather than from the first visit to the
+    // screen behind the profile.
+    Get.find<TaskController>();
 
     // Setting up the month's meals, the house rules, then the profile
     // picture — see [HomePrompts]. Called off if a tapped notification has
@@ -128,11 +135,32 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
     if (state != AppLifecycleState.resumed) return;
 
-    HomePrompts.runRulesGate();
+    // The task list re-reads the day and the phone's alarm switches on every
+    // return — cheap, and the only way a list left open overnight moves on.
+    if (Get.isRegistered<TaskController>() && !Get.isPrepared<TaskController>()) {
+      Get.find<TaskController>().onResumed();
+    }
 
     final DateTime? left = _leftAt;
     _leftAt = null;
-    if (left == null || DateTime.now().difference(left) < _staleAfter) return;
+    final DateTime now = DateTime.now();
+
+    // The rules, and the day's tasks when the app was away long enough for
+    // this to count as a fresh visit — or across midnight, which is a new
+    // day whatever the clock says. One call, so the second is not lost
+    // behind the first; see [HomePrompts.runOnResume].
+    final bool newDay = left != null &&
+        (left.day != now.day || left.month != now.month || left.year != now.year);
+    final bool longAway =
+        left != null && now.difference(left) >= TodayTasksPrompt.resumeAfter;
+    unawaited(HomePrompts.runOnResume(
+      offerTasks: newDay || longAway,
+      isHomeOnTop: () =>
+          mounted && (ModalRoute.of(context)?.isCurrent ?? false),
+    ));
+
+    if (left == null) return;
+    if (now.difference(left) < _staleAfter) return;
 
     // Behind whatever is on screen: every read swaps its data in underneath.
     unawaited(HomeRefresh.tab(_selectedIndex));

@@ -9,6 +9,8 @@ import '../../../services/daily_reminder_service.dart';
 import '../../../services/notification_permission_service.dart';
 import '../../../services/notification_router.dart';
 import '../../../services/push_notification_service.dart';
+import '../../../services/task_reminder_service.dart';
+import '../../task/controller/task_controller.dart';
 import '../../../utils/app_constant.dart';
 import '../../../utils/app_enums.dart';
 import '../../../utils/user_session.dart';
@@ -222,6 +224,12 @@ class SplashController extends GetxController {
   }
 
   Future<void> _clearSession(SharedPreferences prefs) async {
+    // The account's task reminders go with it — alarms for a list this
+    // phone no longer holds. Its listener first, or a snapshot landing a
+    // moment later would arm them all over again — and the next account on
+    // this phone must not inherit a controller still reading this one's list.
+    await TaskController.shutDown();
+    await TaskReminderService.cancelAll();
     await prefs.remove(AppConstant.keyIsLoggedIn);
     await prefs.remove(AppConstant.keyUserPhone);
     await prefs.remove(AppConstant.keyUserName);
