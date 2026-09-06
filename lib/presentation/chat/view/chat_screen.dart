@@ -28,6 +28,7 @@ import '../widgets/typing_bubble.dart';
 import '../widgets/voice_bubble.dart';
 import '../widgets/voice_recorder_bar.dart';
 import '../../../services/voice_player_service.dart';
+import '../../../services/call_service.dart';
 import 'chat_media_screen.dart';
 import 'chat_media_viewer.dart';
 import 'pinned_messages_screen.dart';
@@ -388,13 +389,47 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ),
       ),
       actions: [
-        IconButton(
-          tooltip: 'search'.tr,
-          icon: Icon(Icons.search_rounded, color: AppUi.body(context)),
-          onPressed: controller.toggleSearch,
-        ),
+        // A direct thread's most-reached-for action is the call, so it gets
+        // the one icon that is always on screen; the search moved into the
+        // menu, where a thing somebody goes looking for belongs. The house
+        // group has no call — this offers one conversation at a time between
+        // two people, not a room.
+        if (_isDirect)
+          IconButton(
+            tooltip: 'audio_call'.tr,
+            icon: Icon(Icons.call_rounded, color: AppUi.body(context)),
+            onPressed: _startCall,
+          ),
         _buildChatMenu(context),
       ],
+    );
+  }
+
+  /// Rings the other person.
+  ///
+  /// Everything past this belongs to the call service — the screen it opens
+  /// outlives this one, because a call that ended when somebody closed the
+  /// thread would be a call nobody could take out of the thread.
+  Future<void> _startCall() async {
+    final ChatThread thread = controller.thread;
+    final String? peerPhone = thread.peerPhone;
+    final String? conversationId = thread.conversationId;
+    if (peerPhone == null || conversationId == null) return;
+
+    final CallService calls = Get.find<CallService>();
+    if (calls.isBusy) {
+      CustomSnackbar.show(
+        type: SnackbarType.info,
+        message: 'already_in_a_call'.tr,
+      );
+      return;
+    }
+
+    await calls.call(
+      peerPhone: peerPhone,
+      peerName: thread.peerName,
+      peerImage: thread.peerImage,
+      conversationId: conversationId,
     );
   }
 
@@ -498,12 +533,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       tooltip: 'options'.tr,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (value) {
+        if (value == 'search') controller.toggleSearch();
         if (value == 'media') openChatMedia(tag: widget.tag);
         if (value == 'settings') showGroupSettingsSheet(context);
         if (value == 'pinned') _openPinned();
         if (value == 'delete') _confirmDeleteChat();
       },
       itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'search',
+          child: Row(
+            children: [
+              Icon(Icons.search_rounded, size: 19, color: AppUi.muted(context)),
+              const SizedBox(width: 12),
+              Text('search'.tr),
+            ],
+          ),
+        ),
         PopupMenuItem<String>(
           value: 'media',
           child: Row(
@@ -1351,6 +1397,8 @@ class _MessageBubble extends StatelessWidget {
                                         _isAlbum
                                             ? _buildAlbum(context)
                                             : _buildImage(context),
+                                      if (message.isCallLog)
+                                        _buildCallLog(context),
                                       if (message.hasAudio)
                                         VoiceBubble(
                                           id: message.id,
@@ -1691,6 +1739,45 @@ class _MessageBubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  /// What a call left behind: an icon saying which way it went and whether
+  /// anybody picked up, and a line saying how long it ran.
+  ///
+  /// Drawn from the outcome rather than from stored words, so it arrives in
+  /// each reader's own language — and so the arrow points the right way for
+  /// both of them. The same call is one they made and one they missed.
+  Widget _buildCallLog(BuildContext context) {
+    final bool answered = message.callOutcome == 'answered';
+    final Color tone = isMe
+        ? Colors.white
+        : answered
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.error;
+
+    final IconData icon = isMe
+        ? (answered ? Icons.call_made_rounded : Icons.call_missed_outgoing_rounded)
+        : (answered ? Icons.call_received_rounded : Icons.call_missed_rounded);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: tone),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Text(
+            message.callLine,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.3,
+              color: isMe
+                  ? Colors.white
+                  : Theme.of(context).textTheme.bodyLarge?.color,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

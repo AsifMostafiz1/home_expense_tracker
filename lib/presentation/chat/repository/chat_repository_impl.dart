@@ -116,6 +116,8 @@ class ChatRepositoryImpl implements ChatRepository {
     String? audioUrl,
     int? audioMs,
     List<int>? audioWave,
+    String? callOutcome,
+    int? callSeconds,
     String? conversationId,
     String? peerPhone,
     String? action,
@@ -142,6 +144,8 @@ class ChatRepositoryImpl implements ChatRepository {
       audioUrl: audioUrl,
       audioMs: audioMs,
       audioWave: audioWave,
+      callOutcome: callOutcome,
+      callSeconds: callSeconds,
       action: action,
     );
 
@@ -170,6 +174,7 @@ class ChatRepositoryImpl implements ChatRepository {
         'last_at': FieldValue.serverTimestamp(),
         'last_has_image': imageUrl != null,
         'last_has_audio': audioUrl != null,
+        'last_call': callOutcome,
         'updated_at': FieldValue.serverTimestamp(),
         // Merged into the map rather than written as a dotted key: `set`
         // treats a dot in a key as part of the name, `update` would fail on a
@@ -221,6 +226,8 @@ class ChatRepositoryImpl implements ChatRepository {
       'audio_url': FieldValue.delete(),
       'audio_ms': FieldValue.delete(),
       'audio_wave': FieldValue.delete(),
+      'call_outcome': FieldValue.delete(),
+      'call_seconds': FieldValue.delete(),
       'reactions': FieldValue.delete(),
     }));
   }

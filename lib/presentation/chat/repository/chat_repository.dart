@@ -67,6 +67,11 @@ abstract class ChatRepository {
     String? audioUrl,
     int? audioMs,
     List<int>? audioWave,
+
+    /// The line a finished call leaves in the thread — see
+    /// `ChatMessageModel.callOutcome`.
+    String? callOutcome,
+    int? callSeconds,
     String? conversationId,
     String? peerPhone,
 

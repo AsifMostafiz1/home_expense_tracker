@@ -257,6 +257,25 @@ service cloud.firestore {
     /// and rearrange: what stays above the conversation is the house's call,
     /// not an admin's, and the thread itself is untouched either way.
     match /pinned_messages/{messageId} { allow read, write: if client(); }
+
+    /// Voice calls. One document per call, and the network routes the two
+    /// phones post under it while they are finding each other.
+    ///
+    /// Short-lived and disposable: the caller clears the lot once the call is
+    /// over, and what is left of it is the line written into the thread. No
+    /// audio ever passes through here — only the introduction.
+    ///
+    /// Left open to any signed-in client, like the rest of the app. A tighter
+    /// rule would have to check that the writer is one of the two phones on
+    /// the call, and identity here is a claim rather than proof — see the note
+    /// at the top of this file. What is worth knowing: a document under this
+    /// path is readable by anyone who can guess its id, so nothing personal
+    /// goes in one. It holds two phone numbers, two names, and a description
+    /// of what audio codecs the devices speak.
+    match /calls/{callId} {
+      allow read, write: if client();
+      match /{sub=**} { allow read, write: if client(); }
+    }
     match /edit_logs/{logId}      { allow read, write: if client(); }
     match /monthly_bills/{month}  { allow read, write: if client(); }
     match /house_rules/{ruleId}   { allow read, write: if client(); }
@@ -267,6 +286,11 @@ service cloud.firestore {
     match /personal_categories/{id} { allow read, write: if client(); }
     match /personal_category_order/{phone} { allow read, write: if client(); }
     match /personal_subcategories/{id} { allow read, write: if client(); }
+
+    /// A member's own to-do list — see `TaskModel`. Every document carries
+    /// `owner_phone` and is only ever read back filtered by it; private by
+    /// convention, like the personal ledger above, until identity is real.
+    match /tasks/{taskId}         { allow read, write: if client(); }
     match /config/{docId}         { allow read, write: if client(); }
   }
 }

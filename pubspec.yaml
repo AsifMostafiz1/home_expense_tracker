@@ -95,6 +95,12 @@ dependencies:
   # keeps working — see the toolchain notes above.
   record: ^6.2.1
   just_audio: ^0.10.6
+  flutter_webrtc: ^1.6.1
+  # Task reminders are scheduled with `flutter_local_notifications`, whose
+  # `zonedSchedule` takes a zoned date. Already pulled in transitively by that
+  # plugin; named here because the app now imports it directly — see
+  # `TaskReminderService`.
+  timezone: ^0.10.1
 
 dev_dependencies:
   flutter_test:

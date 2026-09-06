@@ -5,7 +5,11 @@ import '../../services/member_avatar_service.dart';
 import '../../services/presence_service.dart';
 import '../../services/push_outbox_service.dart';
 import '../../services/receipt_outbox_service.dart';
+import '../../services/call_service.dart';
 import '../../services/voice_player_service.dart';
+import '../../presentation/call/repository/call_repository.dart';
+import '../../presentation/call/repository/call_repository_impl.dart';
+import '../../presentation/call/repository/chat_call_log.dart';
 import '../../presentation/auth/binding/auth_binding.dart';
 import '../../presentation/meal/binding/meal_binding.dart';
 import '../../presentation/expense/binding/expense_binding.dart';
@@ -57,5 +61,14 @@ class InitialBinding extends Bindings {
     SettingsBinding().dependencies();
     HouseRulesBinding().dependencies();
     PersonalBinding().dependencies();
+
+    // After the chat binding, because a finished call writes its line into a
+    // thread through the chat repository registered there.
+    Get.put<CallRepository>(CallRepositoryImpl(), permanent: true);
+    Get.put<ChatCallLogger>(const ChatCallLog(), permanent: true);
+    Get.put(
+      CallService(repository: Get.find<CallRepository>()),
+      permanent: true,
+    ).init();
   }
 }

@@ -99,6 +99,11 @@ class NotificationRouter {
       case 'chat_message':
         return NotificationDestination.groupThread;
       case 'direct_message':
+      // A missed call opens the conversation it belonged to: by the time
+      // somebody taps the notification the ringing is usually over, and the
+      // line the call left behind is in the thread. If it is still ringing,
+      // the call screen comes up over this on its own.
+      case 'incoming_call':
         return NotificationDestination.directThread;
       case 'announcement':
       case 'meal':

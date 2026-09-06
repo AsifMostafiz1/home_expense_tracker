@@ -87,6 +87,10 @@ class DirectThread {
   /// so without this the row under the name would be blank.
   final bool lastHasAudio;
 
+  /// What became of the last call, when the last thing in the thread was one:
+  /// `answered`, `missed` or `declined`. Null for anything else.
+  final String? lastCall;
+
   /// Unread count per phone number. Bumped for the recipient on every send,
   /// zeroed when they open the thread.
   final Map<String, int> unread;
@@ -105,6 +109,7 @@ class DirectThread {
     this.lastAt,
     this.lastHasImage = false,
     this.lastHasAudio = false,
+    this.lastCall,
     this.unread = const {},
     this.cleared = const {},
   });
@@ -140,6 +145,10 @@ class DirectThread {
   /// What the row under the name shows. A picture with no caption still needs
   /// something to say for itself.
   String get preview {
+    final String? call = lastCall;
+    if (call != null && call.isNotEmpty) {
+      return '📞 ${call == 'missed' ? 'missed_audio_call'.tr : call == 'declined' ? 'call_declined'.tr : 'audio_call'.tr}';
+    }
     if (lastText.trim().isNotEmpty) return lastText.trim();
     if (lastHasAudio) return '🎤 ${'voice_message'.tr}';
     if (lastHasImage) return '📷 ${'photo'.tr}';
@@ -157,6 +166,9 @@ class DirectThread {
       lastAt: (map['last_at'] as Timestamp?)?.toDate(),
       lastHasImage: map['last_has_image'] == true,
       lastHasAudio: map['last_has_audio'] == true,
+      lastCall: (map['last_call'] ?? '').toString().isEmpty
+          ? null
+          : map['last_call'].toString(),
       unread: raw.map((key, value) =>
           MapEntry(key, (value as num?)?.toInt() ?? 0)),
       cleared: <String, DateTime>{

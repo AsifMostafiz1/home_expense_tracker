@@ -57,6 +57,18 @@ class ChatMessageModel {
   /// bar, which is honest about knowing nothing.
   final List<int>? audioWave;
 
+  /// What became of a call, when this message is the line a call left
+  /// behind: `answered`, `missed` or `declined`.
+  ///
+  /// A call is not a message while it is happening — it is a thing two phones
+  /// are doing — but what is left of it belongs in the conversation, the same
+  /// way it does in every other chat app. Rendered from these two fields
+  /// rather than from words, so each reader sees it in their own language.
+  final String? callOutcome;
+
+  /// How long it ran, in seconds. Zero for one nobody answered.
+  final int? callSeconds;
+
   /// Deleted messages are emptied, not removed: replies quote by id, and a
   /// hole in the thread reads worse than a line saying the message went away.
   final bool deleted;
@@ -109,6 +121,8 @@ class ChatMessageModel {
     this.audioUrl,
     this.audioMs,
     this.audioWave,
+    this.callOutcome,
+    this.callSeconds,
     this.deleted = false,
     this.deletedByAdmin = false,
     this.editedAt,
@@ -127,6 +141,12 @@ class ChatMessageModel {
       albumId != null && albumId!.isNotEmpty && (albumCount ?? 1) > 1;
 
   bool get hasAudio => audioUrl != null && audioUrl!.isNotEmpty;
+
+  /// Whether this message is the record of a call rather than something
+  /// somebody wrote.
+  bool get isCallLog => callOutcome != null && callOutcome!.isNotEmpty;
+
+  Duration get callDuration => Duration(seconds: callSeconds ?? 0);
 
   /// How long the voice message runs, or zero for anything that is not one.
   Duration get audioDuration => Duration(milliseconds: audioMs ?? 0);
@@ -151,12 +171,28 @@ class ChatMessageModel {
   /// quoted bubble show. A bare picture has no text to quote, so it says so.
   String get preview {
     if (deleted) return 'message_deleted'.tr;
+    if (isCallLog) return '📞 $callLine';
     if (hasAudio) return '🎤 ${'voice_message'.tr}';
     if (text.trim().isNotEmpty) return text.trim();
     if (isInAlbum) {
       return '📷 ${'photo_count'.trParams({'count': '$albumCount'})}';
     }
     return '📷 ${'photo'.tr}';
+  }
+
+  /// What a call log says in one line, in the reader's own language.
+  String get callLine {
+    switch (callOutcome) {
+      case 'missed':
+        return 'missed_audio_call'.tr;
+      case 'declined':
+        return 'call_declined'.tr;
+      default:
+        final int seconds = callSeconds ?? 0;
+        final String length =
+            '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+        return '${'audio_call'.tr} · $length';
+    }
   }
 
   factory ChatMessageModel.fromMap(
@@ -187,6 +223,10 @@ class ChatMessageModel {
       audioWave: (map['audio_wave'] as List?)
           ?.map((dynamic level) => (level as num).toInt())
           .toList(),
+      callOutcome: (map['call_outcome'] ?? '').toString().isEmpty
+          ? null
+          : map['call_outcome'].toString(),
+      callSeconds: (map['call_seconds'] as num?)?.toInt(),
       deleted: map['deleted'] == true,
       deletedByAdmin: map['deleted_by_admin'] == true,
       editedAt: (map['edited_at'] as Timestamp?)?.toDate(),
@@ -218,6 +258,8 @@ class ChatMessageModel {
       if (audioUrl != null) 'audio_url': audioUrl,
       if (audioMs != null) 'audio_ms': audioMs,
       if (audioWave != null) 'audio_wave': audioWave,
+      if (callOutcome != null) 'call_outcome': callOutcome,
+      if (callSeconds != null) 'call_seconds': callSeconds,
       if (action != null) 'action': action,
       if (reactions != null) 'reactions': reactions,
     };

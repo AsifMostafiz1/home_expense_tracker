@@ -1,12 +1,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- Recording a voice message in the chat. -->
+    <!-- Recording a voice message in the chat, and speaking on a call. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Voice calls: switching between the earpiece and the speaker, and
+         knowing whether there is a network to place one over. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <!-- Saving a chat photo into the gallery. Only up to API 29: from Android
          10 the picture goes through MediaStore, which needs no permission. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
                      android:maxSdkVersion="29"/>
+    <!-- Task reminders are handed to the OS as alarms — see
+         TaskReminderService. The first lets the plugin put them back after a
+         reboot, which otherwise clears every alarm on the device. The second
+         is what makes "1 hour before" mean the exact minute rather than
+         some time in the following window: Android 12 grants it on install,
+         13 and 14 hand it to the user as a switch the app can open the page
+         for, and the reminder falls back to an inexact alarm wherever it is
+         off. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <application
         android:label="MessBook"
         android:name="${applicationName}"
@@ -54,6 +70,24 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_accent" />
+
+        <!-- Scheduled task reminders. The plugin's own manifest declares
+             neither receiver: the first is what the alarm fires into to draw
+             the notification, the second re-arms every pending reminder after
+             a reboot or an app update, both of which clear the alarm table. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

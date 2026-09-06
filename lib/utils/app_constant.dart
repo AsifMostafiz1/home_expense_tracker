@@ -89,6 +89,15 @@ class AppConstant {
   /// can only be pinned once, and unpinning is deleting the document.
   static const String collectionPinnedMessages = 'pinned_messages';
 
+  /// One document per call — the whole of the signalling two phones need to
+  /// find each other. See `CallRepository`.
+  static const String collectionCalls = 'calls';
+
+  /// Where each side posts the network routes it can be reached on, while a
+  /// call is being set up.
+  static const String subcollectionCallerCandidates = 'caller_candidates';
+  static const String subcollectionCalleeCandidates = 'callee_candidates';
+
   /// Subcollections of a direct thread.
   static const String subcollectionMessages = 'messages';
   static const String subcollectionSeen = 'seen';

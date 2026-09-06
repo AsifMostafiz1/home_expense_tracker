@@ -944,6 +944,8 @@ class ChatController extends GetxController implements GetxService {
   bool canEdit(ChatMessageModel message) =>
       !message.deleted &&
       message.id.isNotEmpty &&
+      // Nobody wrote a call log, so there are no words in it to correct.
+      !message.isCallLog &&
       (isAdminUser || (_isMine(message) && _withinWindow(message)));
 
   bool canDelete(ChatMessageModel message) =>
