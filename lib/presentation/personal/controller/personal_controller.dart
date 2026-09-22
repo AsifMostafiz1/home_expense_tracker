@@ -687,6 +687,16 @@ class PersonalController extends GetxController implements GetxService {
     return arranged;
   }
 
+  /// The name an entry's subcategory goes by, or empty when it has none —
+  /// or when the one it pointed at has since been deleted.
+  String subcategoryName(String id) {
+    if (id.isEmpty) return '';
+    for (final Subcategory subcategory in subcategories) {
+      if (subcategory.id == id) return subcategory.name;
+    }
+    return '';
+  }
+
   /// Writes one category's new subcategory arrangement, [ids] first to
   /// last. Optimistic and silent, exactly as [arrangeCategories] is, and
   /// for the same reasons.

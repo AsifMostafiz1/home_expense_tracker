@@ -416,6 +416,16 @@ class _CategoryEntriesSheetState extends State<_CategoryEntriesSheet> {
     PersonalTransaction entry,
     PersonalCategory bucket,
   ) {
+    // With no note of its own, the entry goes by its subcategory before the
+    // category the whole sheet is already about.
+    final String subcategory =
+        Get.find<PersonalController>().subcategoryName(entry.subcategory);
+    final String title = entry.note.isNotEmpty
+        ? entry.note
+        : subcategory.isNotEmpty
+            ? subcategory
+            : bucket.label;
+
     return Row(
       children: [
         Container(
@@ -432,7 +442,7 @@ class _CategoryEntriesSheetState extends State<_CategoryEntriesSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                entry.note.isEmpty ? bucket.label : entry.note,
+                title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

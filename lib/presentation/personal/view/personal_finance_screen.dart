@@ -1161,6 +1161,14 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
     // Paid for the house: shown here because the money was this member's, but
     // the entry belongs to the house screen and is only changed there.
     final bool fromHouse = entry.isFromHouse;
+    // With no note of its own, the subcategory is the most telling name an
+    // entry has; the category is the last resort.
+    final String subcategory = c.subcategoryName(entry.subcategory);
+    final String title = entry.note.isNotEmpty
+        ? entry.note
+        : subcategory.isNotEmpty
+            ? subcategory
+            : category.label;
 
     return Material(
       color: Colors.transparent,
@@ -1192,7 +1200,7 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      entry.note.isEmpty ? category.label : entry.note,
+                      title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1218,7 +1226,9 @@ class _PersonalFinanceScreenState extends State<PersonalFinanceScreen>
                                 fontSize: 11, color: AppUi.muted(context)),
                           ),
                         ),
-                        if (entry.note.isNotEmpty) ...[
+                        // The category still shows under any title that
+                        // is not the category itself.
+                        if (title != category.label) ...[
                           Text(' · ',
                               style: TextStyle(
                                   fontSize: 11, color: AppUi.muted(context))),
