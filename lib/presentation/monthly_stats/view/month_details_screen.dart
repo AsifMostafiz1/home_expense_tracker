@@ -503,6 +503,7 @@ class MonthDetailsScreen extends GetView<MonthDetailsController> {
           MemberCostLedger(
             member: member,
             mealRate: summary.mealRate,
+            otherBreakdown: summary.otherBreakdown,
             // How the rent is divided is the admin's business, and each
             // member's own. It is not everyone's.
             showRentSplit: c.isAdminUser || member.isMe,

@@ -1,3 +1,4 @@
+import '../../expense/model/expense_model.dart';
 import '../../meal/model/meal_stats.dart';
 import '../../member/model/member_model.dart';
 import 'monthly_bill_model.dart';
@@ -27,6 +28,9 @@ class MemberCostSummary {
   final double mealPaid;
   final double otherPaid;
 
+  /// The entries behind [otherPaid], gathered by item, largest first.
+  final List<OtherCostItem> otherPaidItems;
+
   /// Set once the admin has collected this member's share.
   final bool settled;
 
@@ -48,6 +52,7 @@ class MemberCostSummary {
     required this.otherCost,
     required this.mealPaid,
     required this.otherPaid,
+    this.otherPaidItems = const [],
     this.settled = false,
     this.settledAmount = 0,
     this.settledBy = '',
@@ -91,6 +96,10 @@ class MonthCostSummary {
 
   final List<MemberCostSummary> members;
 
+  /// What went into the flat "other" share — the house's non-meal spending
+  /// for the meal month, before it was divided per head.
+  final OtherCostBreakdown otherBreakdown;
+
   const MonthCostSummary({
     required this.month,
     required this.mealMonth,
@@ -99,6 +108,7 @@ class MonthCostSummary {
     required this.otherRate,
     required this.totalMeals,
     required this.members,
+    this.otherBreakdown = const OtherCostBreakdown(),
   });
 
   double get billsTotal =>
@@ -110,8 +120,7 @@ class MonthCostSummary {
   double get subtotal =>
       members.fold(0.0, (sum, member) => sum + member.subtotal);
 
-  double get paidTotal =>
-      members.fold(0.0, (sum, member) => sum + member.paid);
+  double get paidTotal => members.fold(0.0, (sum, member) => sum + member.paid);
 
   /// What the house still has to collect once everyone's own spending is
   /// taken off.
@@ -158,6 +167,9 @@ class MonthCostSummary {
         count: (entry['count'] as num?)?.toInt() ?? 0,
         mealPaid: (entry['expense'] as num?)?.toDouble() ?? 0,
         otherPaid: (entry['other_expense'] as num?)?.toDouble() ?? 0,
+        otherItems: OtherCostItem.group(
+            ((entry['expenses'] as List?) ?? const [])
+                .whereType<ExpenseModel>()),
       );
     }
     // The stats keep the viewer out of `otherUsersMeals` and hand their
@@ -168,6 +180,8 @@ class MonthCostSummary {
         count: stats.myCount,
         mealPaid: stats.myExpense,
         otherPaid: stats.myOtherExpense,
+        otherItems:
+            OtherCostItem.group(stats.myExpenses.whereType<ExpenseModel>()),
       );
     }
 
@@ -206,6 +220,7 @@ class MonthCostSummary {
         otherCost: otherRate,
         mealPaid: meals?.mealPaid ?? 0,
         otherPaid: meals?.otherPaid ?? 0,
+        otherPaidItems: meals?.otherItems ?? const [],
         settled: settlement != null,
         settledAmount: settlement?.amount ?? 0,
         settledBy: settlement?.by ?? '',
@@ -274,7 +289,70 @@ class MonthCostSummary {
       otherRate: otherRate,
       totalMeals: stats.totalCount,
       members: rows,
+      otherBreakdown: OtherCostBreakdown.fromStats(stats),
     );
+  }
+}
+
+/// The house's "other" spending for one meal month, gathered by item so the
+/// flat per-head charge can say what it paid for.
+class OtherCostBreakdown {
+  final double total;
+
+  /// The heads the total was divided between — the same count the rate uses.
+  final int headCount;
+
+  /// One line per item name, largest first. Entries typed with the same name
+  /// in any case are one item.
+  final List<OtherCostItem> items;
+
+  const OtherCostBreakdown({
+    this.total = 0,
+    this.headCount = 0,
+    this.items = const [],
+  });
+
+  bool get isEmpty => items.isEmpty;
+
+  factory OtherCostBreakdown.fromStats(MealStats stats) {
+    // The viewer's entries come back on their own; everyone else's ride on
+    // their row in `otherUsersMeals`.
+    final List<ExpenseModel> entries = [
+      ...stats.myExpenses.whereType<ExpenseModel>(),
+      for (final Map<String, dynamic> row in stats.otherUsersMeals)
+        ...((row['expenses'] as List?) ?? const []).whereType<ExpenseModel>(),
+    ];
+
+    return OtherCostBreakdown(
+      total: stats.totalOtherExpense,
+      headCount: stats.userCount,
+      items: OtherCostItem.group(entries),
+    );
+  }
+}
+
+class OtherCostItem {
+  /// As it was typed — empty for an entry saved without a description.
+  final String name;
+  final double amount;
+
+  const OtherCostItem({required this.name, required this.amount});
+
+  /// The "other" entries among [entries], one line per item name — the same
+  /// name in any case is one item — largest first. Meal bazar is left out.
+  static List<OtherCostItem> group(Iterable<ExpenseModel> entries) {
+    final Map<String, OtherCostItem> byName = {};
+    for (final ExpenseModel entry in entries) {
+      if (entry.type == 'expense') continue;
+      final String name = entry.description.trim();
+      final String key = name.toLowerCase();
+      final OtherCostItem? seen = byName[key];
+      byName[key] = OtherCostItem(
+        name: seen?.name ?? name,
+        amount: (seen?.amount ?? 0) + entry.amount,
+      );
+    }
+    return byName.values.toList()..sort((a, b) => b.amount.compareTo(a.amount));
   }
 }
 
@@ -283,11 +361,13 @@ class _MealFigures {
   final int count;
   final double mealPaid;
   final double otherPaid;
+  final List<OtherCostItem> otherItems;
 
   const _MealFigures({
     required this.name,
     required this.count,
     required this.mealPaid,
     required this.otherPaid,
+    this.otherItems = const [],
   });
 }

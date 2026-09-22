@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../utils/app_ui.dart';
 import '../model/month_cost_summary.dart';
+import '../model/monthly_bill_model.dart';
 
 /// One member's month as a receipt: what is charged, what they already
 /// covered, and the one line that survives the subtraction.
@@ -22,12 +23,26 @@ class MemberCostLedger extends StatelessWidget {
   /// the ledger is read on its own; noise in a list of many members.
   final bool showSharedHint;
 
+  /// What the flat other cost was made of. Null or empty leaves the line
+  /// bare, as it always was.
+  final OtherCostBreakdown? otherBreakdown;
+
+  /// The month's bill, read by the shared hint to name what the shared half
+  /// was actually made of. Without it the hint falls back to the general
+  /// sentence.
+  final MonthlyBillModel? bill;
+
+  /// How many items a line names before the rest become a count.
+  static const int _itemsShown = 4;
+
   const MemberCostLedger({
     super.key,
     required this.member,
     required this.mealRate,
     this.showRentSplit = true,
     this.showSharedHint = false,
+    this.otherBreakdown,
+    this.bill,
   });
 
   @override
@@ -67,6 +82,8 @@ class MemberCostLedger extends StatelessWidget {
           context,
           sign: '+',
           label: 'other_cost'.tr,
+          note: _otherSplit(),
+          detail: _itemsLine(context, otherBreakdown?.items ?? const []),
           value: member.otherCost,
         ),
 
@@ -91,6 +108,7 @@ class MemberCostLedger extends StatelessWidget {
           context,
           sign: '−',
           label: 'other_paid'.tr,
+          detail: _itemsLine(context, member.otherPaidItems, credit: true),
           value: member.otherPaid,
           credit: true,
         ),
@@ -108,6 +126,7 @@ class MemberCostLedger extends StatelessWidget {
     required String label,
     required double value,
     String? note,
+    Widget? detail,
     bool credit = false,
     bool emphasis = false,
   }) {
@@ -158,6 +177,10 @@ class MemberCostLedger extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (detail != null) ...[
+                  const SizedBox(height: 2),
+                  detail,
+                ],
               ],
             ),
           ),
@@ -176,19 +199,137 @@ class MemberCostLedger extends StatelessWidget {
     );
   }
 
-  /// Names what the shared half covers, so the figure is not a bare number
-  /// someone has to ask about.
-  Widget _sharedHint(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(left: 16, right: 8, bottom: 4),
-        child: Text(
-          'shared_bills_include'.tr,
-          style: TextStyle(
-            fontSize: 10.5,
-            height: 1.35,
-            color: AppUi.muted(context),
+  /// The house total and the heads it was split between — the sum behind
+  /// the flat figure, the way the meal line shows its multiplication.
+  String? _otherSplit() {
+    final OtherCostBreakdown? breakdown = otherBreakdown;
+    if (breakdown == null || breakdown.isEmpty || breakdown.headCount == 0) {
+      return null;
+    }
+    return 'total_split_members'.trParams({
+      'total': AppUi.amount(breakdown.total),
+      'count': '${breakdown.headCount}',
+    });
+  }
+
+  /// A list of items, largest first; past a handful they are counted
+  /// rather than named, so the line stays a summary. Null when empty.
+  Widget? _itemsLine(
+    BuildContext context,
+    List<OtherCostItem> items, {
+    bool credit = false,
+  }) {
+    if (items.isEmpty) return null;
+
+    final int rest = items.length - _itemsShown;
+    return _itemsText(
+      context,
+      [
+        for (final OtherCostItem item in items.take(_itemsShown))
+          (
+            item.name.isEmpty ? 'untitled_item'.tr : item.name,
+            item.amount,
           ),
-        ),
-      );
+      ],
+      credit: credit,
+      trailing: rest > 0 ? 'and_more_rows'.trParams({'count': '$rest'}) : null,
+      maxLines: 2,
+    );
+  }
+
+  /// Names what the shared half covers, so the figure is not a bare number
+  /// someone has to ask about — this month's own bills, item by item, each
+  /// at the one member's share of it.
+  Widget _sharedHint(BuildContext context) {
+    final List<(String, double)> items = _sharedItems();
+    final TextStyle muted = TextStyle(
+      fontSize: 10.5,
+      height: 1.35,
+      color: AppUi.muted(context),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 8, bottom: 4),
+      child: items.isEmpty
+          ? Text('shared_bills_include'.tr, style: muted)
+          : _itemsText(
+              context,
+              items,
+              leading: 'shared_bills_include_prefix'.tr,
+              amountFirst: true,
+            ),
+    );
+  }
+
+  /// The bill's shared lines that carry an amount, in the order the bill
+  /// form asks for them, each divided down to one member's share. The
+  /// free-form cost goes by its note when it has one.
+  List<(String, double)> _sharedItems() {
+    final MonthlyBillModel? month = bill;
+    if (month == null || month.sharedTotal <= 0 || month.memberCount == 0) {
+      return const [];
+    }
+
+    final String otherLabel = month.otherNote.trim().isEmpty
+        ? 'other_costs'.tr
+        : month.otherNote.trim();
+    final List<(String, double)> lines = [
+      ('water_bill'.tr, month.waterBill),
+      ('security_bill'.tr, month.securityBill),
+      ('electricity_bill'.tr, month.electricityBill),
+      ('cleaning_bill'.tr, month.cleaningBill),
+      ('wifi_bill'.tr, month.wifiBill),
+      (otherLabel, month.otherCost),
+    ];
+
+    return [
+      for (final (String label, double amount) in lines)
+        if (amount > 0) (label, amount / month.memberCount),
+    ];
+  }
+
+  /// Items as one flowing line, the amounts picked out in colour so each
+  /// figure can be found at a glance among the muted names — teal on the
+  /// paid side, as the row's own figure is.
+  Widget _itemsText(
+    BuildContext context,
+    List<(String, double)> items, {
+    String? leading,
+    String? trailing,
+    bool amountFirst = false,
+    bool credit = false,
+    int? maxLines,
+  }) {
+    final TextStyle muted = TextStyle(
+      fontSize: 10.5,
+      height: 1.35,
+      color: AppUi.muted(context),
+    );
+    final TextStyle figure = muted.copyWith(
+      fontWeight: FontWeight.w700,
+      color: AppUi.accent(context, credit ? Colors.teal : Colors.indigo),
+    );
+
+    final List<InlineSpan> spans = [
+      if (leading != null) TextSpan(text: '$leading '),
+    ];
+    for (int i = 0; i < items.length; i++) {
+      final (String label, double amount) = items[i];
+      if (i > 0) spans.add(const TextSpan(text: ' · '));
+      final TextSpan value =
+          TextSpan(text: AppUi.amount(amount), style: figure);
+      spans.addAll(amountFirst
+          ? [value, TextSpan(text: ' $label')]
+          : [TextSpan(text: '$label '), value]);
+    }
+    if (trailing != null) spans.add(TextSpan(text: ' · $trailing'));
+
+    return Text.rich(
+      TextSpan(style: muted, children: spans),
+      maxLines: maxLines,
+      overflow: maxLines == null ? null : TextOverflow.ellipsis,
+    );
+  }
 
   /// Ruled under the charges, the way a bill is added up on paper — indented
   /// past the sign column so it lines up with the numbers it totals.

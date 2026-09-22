@@ -315,6 +315,8 @@ void showMyBreakdownSheet(
                     MemberCostLedger(
                       member: member,
                       mealRate: summary.mealRate,
+                      otherBreakdown: summary.otherBreakdown,
+                      bill: summary.bill,
                       showSharedHint: true,
                     ),
                     const SizedBox(height: 14),

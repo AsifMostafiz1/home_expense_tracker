@@ -2,7 +2,7 @@ class AppConstant {
   static const String appName = 'MessBook';
   /// Status-bar tint for notifications; the launcher gradient's start colour.
   static const int notificationAccent = 0xFF5B4BF0;
-  static const double appVersion = 1.2;
+  static const double appVersion = 1.3;
   
   // Shared Preferences Keys
   static const String keyIsLoggedIn = 'isLoggedIn';

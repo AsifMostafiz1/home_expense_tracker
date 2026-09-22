@@ -799,6 +799,9 @@ class AppTranslations extends Translations {
           'shared_bills_include':
               'Shared bills include wifi, electricity, water and cleaning.',
           'meals_times_rate': '@count meals × @rate',
+          'total_split_members': '@total ÷ @count members',
+          'shared_bills_include_prefix': 'Shared bills include:',
+          'untitled_item': 'Untitled',
           'mark_collected': 'Mark as collected',
           'collected_amount': '@amount collected',
           'collected_by': 'Collected by @name',
@@ -1949,6 +1952,9 @@ class AppTranslations extends Translations {
           'shared_bills_include':
               'ভাগের বিলে ওয়াইফাই, বিদ্যুৎ, পানি ও ক্লিনিং ধরা আছে।',
           'meals_times_rate': '@count মিল × @rate',
+          'total_split_members': '@total ÷ @count জন সদস্য',
+          'shared_bills_include_prefix': 'ভাগের বিলে আছে:',
+          'untitled_item': 'নামহীন',
           'mark_collected': 'সংগ্রহ হয়েছে',
           'collected_amount': '@amount সংগ্রহ হয়েছে',
           'collected_by': '@name সংগ্রহ করেছেন',
