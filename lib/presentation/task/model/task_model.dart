@@ -373,6 +373,19 @@ class TaskModel {
   /// could land on another task's.
   int get followUpNotificationId => _alarmId('$id:follow_up');
 
+  /// The ringing alarm's own id — see [alarmAt].
+  int get alarmNotificationId => _alarmId('$id:alarm');
+
+  /// Where a snoozed alarm goes back in. One per task, so snoozing twice
+  /// moves the one alarm rather than stacking a second beside it.
+  int get snoozeNotificationId => _alarmId('$id:snooze');
+
+  /// When the alarm rings, on a phone that has task alarms switched on: the
+  /// hour itself, for a task that has one and asked to be reminded. A task
+  /// with only a day has no moment to ring at, and one set to "no reminder"
+  /// asked for silence.
+  DateTime? get alarmAt => hasTime && hasReminder ? dueAt : null;
+
   static int _alarmId(String name) {
     int hash = 0x811C9DC5;
     for (final int unit in name.codeUnits) {

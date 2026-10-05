@@ -13,6 +13,7 @@ import '../../../utils/app_ui.dart';
 import '../controller/task_controller.dart';
 import '../model/task_digest.dart';
 import '../model/task_model.dart';
+import '../widgets/task_alarm_settings_sheet.dart';
 import '../widgets/task_editor_sheet.dart';
 import '../widgets/task_labels.dart';
 import '../widgets/task_progress_ring.dart';
@@ -167,12 +168,28 @@ class _TaskScreenState extends State<TaskScreen> {
           case 'test':
             c.sendTestReminder();
             break;
+          case 'alarm':
+            showTaskAlarmSettingsSheet();
+            break;
           case 'clear':
             _confirmClearCompleted(context, c);
             break;
         }
       },
       itemBuilder: (_) => [
+        // Ringing alarms are Android's alone — see TaskAlarmMode.
+        if (!kIsWeb && GetPlatform.isAndroid)
+          PopupMenuItem<String>(
+            value: 'alarm',
+            child: Row(
+              children: [
+                Icon(Icons.alarm_rounded,
+                    size: 19, color: AppUi.muted(context)),
+                const SizedBox(width: 12),
+                Text('task_alarm'.tr),
+              ],
+            ),
+          ),
         if (!kIsWeb)
           PopupMenuItem<String>(
             value: 'test',

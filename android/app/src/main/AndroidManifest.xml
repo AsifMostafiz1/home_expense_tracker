@@ -23,6 +23,12 @@
          off. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <!-- Task alarms: a ringing alarm comes up over the lock screen and wakes
+         the screen, the way the clock's does — see MainActivity. Android 14
+         leaves this to a user switch for apps that are not a clock or a
+         phone; the alarm still rings as a heads-up notification without it. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
     <application
         android:label="MessBook"
         android:name="${applicationName}"
@@ -78,6 +84,10 @@
         <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <!-- The stop and snooze buttons on a ringing task alarm. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
         <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">

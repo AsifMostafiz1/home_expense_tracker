@@ -17,6 +17,7 @@ import 'fcm_v1_service.dart';
 import 'notification_avatar.dart';
 import 'notification_router.dart';
 import 'notification_tray.dart';
+import 'task_reminder_service.dart';
 
 /// Raises the tray notification for [message], if this device should see it.
 ///
@@ -354,6 +355,9 @@ class PushNotificationService {
           _handleNotificationClick(data);
         }
       },
+      // The snooze button on a ringing task alarm, pressed without the app
+      // open — see TaskReminderService.
+      onDidReceiveBackgroundNotificationResponse: taskAlarmBackgroundAction,
     );
 
     // 2. Create Android channel FIRST (before requesting permission)

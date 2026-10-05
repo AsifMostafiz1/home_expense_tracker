@@ -694,6 +694,47 @@ void planTests() {
       expect(TaskReminderService.select([allDay], now: now), isEmpty);
     });
 
+    /// With alarms on, a task with an hour and a reminder also rings at the
+    /// hour itself — and a reminder set for that same minute gives way.
+    test('an alarm rings at the hour when alarms are on', () {
+      final TaskModel t = TaskModel(
+        id: 'bill',
+        title: 'Bill',
+        date: '2026-09-05',
+        hasTime: true,
+        timeHour: 16,
+        reminderMinutes: 30,
+      );
+      expect(TaskReminderService.select([t], now: now).map((a) => a.kind),
+          [TaskAlarmKind.reminder]);
+
+      final List<TaskAlarm> picked =
+          TaskReminderService.select([t], now: now, alarms: true);
+      expect(picked.map((a) => a.kind),
+          [TaskAlarmKind.reminder, TaskAlarmKind.alarm]);
+      expect(picked[1].at, DateTime(2026, 9, 5, 16, 0));
+      expect(picked[1].id, t.alarmNotificationId);
+      expect(TaskReminderText.bodyFor(picked[1], bengali: false),
+          'Time to do it — 4:00 PM');
+
+      // "At the time itself": the alarm alone, not a banner on top of it.
+      final TaskModel atTime = t.copyWith(reminderMinutes: 0);
+      expect(
+          TaskReminderService.select([atTime], now: now, alarms: true)
+              .map((a) => a.kind),
+          [TaskAlarmKind.alarm]);
+
+      // No reminder asked for, or no hour to ring at: no alarm either.
+      final TaskModel silent = t.copyWith(clearReminder: true);
+      expect(TaskReminderService.select([silent], now: now, alarms: true),
+          isEmpty);
+      final TaskModel allDay = t.copyWith(hasTime: false);
+      expect(
+          TaskReminderService.select([allDay], now: now, alarms: true)
+              .where((a) => a.kind == TaskAlarmKind.alarm),
+          isEmpty);
+    });
+
     test('the follow-up says the task is still open and when it was due', () {
       final TaskModel t = TaskModel(
         id: 'bill',

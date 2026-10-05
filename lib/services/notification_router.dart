@@ -16,10 +16,12 @@ import '../presentation/house_rules/widgets/house_rules_gate.dart';
 import '../presentation/monthly_stats/controller/monthly_stats_controller.dart';
 import '../presentation/monthly_stats/view/monthly_stats_screen.dart';
 import '../presentation/splash/view/splash_screen.dart';
+import '../presentation/task/view/task_alarm_screen.dart';
 import '../presentation/task/view/task_screen.dart';
 import '../utils/app_constant.dart';
 import '../utils/user_session.dart';
 import 'home_refresh.dart';
+import 'task_reminder_service.dart';
 
 /// Where a tapped notification lands.
 ///
@@ -172,6 +174,13 @@ class NotificationRouter {
     } catch (e) {
       // A tap that cannot be routed must still leave the app usable.
       debugPrint('NotificationRouter: could not open ${data['type']} — $e');
+    } finally {
+      // An alarm let the app over the lock screen for its own screen. If that
+      // screen did not come up — the tap was dropped, or nobody is signed
+      // in — the lock screen goes back to the lock now.
+      if (data['kind'] == 'alarm' && !TaskAlarmScreen.isOpen) {
+        unawaited(TaskReminderService.releaseLockScreen());
+      }
     }
   }
 
@@ -261,6 +270,11 @@ class NotificationRouter {
         await _push(() => TaskScreen(
               highlightTaskId: taskId.isEmpty ? null : taskId,
             ));
+        // A ringing alarm opens its own screen over the list — stop, snooze
+        // or done — and stopping it lands on the task it was for.
+        if (data['kind'] == 'alarm' && !TaskAlarmScreen.isOpen) {
+          await _push(() => TaskAlarmScreen(data: data));
+        }
         break;
 
       case NotificationDestination.monthlyBill:

@@ -72,6 +72,10 @@ class AppConstant {
   /// closed. Asked once; the switch is still in the system settings.
   static const String keyExactAlarmHintDismissed = 'exactAlarmHintDismissed';
 
+  /// How a task alarm rings on this phone — a `TaskAlarmMode` name. Per
+  /// device rather than per account: the sound is the phone's business.
+  static const String keyTaskAlarmMode = 'taskAlarmMode';
+
 
   // Firestore Collection Names
   static const String collectionUsers = 'users';

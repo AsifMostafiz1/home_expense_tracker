@@ -56,6 +56,16 @@ class TaskController extends GetxController implements GetxService {
 
   bool isSendingTest = false;
 
+  /// How a task rings at its hour on this phone — see [TaskAlarmMode].
+  TaskAlarmMode alarmMode = TaskAlarmMode.ringAndVibrate;
+
+  /// Whether a ringing alarm may come up over the lock screen — see
+  /// `TaskReminderService.fullScreenAllowed`. True until Android says
+  /// otherwise.
+  bool fullScreenAllowed = true;
+
+  bool isSendingTestAlarm = false;
+
   /// Snapshots arrive in bursts — the local echo, then the server's, then a
   /// metadata-only one — and each would otherwise read the pending list.
   Timer? _reconcileDebounce;
@@ -145,6 +155,8 @@ class TaskController extends GetxController implements GetxService {
     userPhone = prefs.getString(AppConstant.keyUserPhone) ?? '';
     exactAlarmHintDismissed =
         prefs.getBool(AppConstant.keyExactAlarmHintDismissed) ?? false;
+    alarmMode =
+        TaskAlarmMode.parse(prefs.getString(AppConstant.keyTaskAlarmMode));
 
     if (userPhone.isEmpty) {
       isLoading = false;
@@ -270,9 +282,15 @@ class TaskController extends GetxController implements GetxService {
   Future<void> _readExactAlarms() async {
     final bool allowed = await TaskReminderService.exactAlarmsAllowed();
     final bool enabled = await TaskReminderService.notificationsEnabled();
-    if (allowed == exactAlarmsAllowed && enabled == notificationsEnabled) return;
+    final bool fullScreen = await TaskReminderService.fullScreenAllowed();
+    if (allowed == exactAlarmsAllowed &&
+        enabled == notificationsEnabled &&
+        fullScreen == fullScreenAllowed) {
+      return;
+    }
     exactAlarmsAllowed = allowed;
     notificationsEnabled = enabled;
+    fullScreenAllowed = fullScreen;
     update();
   }
 
@@ -324,8 +342,53 @@ class TaskController extends GetxController implements GetxService {
   /// wanted" and take down every alarm the phone holds.
   Future<void> _reconcileReminders() {
     if (!hasLoaded) return Future<void>.value();
-    return TaskReminderService.reconcile(tasks, bengali: languageCode == 'bn');
+    return TaskReminderService.reconcile(
+      tasks,
+      bengali: languageCode == 'bn',
+      alarmMode: alarmMode,
+    );
   }
+
+  /// Switches how tasks ring on this phone, and re-arms every alarm to match
+  /// — the mode is part of what an alarm is compared against, so the
+  /// ordinary reconcile does it.
+  Future<void> setAlarmMode(TaskAlarmMode mode) async {
+    if (alarmMode == mode) return;
+    alarmMode = mode;
+    update();
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString(AppConstant.keyTaskAlarmMode, mode.name);
+    } catch (e) {
+      debugPrint('Tasks: could not remember the alarm mode — $e');
+    }
+    await _reconcileReminders();
+  }
+
+  /// An alarm ten seconds out, ringing the way [alarmMode] says — or the full
+  /// alarm while it is off, so there is something to hear.
+  Future<void> sendTestAlarm() async {
+    if (isSendingTestAlarm) return;
+    try {
+      isSendingTestAlarm = true;
+      update();
+      await TaskReminderService.sendTestAlarm(
+          mode: alarmMode, bengali: languageCode == 'bn');
+      CustomSnackbar.show(
+          type: SnackbarType.success, message: 'test_alarm_sent'.tr);
+    } catch (e) {
+      debugPrint('Tasks: test alarm failed — $e');
+      CustomSnackbar.show(
+          type: SnackbarType.error, message: 'failed_test_alarm'.tr);
+    } finally {
+      isSendingTestAlarm = false;
+      update();
+    }
+  }
+
+  /// Opens the system switch that lets an alarm over the lock screen, and
+  /// reads it again once the member is back — see [onResumed].
+  Future<void> requestFullScreen() => TaskReminderService.requestFullScreen();
 
   /// Takes the account's controller down, if it has been built.
   ///
